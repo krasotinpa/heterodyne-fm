@@ -59,6 +59,7 @@ Space хранит документы и архив. Это область по�
 | [g4-4-windows-plan.md](docs/plans/g4-4-windows-plan.md) | План G4-4: две отправки BAND |
 | [g4-4-report.md](docs/research/g4-4-report.md) | G4-4: BAND переключил AM → FM 90.5 МГц → AM |
 | [g4-5-windows-plan.md](docs/plans/g4-5-windows-plan.md) | План G4-5: шаг частоты в FM |
+| [g4-5-report.md](docs/research/g4-5-report.md) | G4-5: шаг в FM 90.5 ↔ 90.6 МГц |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
