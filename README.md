@@ -43,6 +43,9 @@ Space хранит документы и архив. Это область по�
 | [capture-analysis.json](evidence/capture-analysis.json) | Смещения и байты кандидатов |
 | [super-radio-com5.bin](evidence/super-radio-com5.bin) | Неизменённый исходный захват |
 | [provenance.md](evidence/provenance.md) | Происхождение доказательств |
+| [capture-method.md](evidence/capture-method.md) | Как владелец записал исходный захват |
+| [g1-windows-plan.md](docs/plans/g1-windows-plan.md) | План G1 для Windows-агента |
+| [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
 ## Ограничения

@@ -12,6 +12,14 @@ User показывал RX и settings 115200 8N1, DTR/RTS false.
 Дата записи, method, timestamps и read boundaries не включены.
 Разрывы/объединение фрагментов не установлены.
 
+Метод записи описан владельцем в [capture-method.md](capture-method.md): PowerShell `SerialPort`, около 30 секунд, без `Write`.
+В публичной копии серийник модуля, имя компьютера и имя пользователя заменены на `<redacted-…>`.
+Неизменённый оригинал хранится локально: `raw/capture-method.original.md`, SHA-256 `2714b177d53076d25d3edb2f619970fd80d5e6d9086d00e46bc15117306f1832`.
+
+Расхождения capture-method.md с правилами проекта:
+1. «104 полных кадра» — это 104 кандидата, а не доказанное число пакетов.
+2. Модель `SEQ (+2) | LEN (+3..+4, big-endian)` — одна из двух конкурирующих гипотез, см. H02/H05 в [hardware-protocol-notes.md](../docs/research/hardware-protocol-notes.md).
+
 Проверка в PowerShell из перенесённого каталога:
 
 ```powershell
