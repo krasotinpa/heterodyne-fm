@@ -1,0 +1,80 @@
+# План исследования
+
+Read-only начало — offline анализ сохранённых файлов, без прикладных команд радио.
+USB enumeration/descriptors создают стандартный USB-трафик. COM open может менять состояние.
+Живые операции выполняй по [SAFE_CAPTURE_GUIDE.md](SAFE_CAPTURE_GUIDE.md).
+
+## Контрольные точки
+
+| Gate | Работа | Артефакт | Переход |
+|---|---|---|---|
+| G0 | Проверить raw и происхождение | Hash, offsets, гипотезы | Повторяемый offline анализ |
+| G1 | Полные дескрипторы | USBView, interface/endpoint map | Все alternates, IAD и CDC связи перечислены |
+| G2 | Проверка конкретного ГУ | API/build/ABI, ports, permission, audio | APK устанавливается, host видит USB, permission работает либо blocker доказан |
+| G3 | Штатные correlated traces | TX/RX pcapng и action log | Baseline и минимум три повторения отдельных действий |
+| G4 | Проверка известных команд | Command catalog | Whitelist воспроизводит tune/band/seek безопасно |
+| G5 | Windows/Android prototype | Одинаковые TX/RX результаты | Confirmed tune, timeout и reconnect устойчивы |
+| G6 | Audio path | Route report и слышимый приём | Реальное радио звучит на ГУ |
+| G7 | UI/MVP | Матрица R01–R18 | Control/audio доказаны, неизвестные capabilities отключены |
+
+G2 допускается параллельно offline анализу. G6 начинают исследовать на G1/G2.
+Полноценный UI начинается после G5/G6.
+
+```text
+G0 → G1 → G3 → G4 → G5 ─┐
+      └→ G2 → audio G6 ─┴→ G7
+```
+
+## G0
+
+1. Проверь SHA-256 и размер исходника.
+2. Независимо воспроизведи offsets, length formula и zero sum.
+3. Отметь переходы +2/+3 и ограниченную вариативность.
+4. Предложи эксперименты, способные опровергнуть H01–H07.
+5. Сохрани отчёт с измерениями, без придуманных command semantics.
+
+## G1 и G2
+
+1. Собери USBView, PnP bindings и audio inventory.
+2. Запиши interface number/class/subclass/protocol/alternate/endpoints.
+3. Запиши ГУ model, API/build/ABI, screen, sideload и доступность ADB.
+4. Проверь каждый USB-порт, permission denial и replug.
+5. Проверь USB audio и actual route.
+
+Диагностический APK не отправляет radio TX.
+При host blocker сохрани port, power, кабель, UsbManager result и повторную проверку.
+Не обещай совместимость до испытания.
+
+## G3
+
+1. Получи официальный APK и, если существует, Windows-приложение/SDK/документацию; запиши source, version, hash и licence.
+2. Выбери метод захвата для фактического host. USBPcap предназначен для Windows, не для Android APK.
+3. На Android используй доступные SDK/app logs либо разрешённый аппаратный USB-анализатор без root.
+4. Запиши attach/start baseline без действий.
+5. Меняй одну вещь за сеанс: band, tune, seek, stop или mute.
+6. Повтори каждое действие три раза и сохрани timestamps.
+7. Раздели URB submit/completion и прикладные данные.
+8. Сравни с сеансом без действия.
+
+Наблюдение startup sequence не разрешает его replay.
+При отсутствии приложения или доступного метода trace G3 blocked; запроси documented commands/SDK. Не перебирай opcode.
+
+## G4
+
+Whitelist — перечень известных разрешённых команд. Начальный whitelist пуст.
+Каталог хранит direction, endpoint, hex template, parameters/ranges, response, timeout, side effects и evidence.
+Первый replay выполняется на Windows, по одной команде, без auto retry.
+RX checksum не определяет TX encoding.
+Подтверждение требует ответа и физического результата, а не только successful write.
+
+## G5 и G6
+
+1. Реализуй Windows prototype для whitelist.
+2. Повтори minimal control на Android.
+3. Сверь actual TX/RX и confirmed frequency.
+4. Установи audio backend и runtime permission.
+5. Проверь focus, route, detach и реальный FM/AM приём.
+6. Запиши результат именно целевого ГУ отдельно от телефона/эмулятора.
+
+Если этап blocked, укажи точное препятствие и продолжай независимую offline работу.
+До живого этапа нужны дескрипторы, сведения ГУ и доступ к устройству.
