@@ -241,6 +241,31 @@ class G42Evidence(unittest.TestCase):
         self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (5724, False))
 
 
+class G43Evidence(unittest.TestCase):
+    """G4-3: requestAllInfo at rx 2016, TUNEDOWN at 2678, requestAllInfo at 3277 (tx-begin in g4-3-reads.csv)."""
+
+    DIR = ROOT / "evidence" / "g4-3-20261014T191717Z"
+
+    def test_tunedown_returns_the_am_station_by_one_cid(self):
+        data = (self.DIR / "g4-3-rx.bin").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         "4d99268d30770842e0f42e7047cf392164e88b3790369dffbdda9cb1e2eeb844")
+        frames = parse_frames(data)["frames"]
+        bodies = [bytes.fromhex(next(x for x in frames if x["offset"] >= o and x["type"] == "0x22")["body"])
+                  for o in (0, 2016, 2678, 3277)]
+        self.assertEqual([b[1:3] for b in bodies], [b"\x00\x39", b"\x00\x39", b"\x00\x3a", b"\x00\x3a"])
+        self.assertEqual([b" 1044 KHz" in b for b in bodies], [False, False, True, True])
+        # Frame offsets +30 and +50 are body indices 25 and 45; their meaning is unknown.
+        self.assertEqual([(b[25], b[45]) for b in bodies], [(0x16, 0xae), (0x00, 0xae), (0x00, 0x00), (0x16, 0xae)])
+
+    def test_trace_summary_shows_three_sends(self):
+        import json
+        usb = json.loads((self.DIR / "g4-3-analysis.json").read_text())["usb"]
+        self.assertEqual([p["data"] for p in usb["bulk_out"]],
+                         ["fa 55 00 00 04 80 85 07 f4", "fa 55 01 00 03 80 89 f7", "fa 55 02 00 04 80 85 07 f4"])
+        self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (5579, False))
+
+
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
 

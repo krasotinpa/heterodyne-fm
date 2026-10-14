@@ -55,6 +55,7 @@ Space хранит документы и архив. Это область по�
 | [g4-2-windows-plan.md](docs/plans/g4-2-windows-plan.md) | План G4-2: одна отправка TUNEUP |
 | [g4-2-report.md](docs/research/g4-2-report.md) | G4-2: TUNEUP понизил частоту 1044 → 1035 кГц |
 | [g4-3-windows-plan.md](docs/plans/g4-3-windows-plan.md) | План G4-3: одна отправка TUNEDOWN |
+| [g4-3-report.md](docs/research/g4-3-report.md) | G4-3: TUNEDOWN вернул частоту 1035 → 1044 кГц |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 

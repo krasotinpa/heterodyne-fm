@@ -1,2 +1,4 @@
 * text=auto eol=lf
 *.bin binary
+# Windows-agent result files keep their CRLF bytes so SHA-256 matches raw/.
+evidence/**/*-exit.txt -text
