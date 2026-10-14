@@ -1,0 +1,20 @@
+- 2026-10-14T16:26:03Z | step0: create session dir | \\wsl.localhost\Ubuntu\home\user\sources\super-radio-android\raw\g1\20261014T162603Z | exit=True
+- 2026-10-14T16:26:16Z | step1: Win32_OperatingSystem, PSVersionTable, usbview VersionInfo | 00-environment.txt | exit=True
+- 2026-10-14T16:26:19Z | step2: Get-PnpDevice AudioEndpoint,MEDIA | 01-audio-before.txt | exit=True
+- 2026-10-14T16:26:21Z | step3: Get-PnpDevice Ports + SERIALCOMM (read only) | 02-com-before.txt | exit=True
+- 2026-10-14T16:26:34Z | note step3: Get-PnpDevice -Class Ports returned CIM "not found" error (no Ports-class devices present on this PC); SERIALCOMM key absent. Both mean: no COM ports before connect. Module (VID_0483&PID_5740) not present before connect. | 02-com-before.txt | exit=n/a
+- 2026-10-14T16:30:14Z | step4: user confirmed Module connected; waiting 10 s | - | exit=n/a
+- 2026-10-14T16:30:25Z | step5: Get-PnpDevice VID_0483&PID_5740 (found 3) | 03-pnp-devices.txt | exit=True
+- 2026-10-14T16:30:26Z | step6: Get-PnpDeviceProperty USB\VID_0483&PID_5740\<redacted-serial> | 04-props-1.txt | exit=True
+- 2026-10-14T16:30:27Z | step6: Get-PnpDeviceProperty USB\VID_0483&PID_5740&MI_02\6&B2D5A34&0&0002 | 04-props-2.txt | exit=True
+- 2026-10-14T16:30:27Z | step6: Get-PnpDeviceProperty USB\VID_0483&PID_5740&MI_00\6&B2D5A34&0&0000 | 04-props-3.txt | exit=True
+- 2026-10-14T16:30:28Z | step7: pnputil /enum-devices /instanceid <each> /drivers /properties | 05-pnputil.txt | exit=0
+- 2026-10-14T16:30:54Z | step8.1: usbview /saveall (exited=True) | C:\Users\<redacted-user>\AppData\Local\Temp\07-usbview.txt | exit=True
+- 2026-10-14T16:30:54Z | step8.2: Copy-Item usbview output | 07-usbview.txt | exit=True
+- 2026-10-14T16:31:15Z | step9: Ports + SERIALCOMM (read only) | 08-com-after.txt | exit=True
+- 2026-10-14T16:31:17Z | step10: Get-PnpDevice AudioEndpoint,MEDIA | 09-audio-after.txt | exit=True
+- 2026-10-14T16:31:20Z | step11: pnputil MEDIA /relations + DEVPKEY_Device_Parent (new devices: 1) | 10-audio-relations.txt | exit=0
+- 2026-10-14T16:31:56Z | step12: user confirmed Module disconnected; waiting 10 s | - | exit=n/a
+- 2026-10-14T16:32:09Z | step12a: Get-PnpDevice AudioEndpoint,MEDIA | 11-audio-detached.txt | exit=True
+- 2026-10-14T16:32:11Z | step12b: Get-PnpDevice VID_0483&PID_5740 (found 0) | 12-pnp-detached.txt | exit=True
+- 2026-10-14T16:33:04Z | summary: written with the Write tool (UTF-8 no BOM, LF) instead of Save, because Cyrillic in a .ps1 would be mangled by PS 5.1 | summary.md | exit=n/a
