@@ -12,7 +12,8 @@ API, USB host и audio route требуют измерений. VID/PID не у�
 
 ## Полномочия
 
-Пользователь создаёт будущий каталог и GitHub repo. Не создавай их и не делай push без нового указания.
+Агент создаёт feature-ветки, делает их push и открывает PR в `main` без отдельного запроса.
+Прямой push в `main` и merge запрещены; merge выполняет пользователь.
 Начальный whitelist radio TX пуст. Работа начинается offline.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
 Open/claim/line coding/DTR/RTS документируй отдельно от radio commands.
