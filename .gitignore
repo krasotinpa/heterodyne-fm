@@ -1,0 +1,13 @@
+__pycache__/
+.venv/
+
+# Agent scratch space: keep the directory, ignore whatever lands in it
+.scratch/*
+!.scratch/.gitkeep
+
+# New USB captures before review: they may carry identifiers or foreign USB data.
+# Reviewed captures move to evidence/ with SHA and provenance.
+/raw/
+
+# graphify code graph: rebuilt locally with `graphify update .`, never tracked
+/graphify-out/

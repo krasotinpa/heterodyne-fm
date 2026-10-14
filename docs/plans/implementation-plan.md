@@ -3,7 +3,7 @@
 **Цель:** Android APK с проверенными FM/AM, поиском, пресетами и звуком.
 **Архитектура:** чистое protocol core, отдельный USB transport, session state и audio backend.
 **Стек:** Python 3.12, Kotlin, Windows, WSL2 Ubuntu, VS Code Remote.
-**Spec:** [REQUIREMENTS.md](REQUIREMENTS.md), [ARCHITECTURE.md](ARCHITECTURE.md), [RESEARCH_PLAN.md](RESEARCH_PLAN.md).
+**Spec:** [requirements.md](../requirements.md), [architecture.md](../architecture.md), [research-plan.md](research-plan.md).
 
 Один исполнитель реализует связные блоки. Независимый reviewer проверяет всю итоговую ветку после полного validation gate.
 Неизвестные opcode/TX bytes и toolchain versions намеренно не выдуманы. Их определяют G1–G4.
@@ -106,7 +106,7 @@ Gradle modules можно объединить пакетами при сохр�
 
 1. Запусти Python 3.12 и Kotlin unit tests.
 2. Запусти Android lint и APK build через закреплённый Gradle wrapper.
-3. Выполни доступные instrumented/hardware tests по TEST_PLAN.md.
+3. Выполни доступные instrumented/hardware tests по docs/test-plan.md.
 4. Запиши actual exit codes, версии, SHA и not tested/blocked requirements.
 5. Передай независимому reviewer всю ветку base SHA → head SHA.
 6. Исполнитель объединяет fixes, затем выполняет один повторный gate.

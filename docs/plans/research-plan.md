@@ -2,7 +2,7 @@
 
 Read-only начало — offline анализ сохранённых файлов, без прикладных команд радио.
 USB enumeration/descriptors создают стандартный USB-трафик. COM open может менять состояние.
-Живые операции выполняй по [SAFE_CAPTURE_GUIDE.md](SAFE_CAPTURE_GUIDE.md).
+Живые операции выполняй по [safe-capture-guide.md](../safe-capture-guide.md).
 
 ## Контрольные точки
 

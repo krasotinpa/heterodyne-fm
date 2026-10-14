@@ -30,4 +30,4 @@ USB audio support не гарантирует радио passthrough на дин
 
 Исторический [чат](https://chatgpt.com/c/6a75a86f-f658-83ed-83b3-f0a1eac23818) содержит user Windows output.
 Старые assistant conclusions не приняты как доказательства.
-Локальные raw observations: [CAPTURE_ANALYSIS.md](evidence/CAPTURE_ANALYSIS.md).
+Локальные raw observations: [capture-analysis.md](../evidence/capture-analysis.md).

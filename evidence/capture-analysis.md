@@ -1,7 +1,7 @@
 # Независимый анализ super-radio-com5.bin
 
 Дата: 14 октября 2026 года. Данные прочитаны непосредственно из raw, а не пересказаны из старого ответа.
-[Происхождение](PROVENANCE.md), [raw](super-radio-com5.bin), [offset report](capture-analysis.json).
+[Происхождение](provenance.md), [raw](super-radio-com5.bin), [offset report](capture-analysis.json).
 
 ## Измерения
 
