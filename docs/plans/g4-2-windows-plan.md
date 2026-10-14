@@ -1,7 +1,7 @@
 # G4-2: одна отправка TUNEUP
 
 Исполнитель — Claude Code в Windows. Уровень воздействия E. Команды и разрешения — в [command-catalog.md](../research/command-catalog.md).
-Цель — проверить, что TUNEUP меняет станцию, и снять состояние до и после requestAllInfo.
+Цель — проверить, что TUNEUP меняет станцию. requestAllInfo до и после TUNEUP снимает состояние Модуля.
 
 ```text
 порт открыт ─ 60 с фон ─▶ requestAllInfo (SEQ 0) ─ 30 с ─▶ TUNEUP (SEQ 1) ─ 30 с ─▶ requestAllInfo (SEQ 2)
@@ -18,7 +18,7 @@
 
 ## Что ожидать
 
-1. После SEQ 0 — Кадры как в G4-1: `0x27`, `0x22` с cid 58, `0x24`, `0x21`.
+1. После SEQ 0 — Кадры, как в G4-1: `0x27`, `0x22` с cid 58, `0x24`, `0x21`.
 2. После TUNEUP — возможно, спонтанный `0x22`. Код приложения этого не гарантирует.
 3. После SEQ 2 — `0x22` с новым cid. По гипотезе: 59 и 1053 кГц. Возможны и другой шаг, и отсутствие изменений.
 4. Запросы CDC при открытии и закрытии — как в G1b и G4-1; это не команды радио.
@@ -31,6 +31,9 @@
 2. В порт пишутся ровно три массива из таблицы, каждый не больше одного раза, в указанном порядке.
 3. Перед каждой записью скрипт создаёт свой флаг `g4-2-sent-<n>.flag`. Повторный запуск скрипта откажет.
 4. Если запись завершилась исключением, скрипт прекращает дальнейшие записи и только читает до конца.
+5. Перед каждой записью скрипт проверяет файл `g4-2-stop.flag`. Если файл есть, оставшиеся записи не выполняются, чтение продолжается.
+6. Пользователь сообщает о любой аномалии сразу. Агент тогда создаёт `$env:TEMP\g4-2\g4-2-stop.flag` и записывает это в журнал.
+7. Значения 420 с и 300 с ниже заменяют значения 300 с и 200 с из [g4-windows-plan.md](g4-windows-plan.md).
 
 ## Подготовка и шаги
 
@@ -39,17 +42,20 @@
    1. Первая запись журнала: «Решения владельца 14.10.2026: requestAllInfo — постоянная; TUNEUP — одна отправка в G4-2; command-catalog.md».
    2. Папки `g4-2` вместо `g4`, скрипт `g4-2.ps1` вместо `g4.ps1`, префикс `$env:TEMP\g4-2\g4-2`.
    3. Трасса — 600 секунд.
-   4. В шаге 6 попроси пользователя наблюдать за Модулем 5 минут.
-   5. В шаге 7 ожидание `Wait-Process -Id $g.Id -Timeout 420`.
-   6. В шаге 10 ожидание tshark `-Timeout 300`.
+   4. В шаге 6 попроси пользователя наблюдать за Модулем 4 минуты и сразу сообщать о необычном.
+   5. Перед шагом 7 проверь время: если от старта трассы прошло больше 300 с, останови трассу и начни сессию заново.
+   6. В шаге 7 жди короткими вызовами: `Wait-Process -Id $g.Id -Timeout 30`, не больше 14 раз (420 с). Между вызовами проверяй сообщения пользователя и при аномалии создавай `g4-2-stop.flag`.
+   7. В шаге 10 ожидание tshark — `-Timeout 300` вместо 200.
+   8. В шаге 12 копируй файлы `g4-2-*`, `usb.pcapng`, `g4-2.ps1`.
 
 ## g4-2.ps1
 
 ```powershell
 param([string]$Port, [string]$Prefix)
 $ErrorActionPreference = 'Stop'
-if ((Test-Path "$Prefix-sent-*.flag") -or (Test-Path "$Prefix-reads.csv")) { throw "g4-2.ps1 already ran in this folder" }
-if (-not (Test-Path (Split-Path $Prefix))) { throw "work folder missing" }
+$dir = Split-Path $Prefix; $leaf = Split-Path $Prefix -Leaf
+if (-not (Test-Path -LiteralPath $dir)) { throw "work folder missing" }
+if ((Get-ChildItem -LiteralPath $dir -Filter "$leaf-sent-*.flag") -or (Test-Path -LiteralPath "$Prefix-reads.csv")) { throw "g4-2.ps1 already ran in this folder" }
 $dev = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'USB\VID_0483&PID_5740&MI_02*' -and $_.FriendlyName -like "*($Port)*" }
 if (@($dev).Count -ne 1) { throw "$Port is not the Module CDC port" }
 
@@ -103,13 +109,16 @@ try {
     while ($sw.Elapsed.TotalSeconds -lt 240) {
         Drain
         if (-not $stopTx -and $next -lt $plan.Count -and $sw.Elapsed.TotalSeconds -ge $plan[$next].At) {
+            if (Test-Path -LiteralPath "$Prefix-stop.flag") { $stopTx = $true; Row 'stop-flag' 0; continue }
             $c = $plan[$next]; $n = $next + 1
             $next++
-            New-Item -ItemType File "$Prefix-sent-$n.flag" | Out-Null
+            New-Item -ItemType File -Path "$Prefix-sent-$n.flag" | Out-Null
             Row "tx-begin-$n-$($c.Name)" $c.Bytes.Length
-            try { $p.Write($c.Bytes, 0, $c.Bytes.Length) }
+            try {
+                $p.Write($c.Bytes, 0, $c.Bytes.Length)
+                Row "tx-end-$n" $p.BytesToWrite
+            }
             catch { $stopTx = $true; Row ('tx-error-' + $n + ':' + ($_.Exception.Message -replace ',', ';')) 0 }
-            Row "tx-end-$n" $p.BytesToWrite
         }
         Start-Sleep -Milliseconds 20
     }
@@ -125,10 +134,10 @@ finally {
 ```
 
 1. `$next` увеличивается и флаг создаётся до `Write`: каждая запись выполняется не больше одного раза.
-2. Ошибка записи останавливает оставшиеся записи; чтение продолжается до 240 с.
+2. Ошибка записи или `g4-2-stop.flag` останавливает оставшиеся записи; чтение продолжается до 240 с.
 3. Строки `tx-begin-<n>-<имя>` и `tx-end-<n>` отмечают каждую отправку.
 
 ## Сводка и передача
 
 Сводка — как в G4-1, плюс время всех трёх `tx-begin` и число созданных флагов. Хеши — как в G1b.
-Агент в WSL проверяет: ровно три bulk OUT с данными, байты и порядок из таблицы; затем сравнивает `0x22` до и после TUNEUP.
+Агент в WSL проверяет поле `bulk_out` вывода `analyze_session.py`: ровно три пакета, байты и порядок из таблицы. Затем он сравнивает `0x22` до и после TUNEUP.

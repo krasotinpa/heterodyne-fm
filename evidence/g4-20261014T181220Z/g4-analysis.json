@@ -1160,6 +1160,13 @@
   "bulk_in_bytes": 4542,
   "bulk_in_equals_rx": true,
   "bulk_out_with_data": 1,
+  "bulk_out": [
+   {
+    "utc": "2026-10-14T18:15:57.114906Z",
+    "ep": "0x03",
+    "data": "fa 55 00 00 04 80 85 07 f4"
+   }
+  ],
   "interrupt_in_with_data": 0
  }
 }
