@@ -7,7 +7,7 @@
 
 ```text
 60 с requestAllInfo ─▶ 90 с BAND (в FM) ─▶ 120 с requestAllInfo
-   ─▶ 150 с TUNEDOWN (вверх) ─▶ 180 с requestAllInfo ─▶ 210 с TUNEUP (вниз) ─▶ 240 с requestAllInfo
+   ─▶ 150 с TUNEDOWN ─▶ 180 с requestAllInfo ─▶ 210 с TUNEUP ─▶ 240 с requestAllInfo
    ─▶ 270 с BAND (в AM) ─▶ 300 с requestAllInfo ─▶ 420 с порт закрыт
 ```
 
@@ -30,9 +30,9 @@
 
 1. После SEQ 0 — AM cid 58 «1044 KHz», как в G4-4.
 2. После BAND (SEQ 1) — пачка состояния через ~230 мс, FM cid 30 «90.5  MHz», как в G4-4. Другая станция FM тоже возможна.
-3. После TUNEDOWN (SEQ 3) — спонтанный `0x22` через 1–2 мс. По AM ожидается шаг вверх: cid 31, «90.6  MHz». Направление и размер шага в FM не проверены.
-4. После TUNEUP (SEQ 5) — возврат на станцию после BAND.
-5. После BAND (SEQ 7) — пачка состояния, AM cid 58 «1044 KHz».
+3. После TUNEDOWN (SEQ 3) — спонтанный `0x22` через 1–2 мс. Гипотеза по AM: шаг вверх, при старте с cid 30 — cid 31, «90.6  MHz». Направление и размер шага в FM не проверены.
+4. Гипотеза: после TUNEUP (SEQ 5) — возврат на станцию после BAND.
+5. После BAND (SEQ 7) — пачка состояния и AM. Гипотеза по G4-4: cid 58 «1044 KHz»; причина возврата на ту же станцию не установлена.
 6. В FM — длинный `0x24` (LEN 11). Его байты +8…+13 сравниваются между станциями.
 
 ## Границы
@@ -70,8 +70,8 @@ $dev = Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'USB\VID_
 if (@($dev).Count -ne 1) { throw "$Port is not the Module CDC port" }
 
 $plan = @(
-    @{ At = 60 ; Name = 'requestAllInfo'; Bytes = [byte[]](0xFA, 0x55, 0x00, 0x00, 0x04, 0x80, 0x85, 0x07, 0xF4); Hex = 'FA-55-00-00-04-80-85-07-F4' },
-    @{ At = 90 ; Name = 'BAND';           Bytes = [byte[]](0xFA, 0x55, 0x01, 0x00, 0x03, 0x80, 0x84, 0xFC); Hex = 'FA-55-01-00-03-80-84-FC' },
+    @{ At = 60;  Name = 'requestAllInfo'; Bytes = [byte[]](0xFA, 0x55, 0x00, 0x00, 0x04, 0x80, 0x85, 0x07, 0xF4); Hex = 'FA-55-00-00-04-80-85-07-F4' },
+    @{ At = 90;  Name = 'BAND';           Bytes = [byte[]](0xFA, 0x55, 0x01, 0x00, 0x03, 0x80, 0x84, 0xFC); Hex = 'FA-55-01-00-03-80-84-FC' },
     @{ At = 120; Name = 'requestAllInfo'; Bytes = [byte[]](0xFA, 0x55, 0x02, 0x00, 0x04, 0x80, 0x85, 0x07, 0xF4); Hex = 'FA-55-02-00-04-80-85-07-F4' },
     @{ At = 150; Name = 'TUNEDOWN';       Bytes = [byte[]](0xFA, 0x55, 0x03, 0x00, 0x03, 0x80, 0x89, 0xF7); Hex = 'FA-55-03-00-03-80-89-F7' },
     @{ At = 180; Name = 'requestAllInfo'; Bytes = [byte[]](0xFA, 0x55, 0x04, 0x00, 0x04, 0x80, 0x85, 0x07, 0xF4); Hex = 'FA-55-04-00-04-80-85-07-F4' },
@@ -163,4 +163,4 @@ Set-Content -LiteralPath "$Prefix-exit.txt" -Value $r -Encoding ascii
 ## Сводка и передача
 
 Сводка и хеши — как в G4-4, с временем всех девяти `tx-begin`.
-Агент в WSL проверяет поле `bulk_out` вывода `analyze_session.py`: ровно девять пакетов, байты и порядок из таблицы. Затем он сравнивает `0x22`, `0x21` и `0x24` после каждой отправки.
+Агент в WSL проверяет поле `bulk_out` вывода `analyze_session.py`: ровно девять пакетов, байты и порядок из таблицы. Затем он сравнивает `0x22`, `0x21`, `0x24` и `0x28` после каждой отправки.
