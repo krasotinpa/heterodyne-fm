@@ -51,6 +51,7 @@ Space хранит документы и архив. Это область по�
 | [g1b-report.md](docs/research/g1b-report.md) | G1b: пассивный приём и USB-трасса |
 | [command-catalog.md](docs/research/command-catalog.md) | Каталог команд и whitelist |
 | [g4-windows-plan.md](docs/plans/g4-windows-plan.md) | План G4-1: одна отправка requestAllInfo |
+| [g4-1-report.md](docs/research/g4-1-report.md) | G4-1: ответ Модуля на requestAllInfo |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 

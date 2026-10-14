@@ -172,6 +172,18 @@ class Evidence(unittest.TestCase):
                          {"24 00 04 d8": 167, "24 01 64 77": 1, "24 00 0f cd": 1, "24 00 03 d9": 1})
 
 
+class G4Evidence(unittest.TestCase):
+    """G4-1: one requestAllInfo at rx offset 2296 (tx-begin in g4-reads.csv)."""
+
+    def test_response_follows_the_single_send(self):
+        data = (ROOT / "evidence" / "g4-20261014T181220Z" / "g4-rx.bin").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         "b6b7cd73487213e9937b20de7d66744417703c2096133112a6e0ed667c8d6365")
+        after = [x for x in parse_frames(data)["frames"] if x["offset"] >= 2296][:5]
+        self.assertEqual([(x["seq"], x["type"]) for x in after],
+                         [(162, "0x27"), (163, "0x22"), (164, "0x24"), (165, "0x21"), (166, "0x26")])
+
+
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
 
