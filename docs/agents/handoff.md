@@ -5,7 +5,7 @@
 ```text
 Разработай Android-приложение для USB Super Radio AM/FM на штатном
 Android-ГУ китайского Toyota Highlander 2026 2.0T.
-Работай по AGENTS.md, REQUIREMENTS.md и IMPLEMENTATION_PLAN.md.
+Работай по AGENTS.md, docs/requirements.md и docs/plans/implementation-plan.md.
 Начни с offline проверки evidence/super-radio-com5.bin.
 Разделяй наблюдения, гипотезы и доказанные команды.
 Начальный radio TX whitelist пуст. Не отправляй неизвестные команды.

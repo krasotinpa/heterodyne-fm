@@ -17,7 +17,7 @@
 | Сырой файл 1 720 байт | Прочитан независимо, приложен с SHA-256 |
 | Android/API, USB host и audio route ГУ | Неизвестны |
 
-Подробности: [HARDWARE_PROTOCOL_NOTES.md](HARDWARE_PROTOCOL_NOTES.md).
+Подробности: [hardware-protocol-notes.md](research/hardware-protocol-notes.md).
 
 ## MVP и границы
 

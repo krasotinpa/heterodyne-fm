@@ -2,10 +2,10 @@
 
 ## Начало
 
-1. Прочитай AGENT_HANDOFF.md и REQUIREMENTS.md до изменения поведения.
-2. Для протокола прочитай HARDWARE_PROTOCOL_NOTES.md и evidence/CAPTURE_ANALYSIS.md.
-3. Перед hardware доступом прочитай SAFE_CAPTURE_GUIDE.md и нужный gate RESEARCH_PLAN.md.
-4. Перед реализацией прочитай IMPLEMENTATION_PLAN.md и ARCHITECTURE.md.
+1. Прочитай docs/agents/handoff.md и docs/requirements.md до изменения поведения.
+2. Для протокола прочитай docs/research/hardware-protocol-notes.md и evidence/capture-analysis.md.
+3. Перед hardware доступом прочитай docs/safe-capture-guide.md и нужный gate docs/plans/research-plan.md.
+4. Перед реализацией прочитай docs/plans/implementation-plan.md и docs/architecture.md.
 
 Цель — штатное Android-ГУ китайского Toyota Highlander 2026 2.0T.
 API, USB host и audio route требуют измерений. VID/PID не устанавливает протокол.
@@ -41,7 +41,7 @@ Android toolchain и dependencies закрепляй после получени
 ## Реализация и review
 
 Один исполнитель работает связными блоками. Проверяемое поведение реализуется test-first.
-После реализации выполни один полный local validation gate по TEST_PLAN.md.
+После реализации выполни один полный local validation gate по docs/test-plan.md.
 После успешного gate проведи одну независимую review-волну всей ветки.
 Reviewer только читает и сообщает findings. Он не изменяет код.
 Исполнитель объединяет fixes в один пакет, затем выполняет один повторный gate.
@@ -56,3 +56,33 @@ Reviewer только читает и сообщает findings. Он не из�
 Шаги давай numbered list. Один абзац — одна тема, до шести предложений.
 Для процесса из более трёх частей добавляй схему из символов.
 По запросу «объясни в HTML» создай одну интерактивную HTML-страницу в одном файле.
+
+## Где что лежит
+
+```text
+AGENTS.md, CLAUDE.md   правила агентов
+docs/                  brief, requirements, architecture, test plan, safety, risks, sources
+docs/plans/            research plan (G0–G7) и implementation plan
+docs/research/         hardware notes и будущие отчёты G1–G6
+docs/agents/           handoff первому агенту и настройка mattpocock-skills
+docs/handoff/          исторический пакет передачи; не редактируется
+evidence/              неизменённый raw, provenance и derived analysis
+raw/                   новые captures до проверки; не коммитится
+.scratch/              черновики агента; не коммитится
+```
+
+`docs/handoff/file-manifest.json` хранит пути исходного пакета, а не текущего дерева.
+
+## Agent skills
+
+### Issue tracker
+
+Задачи ведутся в GitHub Issues `krasotinpa/super-radio-android`. См. `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Пять канонических меток по умолчанию. См. `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: корневой `CONTEXT.md` и `docs/adr/` создаются по мере появления терминов и решений. См. `docs/agents/domain.md`.

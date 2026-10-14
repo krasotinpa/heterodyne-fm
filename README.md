@@ -10,11 +10,11 @@ Space хранит документы и архив. Это область по�
 
 ## Начало работы
 
-1. Прочитай [AGENTS.md](AGENTS.md) и [AGENT_HANDOFF.md](AGENT_HANDOFF.md).
-2. Проверь цель в [PROJECT_BRIEF.md](PROJECT_BRIEF.md) и критерии в [REQUIREMENTS.md](REQUIREMENTS.md).
-3. Воспроизведи [измерения захвата](evidence/CAPTURE_ANALYSIS.md) по исходному бинарному файлу.
-4. Начни [RESEARCH_PLAN.md](RESEARCH_PLAN.md) без прикладных команд устройству.
-5. Продолжай [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) после соответствующих контрольных точек.
+1. Прочитай [AGENTS.md](AGENTS.md) и [handoff.md](docs/agents/handoff.md).
+2. Проверь цель в [brief.md](docs/brief.md) и критерии в [requirements.md](docs/requirements.md).
+3. Воспроизведи [измерения захвата](evidence/capture-analysis.md) по исходному бинарному файлу.
+4. Начни [research-plan.md](docs/plans/research-plan.md) без прикладных команд устройству.
+5. Продолжай [implementation-plan.md](docs/plans/implementation-plan.md) после соответствующих контрольных точек.
 
 ```text
 Доказательства → Дескрипторы → Проверка ГУ → Контролируемые команды
@@ -25,24 +25,24 @@ Space хранит документы и архив. Это область по�
 
 | Файл | Назначение |
 |---|---|
-| [PROJECT_BRIEF.md](PROJECT_BRIEF.md) | Цель, границы, варианты решения |
-| [REQUIREMENTS.md](REQUIREMENTS.md) | Проверяемые требования и MVP |
-| [HARDWARE_PROTOCOL_NOTES.md](HARDWARE_PROTOCOL_NOTES.md) | Факты об устройстве и гипотезы |
-| [RESEARCH_PLAN.md](RESEARCH_PLAN.md) | Исследования и контрольные точки |
-| [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) | Порядок реализации и test-first проверки |
-| [AGENT_HANDOFF.md](AGENT_HANDOFF.md) | Готовое задание первому coding-агенту |
+| [brief.md](docs/brief.md) | Цель, границы, варианты решения |
+| [requirements.md](docs/requirements.md) | Проверяемые требования и MVP |
+| [hardware-protocol-notes.md](docs/research/hardware-protocol-notes.md) | Факты об устройстве и гипотезы |
+| [research-plan.md](docs/plans/research-plan.md) | Исследования и контрольные точки |
+| [implementation-plan.md](docs/plans/implementation-plan.md) | Порядок реализации и test-first проверки |
+| [handoff.md](docs/agents/handoff.md) | Готовое задание первому coding-агенту |
 | [AGENTS.md](AGENTS.md) | Правила работы и независимого ревью |
-| [SAFE_CAPTURE_GUIDE.md](SAFE_CAPTURE_GUIDE.md) | Безопасный сбор дескрипторов и трасс |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Модули, контракты и состояния |
-| [TEST_PLAN.md](TEST_PLAN.md) | Автоматические и аппаратные проверки |
-| [RISKS_AND_QUESTIONS.md](RISKS_AND_QUESTIONS.md) | Риски и вопросы продавцу |
-| [TRANSFER_GUIDE.md](TRANSFER_GUIDE.md) | Перенос в будущий каталог |
-| [SOURCES.md](SOURCES.md) | Первичные технические источники |
-| [CAPTURE_ANALYSIS.md](evidence/CAPTURE_ANALYSIS.md) | Независимые измерения |
+| [safe-capture-guide.md](docs/safe-capture-guide.md) | Безопасный сбор дескрипторов и трасс |
+| [architecture.md](docs/architecture.md) | Модули, контракты и состояния |
+| [test-plan.md](docs/test-plan.md) | Автоматические и аппаратные проверки |
+| [risks-and-questions.md](docs/risks-and-questions.md) | Риски и вопросы продавцу |
+| [transfer-guide.md](docs/handoff/transfer-guide.md) | Перенос в будущий каталог |
+| [sources.md](docs/sources.md) | Первичные технические источники |
+| [capture-analysis.md](evidence/capture-analysis.md) | Независимые измерения |
 | [capture-analysis.json](evidence/capture-analysis.json) | Смещения и байты кандидатов |
 | [super-radio-com5.bin](evidence/super-radio-com5.bin) | Неизменённый исходный захват |
-| [PROVENANCE.md](evidence/PROVENANCE.md) | Происхождение доказательств |
-| [VALIDATION_REPORT.md](VALIDATION_REPORT.md) | Проверка пакета и независимое ревью |
+| [provenance.md](evidence/provenance.md) | Происхождение доказательств |
+| [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
 ## Ограничения
 
@@ -50,5 +50,5 @@ VID:PID `0483:5740` не идентифицирует прикладной пр�
 USB host доступных портов ГУ, установка стороннего APK и аудиотракт пока не подтверждены.
 Захват не содержит timestamps или исходящих команд. Он не устанавливает семантику пакетов или безопасность TX.
 
-Архив `super-radio-android-handoff.zip` доступен через страницу скачивания в проекте и содержит README.md в корне. Перенос описан в TRANSFER_GUIDE.md.
+Архив `super-radio-android-handoff.zip` доступен через страницу скачивания в проекте и содержит README.md в корне. Перенос описан в docs/handoff/transfer-guide.md.
 Python проекта: 3.12. Android toolchain выбирается после получения API/ABI ГУ.
