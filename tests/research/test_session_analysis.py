@@ -9,7 +9,7 @@ from collections import Counter
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "research-tools"))
-from analyze_session import frame_times, module_traffic, parse_frames, read_usbpcap, seq_steps  # noqa: E402
+from analyze_session import build_frame, frame_times, module_traffic, parse_frames, read_usbpcap, seq_steps  # noqa: E402
 
 EVIDENCE = ROOT / "evidence" / "g1b-20261014"
 
@@ -20,6 +20,18 @@ def frame(seq: int, body_wo_sum: bytes) -> bytes:
 
 
 class Frames(unittest.TestCase):
+    def test_build_request_all_info(self):
+        # Utils.requestAllInfo body 80 85 07; DabService.send fills SEQ and the sum.
+        self.assertEqual(build_frame(0, bytes.fromhex("808507")).hex(" "), "fa 55 00 00 04 80 85 07 f4")
+
+    def test_build_frame_rejects_seq_outside_a_byte(self):
+        with self.assertRaises(ValueError):
+            build_frame(256, bytes.fromhex("808507"))
+
+    def test_built_frame_parses_back(self):
+        f = parse_frames(build_frame(17, bytes.fromhex("808507")))["frames"]
+        self.assertEqual([(x["seq"], x["length"], x["body"]) for x in f], [(17, 4, "80 85 07 f4")])
+
     def test_sequential_parse(self):
         data = frame(0, b"\x24\x00\x00") + frame(1, b"\x26\x04\x00" + b" " * 16)
         f = parse_frames(data)["frames"]
