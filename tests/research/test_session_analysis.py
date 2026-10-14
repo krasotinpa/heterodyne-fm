@@ -183,6 +183,11 @@ class G4Evidence(unittest.TestCase):
         self.assertEqual([(x["seq"], x["type"]) for x in after],
                          [(162, "0x27"), (163, "0x22"), (164, "0x24"), (165, "0x21"), (166, "0x26")])
 
+    def test_trace_summary_shows_one_send(self):
+        import json
+        usb = json.loads((ROOT / "evidence" / "g4-20261014T181220Z" / "g4-analysis.json").read_text())["usb"]
+        self.assertEqual((usb["bulk_out_with_data"], usb["bulk_in_equals_rx"]), (1, True))
+
 
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
