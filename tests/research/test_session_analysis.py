@@ -228,7 +228,7 @@ class G42Evidence(unittest.TestCase):
         frames = self.frames()
         bodies = [self.first_0x22(frames, o) for o in (2058, 2720, 3319)]
         self.assertEqual([b[1:3] for b in bodies], [b"\x00\x3a", b"\x00\x39", b"\x00\x39"])
-        self.assertEqual([b[6] >> 5 & 3 for b in bodies], [0, 0, 0])
+        self.assertEqual([b[1] >> 5 & 3 for b in bodies], [0, 0, 0])
         # Frame offsets +30 and +50 are body indices 25 and 45; their meaning is unknown.
         self.assertEqual([(b[25], b[45]) for b in bodies], [(0x16, 0xae), (0xf7, 0x00), (0x00, 0xae)])
         self.assertEqual([b" 1044 KHz" in b for b in bodies], [True, False, False])
@@ -269,6 +269,37 @@ class G43Evidence(unittest.TestCase):
         self.assertEqual([p["data"] for p in usb["bulk_out"]],
                          ["fa 55 00 00 04 80 85 07 f4", "fa 55 01 00 03 80 89 f7", "fa 55 02 00 04 80 85 07 f4"])
         self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (5579, False))
+
+
+class G44Evidence(unittest.TestCase):
+    """G4-4: requestAllInfo at rx 2050, BAND at 2712, requestAllInfo at 3639, BAND at 4413, requestAllInfo at 5228."""
+
+    DIR = ROOT / "evidence" / "g4-4-20261014T194439Z"
+
+    def test_band_switches_am_to_fm_and_back(self):
+        data = (self.DIR / "g4-4-rx.bin").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(), "40efac78007abc2629f88f450e5f293a0a64703b858f0bf959a472f97cae5ff9")
+        frames = parse_frames(data)["frames"]
+        bodies = [bytes.fromhex(next(x for x in frames if x["offset"] >= o and x["type"] == "0x22")["body"])
+                  for o in (2050, 2712, 3639, 4413, 5228)]
+        self.assertEqual([b[1] >> 5 & 3 for b in bodies], [0, 1, 1, 0, 0])
+        self.assertEqual([b[2] for b in bodies], [0x3a, 0x1e, 0x1e, 0x3a, 0x3a])
+        self.assertEqual([b" 90.5  MHz" in b for b in bodies], [False, True, True, False, False])
+        self.assertEqual([b" 1044 KHz" in b for b in bodies], [True, False, False, True, True])
+
+    def test_fm_station_list_entry(self):
+        frames = parse_frames((self.DIR / "g4-4-rx.bin").read_bytes())["frames"]
+        fm = [x["body"] for x in frames if x["type"] == "0x21" and "39 30 2e 35" in x["body"]]
+        self.assertEqual(len(fm), 2)
+        self.assertTrue(fm[0].startswith("21 c0 00 1e 20 1e 10 00"))
+
+    def test_trace_summary_shows_five_sends(self):
+        import json
+        usb = json.loads((self.DIR / "g4-4-analysis.json").read_text())["usb"]
+        rai = ["fa 55 %02x 00 04 80 85 07 f4" % n for n in (0, 2, 4)]
+        band = ["fa 55 %02x 00 03 80 84 fc" % n for n in (1, 3)]
+        self.assertEqual([p["data"] for p in usb["bulk_out"]], [rai[0], band[0], rai[1], band[1], rai[2]])
+        self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (7530, False))
 
 
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"

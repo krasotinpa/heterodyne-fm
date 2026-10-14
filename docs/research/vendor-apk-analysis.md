@@ -65,7 +65,7 @@ FA 55 | SEQ (+2) | LEN (+3..+4, big-endian) | BODY (LEN байт)
 | TUNEDOWN | `80 89 cs` | событие 5, `MainActivity.onNext`; G4-3: шаг частоты вверх |
 | SEEKUP | `80 86 cs` | событие 11 |
 | SEEKDOWN | `80 87 cs` | событие 10 |
-| BAND | `80 84 cs` | событие 36 |
+| BAND | `80 84 cs` | событие 36, две кнопки `MainActivity.onClick`; G4-4: переключение AM ↔ FM |
 | AS | `80 83 cs` | событие 15 |
 | AS_LONG | `80 A3 cs` | событие 40 |
 | cancelAS | `80 03 cs` | событие 16 |
