@@ -36,6 +36,7 @@ G0 → G1 → G3 → G4 → G5 ─┐
 ## G1 и G2
 
 G1 выполняет Windows-агент по [g1-windows-plan.md](g1-windows-plan.md). Выполнено 14 октября 2026 года: [descriptor-map.md](../research/descriptor-map.md).
+G1b — пассивный приём через COM с USB-трассой: [g1b-windows-plan.md](g1b-windows-plan.md).
 G2 начинается с подключения Модуля к ГУ и записи реакции системы. APK ставится с SSD, при необходимости через USB-хаб; ADB не предполагается.
 
 1. Собери USBView, PnP bindings и audio inventory.

@@ -45,6 +45,7 @@ Space хранит документы и архив. Это область по�
 | [provenance.md](evidence/provenance.md) | Происхождение доказательств |
 | [capture-method.md](evidence/capture-method.md) | Как владелец записал исходный захват |
 | [g1-windows-plan.md](docs/plans/g1-windows-plan.md) | План G1 для Windows-агента |
+| [g1b-windows-plan.md](docs/plans/g1b-windows-plan.md) | План G1b: пассивный приём и USB-трасса |
 | [vendor-apk-analysis.md](docs/research/vendor-apk-analysis.md) | Статический анализ Приложения производителя |
 | [descriptor-map.md](docs/research/descriptor-map.md) | G1: карта USB-дескрипторов Модуля |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
