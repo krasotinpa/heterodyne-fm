@@ -45,6 +45,7 @@ Space хранит документы и архив. Это область по�
 | [provenance.md](evidence/provenance.md) | Происхождение доказательств |
 | [capture-method.md](evidence/capture-method.md) | Как владелец записал исходный захват |
 | [g1-windows-plan.md](docs/plans/g1-windows-plan.md) | План G1 для Windows-агента |
+| [vendor-apk-analysis.md](docs/research/vendor-apk-analysis.md) | Статический анализ Приложения производителя |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
