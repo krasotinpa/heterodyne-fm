@@ -332,7 +332,8 @@ class G45Evidence(unittest.TestCase):
     def test_fm_0x24_has_seven_extra_bytes(self):
         long = [bytes.fromhex(x["body"]) for x in self.frames()["frames"] if x["type"] == "0x24" and x["length"] == 11]
         self.assertEqual(len(long), 94)
-        # Body: type, +6, +7, seven bytes +8..+14, sum; +14 is 0x31 except right after BAND.
+        # Body: type, +6, +7, seven bytes +8..+14, sum; +14 is 0xff only in the first long 0x24 after BAND
+        # and after each FM requestAllInfo.
         self.assertEqual(Counter(b[9] for b in long), Counter({0x31: 90, 0xff: 4}))
 
     def test_repeated_usb_packet_cuts_a_frame(self):
