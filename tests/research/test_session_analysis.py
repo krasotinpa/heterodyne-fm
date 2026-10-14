@@ -32,6 +32,15 @@ class Frames(unittest.TestCase):
         # Utils.TUNEDOWN body 80 89; SEQ 1 in the G4-3 schedule.
         self.assertEqual(build_frame(1, bytes.fromhex("8089")).hex(" "), "fa 55 01 00 03 80 89 f7")
 
+    def test_build_g4_5_schedule(self):
+        # G4-5: BAND to FM, one step each way, BAND back to AM; requestAllInfo between them.
+        bodies = ["808507", "8084", "808507", "8089", "808507", "8088", "808507", "8084", "808507"]
+        frames = [build_frame(n, bytes.fromhex(b)).hex(" ") for n, b in enumerate(bodies)]
+        self.assertEqual(frames, [
+            "fa 55 00 00 04 80 85 07 f4", "fa 55 01 00 03 80 84 fc", "fa 55 02 00 04 80 85 07 f4",
+            "fa 55 03 00 03 80 89 f7", "fa 55 04 00 04 80 85 07 f4", "fa 55 05 00 03 80 88 f8",
+            "fa 55 06 00 04 80 85 07 f4", "fa 55 07 00 03 80 84 fc", "fa 55 08 00 04 80 85 07 f4"])
+
     def test_build_band(self):
         # Utils.BAND body 80 84; SEQ 1 and 3 in the G4-4 schedule.
         self.assertEqual(build_frame(1, bytes.fromhex("8084")).hex(" "), "fa 55 01 00 03 80 84 fc")
