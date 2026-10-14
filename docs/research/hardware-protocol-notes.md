@@ -69,6 +69,9 @@ candidate_end = marker_offset + 5 + L
 
 Новый статус требует capture SHA, offsets, direction, действия и повторения.
 
+Код Приложения производителя поддерживает H01–H07 и модель B; модель A ему противоречит.
+Подробности и таблица команд: [vendor-apk-analysis.md](vendor-apk-analysis.md). Это доказательство из кода, не эксперимент на Модуле.
+
 ## Аудиотракт
 
 1. Проверь UAC class в дескрипторах и recording/playback devices Windows.
