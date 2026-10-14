@@ -120,6 +120,8 @@ def module_traffic(packets: list) -> dict:
                    for p in mine if p["transfer"] == 2 and p["stage"] == 0],
         "bulk_in": b"".join(p["data"] for p in mine if p["transfer"] == 3 and p["ep"] & 0x80 and p["from_device"]),
         "bulk_out_with_data": sum(1 for p in mine if p["transfer"] == 3 and not p["ep"] & 0x80 and p["data"]),
+        "bulk_out": [{"utc": _utc(p["ts_us"]), "ep": f"0x{p['ep']:02x}", "data": p["data"].hex(" ")}
+                     for p in mine if p["transfer"] == 3 and not p["ep"] & 0x80 and p["data"]],
         "interrupt_in_with_data": sum(1 for p in mine if p["transfer"] == 1 and p["from_device"] and p["data"]),
     }
 
@@ -145,6 +147,6 @@ if __name__ == "__main__":
         t = module_traffic(read_usbpcap(sys.argv[3]))
         report["usb"] = {"devices": t["devices"], "setups": t["setups"],
                          "bulk_in_bytes": len(t["bulk_in"]), "bulk_in_equals_rx": t["bulk_in"] == rx,
-                         "bulk_out_with_data": t["bulk_out_with_data"],
+                         "bulk_out_with_data": t["bulk_out_with_data"], "bulk_out": t["bulk_out"],
                          "interrupt_in_with_data": t["interrupt_in_with_data"]}
     print(json.dumps(report, indent=1, ensure_ascii=False))

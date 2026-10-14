@@ -1484,6 +1484,7 @@
   "bulk_in_bytes": 6262,
   "bulk_in_equals_rx": true,
   "bulk_out_with_data": 0,
+  "bulk_out": [],
   "interrupt_in_with_data": 0
  }
 }

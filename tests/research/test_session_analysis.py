@@ -24,6 +24,15 @@ class Frames(unittest.TestCase):
         # Utils.requestAllInfo body 80 85 07; DabService.send fills SEQ and the sum.
         self.assertEqual(build_frame(0, bytes.fromhex("808507")).hex(" "), "fa 55 00 00 04 80 85 07 f4")
 
+    def test_build_tuneup(self):
+        # Utils.TUNEUP body 80 88; SEQ 1 in the G4-2 schedule.
+        self.assertEqual(build_frame(1, bytes.fromhex("8088")).hex(" "), "fa 55 01 00 03 80 88 f8")
+
+    def test_g4_2_schedule_matches_build_frame(self):
+        plan = (ROOT / "docs" / "plans" / "g4-2-windows-plan.md").read_text()
+        for seq, body in ((0, "808507"), (1, "8088"), (2, "808507")):
+            self.assertIn(build_frame(seq, bytes.fromhex(body)).hex("-").upper(), plan)
+
     def test_build_frame_rejects_seq_outside_a_byte(self):
         with self.assertRaises(ValueError):
             build_frame(256, bytes.fromhex("808507"))
@@ -128,6 +137,7 @@ class UsbPcap(unittest.TestCase):
         self.assertEqual(t["devices"], [{"iface": 0, "bus": 1, "dev": 3}])
         self.assertEqual(t["bulk_in"], b"\xfa\x55\x00\x00\x04")
         self.assertEqual(t["bulk_out_with_data"], 0)
+        self.assertEqual(t["bulk_out"], [])
         self.assertEqual([s["setup"] for s in t["setups"]],
                          ["80 06 00 01 00 00 12 00", "21 22 02 00 02 00 00 00"])
         self.assertEqual(t["setups"][1]["utc"], "1970-01-01T00:00:02.000000Z")
@@ -140,7 +150,9 @@ class UsbPcap(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = pathlib.Path(d) / "t.pcapng"
             path.write_bytes(pcapng(pk))
-            self.assertEqual(module_traffic(read_usbpcap(path))["bulk_out_with_data"], 1)
+            t = module_traffic(read_usbpcap(path))
+            self.assertEqual(t["bulk_out_with_data"], 1)
+            self.assertEqual(t["bulk_out"], [{"utc": "1970-01-01T00:00:00.000002Z", "ep": "0x03", "data": "fa 55"}])
 
 
 class Evidence(unittest.TestCase):
