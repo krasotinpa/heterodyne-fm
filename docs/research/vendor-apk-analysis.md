@@ -61,8 +61,8 @@ FA 55 | SEQ (+2) | LEN (+3..+4, big-endian) | BODY (LEN байт)
 
 | Поле `Utils` | Тело | Вызов в `DabService.MailBox` |
 |---|---|---|
-| TUNEUP | `80 88 cs` | событие 6 |
-| TUNEDOWN | `80 89 cs` | событие 5 |
+| TUNEUP | `80 88 cs` | событие 6, `MainActivity.onPrevious`; G4-2: шаг частоты вниз |
+| TUNEDOWN | `80 89 cs` | событие 5, `MainActivity.onNext` |
 | SEEKUP | `80 86 cs` | событие 11 |
 | SEEKDOWN | `80 87 cs` | событие 10 |
 | BAND | `80 84 cs` | событие 36 |

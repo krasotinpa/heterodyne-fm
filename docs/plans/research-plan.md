@@ -71,7 +71,7 @@ G2 начинается с подключения Модуля к ГУ и зап
 ## G4
 
 G4-1 — одна отправка requestAllInfo: [g4-windows-plan.md](g4-windows-plan.md), команда в [command-catalog.md](../research/command-catalog.md). Выполнено 14 октября 2026 года: [g4-1-report.md](../research/g4-1-report.md).
-G4-2 — одна отправка TUNEUP между двумя requestAllInfo: [g4-2-windows-plan.md](g4-2-windows-plan.md).
+G4-2 — одна отправка TUNEUP между двумя requestAllInfo: [g4-2-windows-plan.md](g4-2-windows-plan.md). Выполнено 14 октября 2026 года: [g4-2-report.md](../research/g4-2-report.md).
 
 Whitelist — перечень известных разрешённых команд. Начальный whitelist пуст.
 Каталог хранит direction, endpoint, hex template, parameters/ranges, response, timeout, side effects и evidence.
