@@ -28,6 +28,10 @@ class Frames(unittest.TestCase):
         # Utils.TUNEUP body 80 88; SEQ 1 in the G4-2 schedule.
         self.assertEqual(build_frame(1, bytes.fromhex("8088")).hex(" "), "fa 55 01 00 03 80 88 f8")
 
+    def test_build_tunedown(self):
+        # Utils.TUNEDOWN body 80 89; SEQ 1 in the G4-3 schedule.
+        self.assertEqual(build_frame(1, bytes.fromhex("8089")).hex(" "), "fa 55 01 00 03 80 89 f7")
+
     def test_g4_2_schedule_matches_build_frame(self):
         plan = (ROOT / "docs" / "plans" / "g4-2-windows-plan.md").read_text()
         for seq, body in ((0, "808507"), (1, "8088"), (2, "808507")):
