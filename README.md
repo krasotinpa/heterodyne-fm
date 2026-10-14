@@ -48,6 +48,7 @@ Space хранит документы и архив. Это область по�
 | [g1b-windows-plan.md](docs/plans/g1b-windows-plan.md) | План G1b: пассивный приём и USB-трасса |
 | [vendor-apk-analysis.md](docs/research/vendor-apk-analysis.md) | Статический анализ Приложения производителя |
 | [descriptor-map.md](docs/research/descriptor-map.md) | G1: карта USB-дескрипторов Модуля |
+| [g1b-report.md](docs/research/g1b-report.md) | G1b: пассивный приём и USB-трасса |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 

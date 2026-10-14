@@ -1,0 +1,11 @@
+session: B
+antenna: yes
+port: COM5
+baud: 115200
+format: 8N1
+Handshake: None
+DTR: false
+RTS: false
+ReadBufferSize: 1048576
+seconds: 300
+
