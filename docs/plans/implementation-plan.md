@@ -33,8 +33,8 @@ Gradle modules можно объединить пакетами при сохр�
 Файлы: `research-tools/analyze_capture.py`, `tests/research/test_capture_analysis.py`,
 `docs/research/descriptor-map.md`, `docs/research/head-unit-report.md`, позднее `app/.../UsbDiagnostics.kt`.
 
-- [ ] Сначала проверь empty, truncation, false marker и exact raw SHA; покажи ожидаемый отказ.
-- [ ] Реализуй offline observations без объявления всех кандидатов protocol packets.
+- [x] Сначала проверь empty, truncation, false marker и exact raw SHA; покажи ожидаемый отказ.
+- [x] Реализуй offline observations без объявления всех кандидатов protocol packets.
 - [ ] Получи G1/G2 без radio TX.
 - [ ] Проверь diagnostic APK: wrong USB, denial, detach/replug, descriptors.
 - [ ] Запиши blockers и ограничения.
