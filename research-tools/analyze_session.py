@@ -1,6 +1,6 @@
 """G1b offline analysis: model B frames from a COM receive and Module traffic from a USBPcap trace.
 
-Model B: FA 55 | SEQ (+2) | LEN (+3..+4, big-endian) | BODY (LEN bytes); the BODY sum is 0 mod 256.
+Model B: FA 55 | SEQ (+2) | LEN (+3..+4, big-endian) | BODY (LEN >= 2 bytes: type .. sum); the BODY sum is 0 mod 256.
 The parser resyncs on the next FA 55 when a candidate is cut short or fails its sum.
 
 Usage: python3 research-tools/analyze_session.py <rx.bin> [reads.csv] [usb.pcapng]   (prints JSON)
@@ -27,19 +27,19 @@ def parse_frames(data: bytes) -> dict:
         if j + 5 > len(data):
             i = j
             break
-        end = j + 5 + int.from_bytes(data[j + 3:j + 5], "big")
+        length = int.from_bytes(data[j + 3:j + 5], "big")
+        end = j + 5 + length
         body = data[j + 5:end]
-        if end > len(data) or sum(body) % 256:
+        if end > len(data) or length < 2 or sum(body) % 256:
             nxt = data.find(MARKER, j + 2)
-            if end > len(data) and nxt == -1:
+            if nxt == -1:
                 i = j
                 break
             junk.append({"offset": j, "length": nxt - j})
             i = nxt
             continue
         frames.append({"offset": j, "seq": data[j + 2], "length": end - j - 5,
-                       "type": f"0x{body[0]:02x}" if body else None, "sum_ok": True,
-                       "body": body.hex(" ")})
+                       "type": f"0x{body[0]:02x}", "body": body.hex(" ")})
         i = end
     return {"frames": frames, "junk": junk, "tail": len(data) - i if i < len(data) else 0}
 
@@ -51,8 +51,10 @@ def frame_times(frames: list, reads_csv: str) -> list:
     out, k = [], 0
     for f in frames:
         last = f["offset"] + 5 + f["length"]
-        while ends[k][0] < last:
+        while k < len(ends) and ends[k][0] < last:
             k += 1
+        if k == len(ends):
+            raise ValueError(f"reads.csv ends before the frame at offset {f['offset']}")
         out.append((ends[k][1], ends[k][2]))
     return out
 
@@ -74,6 +76,15 @@ def read_usbpcap(path) -> list:
     """USBPcap packets from a pcapng file. Assumes microsecond timestamps (pcapng default)."""
     out = []
     for btype, b in _blocks(open(path, "rb").read()):
+        if btype == 1:
+            i = 8
+            while i + 4 <= len(b):
+                code, n = struct.unpack_from("<HH", b, i)
+                if code == 9 and b[i + 4] != 6:
+                    raise ValueError("only microsecond timestamps (if_tsresol 6) are supported")
+                if code == 0:
+                    break
+                i += 4 + n + (-n % 4)
         if btype != 6:
             continue
         iface, hi, lo, cap = struct.unpack_from("<IIII", b, 0)
@@ -92,12 +103,12 @@ def _utc(ts_us: int) -> str:
 
 
 def module_traffic(packets: list) -> dict:
-    """Traffic of the device whose device descriptor carries 0483:5740."""
-    key = next(((p["iface"], p["bus"], p["dev"]) for p in packets
-                if p["transfer"] == 2 and p["data"][:2] == b"\x12\x01" and p["data"][8:12] == MODULE_ID), None)
-    mine = [p for p in packets if (p["iface"], p["bus"], p["dev"]) == key]
+    """Traffic of every address whose device descriptor carries 0483:5740 (re-enumeration gives a new one)."""
+    keys = sorted({(p["iface"], p["bus"], p["dev"]) for p in packets
+                   if p["transfer"] == 2 and p["data"][:2] == b"\x12\x01" and p["data"][8:12] == MODULE_ID})
+    mine = [p for p in packets if (p["iface"], p["bus"], p["dev"]) in keys]
     return {
-        "device": dict(zip(("iface", "bus", "dev"), key)) if key else None,
+        "devices": [dict(zip(("iface", "bus", "dev"), k)) for k in keys],
         "setups": [{"utc": _utc(p["ts_us"]), "setup": p["data"][:8].hex(" "),
                     "data": p["data"][8:].hex(" ")}
                    for p in mine if p["transfer"] == 2 and p["stage"] == 0],
@@ -126,7 +137,7 @@ if __name__ == "__main__":
                               for (u, ms), x in zip(times, f) if x["type"] != "0x26"]
     if len(sys.argv) == 4:
         t = module_traffic(read_usbpcap(sys.argv[3]))
-        report["usb"] = {"device": t["device"], "setups": t["setups"],
+        report["usb"] = {"devices": t["devices"], "setups": t["setups"],
                          "bulk_in_bytes": len(t["bulk_in"]), "bulk_in_equals_rx": t["bulk_in"] == rx,
                          "bulk_out_with_data": t["bulk_out_with_data"],
                          "interrupt_in_with_data": t["interrupt_in_with_data"]}

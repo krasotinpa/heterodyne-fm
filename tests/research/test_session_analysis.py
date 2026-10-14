@@ -23,8 +23,8 @@ class Frames(unittest.TestCase):
     def test_sequential_parse(self):
         data = frame(0, b"\x24\x00\x00") + frame(1, b"\x26\x04\x00" + b" " * 16)
         f = parse_frames(data)["frames"]
-        self.assertEqual([(x["offset"], x["seq"], x["length"], x["type"], x["sum_ok"]) for x in f],
-                         [(0, 0, 4, "0x24", True), (9, 1, 20, "0x26", True)])
+        self.assertEqual([(x["offset"], x["seq"], x["length"], x["type"]) for x in f],
+                         [(0, 0, 4, "0x24"), (9, 1, 20, "0x26")])
 
     def test_junk_is_skipped_and_counted(self):
         r = parse_frames(b"\x01\x02" + frame(5, b"\x24\x00\x00"))
@@ -37,6 +37,26 @@ class Frames(unittest.TestCase):
         r = parse_frames(cut + whole)
         self.assertEqual([x["seq"] for x in r["frames"]], [70, 71])
         self.assertEqual(r["junk"], [{"offset": 0, "length": 11}])
+
+    def test_bad_sum_then_good_frame(self):
+        bad = frame(1, b"\x24\x00\x00")[:-1] + b"\x00"
+        r = parse_frames(bad + frame(2, b"\x24\x00\x00"))
+        self.assertEqual([x["seq"] for x in r["frames"]], [2])
+        self.assertEqual(r["junk"], [{"offset": 0, "length": 9}])
+
+    def test_bad_sum_at_end_is_tail(self):
+        good = frame(0, b"\x24\x00\x00")
+        r = parse_frames(good + good[:-1] + b"\x00")
+        self.assertEqual((len(r["frames"]), r["junk"], r["tail"]), (1, [], 9))
+
+    def test_length_below_two_is_not_a_frame(self):
+        r = parse_frames(b"\xfa\x55\x01\x00\x00" + frame(2, b"\x24\x00\x00"))
+        self.assertEqual([x["seq"] for x in r["frames"]], [2])
+        self.assertEqual(r["junk"], [{"offset": 0, "length": 5}])
+
+    def test_frame_times_reject_short_reads(self):
+        with self.assertRaises(ValueError):
+            frame_times([{"offset": 0, "length": 4}], "utc,elapsed_ms,event,offset,count,markers\nt,1,read,0,3,0\n")
 
     def test_incomplete_tail(self):
         r = parse_frames(frame(0, b"\x24\x00\x00")[:6])
@@ -93,7 +113,7 @@ class UsbPcap(unittest.TestCase):
             path = pathlib.Path(d) / "t.pcapng"
             path.write_bytes(pcapng(pk))
             t = module_traffic(read_usbpcap(path))
-        self.assertEqual(t["device"], {"iface": 0, "bus": 1, "dev": 3})
+        self.assertEqual(t["devices"], [{"iface": 0, "bus": 1, "dev": 3}])
         self.assertEqual(t["bulk_in"], b"\xfa\x55\x00\x00\x04")
         self.assertEqual(t["bulk_out_with_data"], 0)
         self.assertEqual([s["setup"] for s in t["setups"]],
@@ -123,7 +143,6 @@ class Evidence(unittest.TestCase):
         r = self.check("A-rx.bin", A_SHA)
         f = r["frames"]
         self.assertEqual(len(f), 384)
-        self.assertTrue(all(x["sum_ok"] for x in f))
         self.assertEqual(r["junk"], [{"offset": 1229, "length": 11}])
         self.assertEqual(seq_steps([x["seq"] for x in f]), [
             {"index": 63, "from": 63, "to": 70, "step": 7},
