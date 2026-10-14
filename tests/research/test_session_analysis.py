@@ -201,6 +201,39 @@ class G4Evidence(unittest.TestCase):
         self.assertEqual((usb["bulk_out_with_data"], usb["bulk_in_equals_rx"]), (1, True))
 
 
+class G42Evidence(unittest.TestCase):
+    """G4-2: requestAllInfo at rx 2058, TUNEUP at 2720, requestAllInfo at 3319 (tx-begin in g4-2-reads.csv)."""
+
+    DIR = ROOT / "evidence" / "g4-2-20261014T184648Z"
+
+    def frames(self):
+        data = (self.DIR / "g4-2-rx.bin").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(),
+                         "51a931a749982ed7c10a879e4dfc6a93f91d2a3393a1e24a027ff3abdd7d6e16")
+        return parse_frames(data)["frames"]
+
+    def first_0x22(self, frames, offset):
+        return bytes.fromhex(next(x for x in frames if x["offset"] >= offset and x["type"] == "0x22")["body"])
+
+    def test_tuneup_lowers_the_am_station_by_one_cid(self):
+        frames = self.frames()
+        before, after = self.first_0x22(frames, 2058), self.first_0x22(frames, 2720)
+        self.assertEqual((before[1:3], after[1:3]), (b"\x00\x3a", b"\x00\x39"))
+        self.assertIn(b" 1044 KHz", before)
+        self.assertIn(b" 1035 KHz", after)
+
+    def test_module_repeats_frames(self):
+        steps = seq_steps([x["seq"] for x in self.frames()])
+        self.assertEqual([(s["from"], s["to"]) for s in steps], [(211, 211), (251, 250), (253, 0)])
+
+    def test_trace_summary_shows_three_sends(self):
+        import json
+        usb = json.loads((self.DIR / "g4-2-analysis.json").read_text())["usb"]
+        self.assertEqual([p["data"] for p in usb["bulk_out"]],
+                         ["fa 55 00 00 04 80 85 07 f4", "fa 55 01 00 03 80 88 f8", "fa 55 02 00 04 80 85 07 f4"])
+        self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (5724, False))
+
+
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
 
