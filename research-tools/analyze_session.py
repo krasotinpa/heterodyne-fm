@@ -15,6 +15,12 @@ MARKER = b"\xfa\x55"
 MODULE_ID = b"\x83\x04\x40\x57"  # idVendor 0x0483, idProduct 0x5740, little-endian
 
 
+def build_frame(seq: int, body_wo_sum: bytes) -> bytes:
+    """Model B frame as DabService.send builds it: SEQ at +2, BE length, trailing two's-complement sum."""
+    body = body_wo_sum + bytes([-sum(body_wo_sum) % 256])
+    return MARKER + bytes([seq]) + len(body).to_bytes(2, "big") + body
+
+
 def parse_frames(data: bytes) -> dict:
     frames, junk = [], []
     i = 0

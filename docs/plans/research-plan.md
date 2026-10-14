@@ -70,6 +70,8 @@ G2 начинается с подключения Модуля к ГУ и зап
 
 ## G4
 
+G4-1 — одна отправка requestAllInfo: [g4-windows-plan.md](g4-windows-plan.md), команда в [command-catalog.md](../research/command-catalog.md).
+
 Whitelist — перечень известных разрешённых команд. Начальный whitelist пуст.
 Каталог хранит direction, endpoint, hex template, parameters/ranges, response, timeout, side effects и evidence.
 Первый replay выполняется на Windows, по одной команде, без auto retry.
