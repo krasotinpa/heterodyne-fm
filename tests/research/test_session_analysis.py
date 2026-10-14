@@ -217,12 +217,15 @@ class G42Evidence(unittest.TestCase):
 
     def test_tuneup_lowers_the_am_station_by_one_cid(self):
         frames = self.frames()
-        before, after = self.first_0x22(frames, 2058), self.first_0x22(frames, 2720)
-        self.assertEqual((before[1:3], after[1:3]), (b"\x00\x3a", b"\x00\x39"))
-        self.assertIn(b" 1044 KHz", before)
-        self.assertIn(b" 1035 KHz", after)
+        bodies = [self.first_0x22(frames, o) for o in (2058, 2720, 3319)]
+        self.assertEqual([b[1:3] for b in bodies], [b"\x00\x3a", b"\x00\x39", b"\x00\x39"])
+        self.assertEqual([b[6] >> 5 & 3 for b in bodies], [0, 0, 0])
+        # Frame offsets +30 and +50 are body indices 25 and 45; their meaning is unknown.
+        self.assertEqual([(b[25], b[45]) for b in bodies], [(0x16, 0xae), (0xf7, 0x00), (0x00, 0xae)])
+        self.assertEqual([b" 1044 KHz" in b for b in bodies], [True, False, False])
+        self.assertEqual([b" 1035 KHz" in b for b in bodies], [False, True, True])
 
-    def test_module_repeats_frames(self):
+    def test_seq_steps_show_two_repeats_and_the_wrap(self):
         steps = seq_steps([x["seq"] for x in self.frames()])
         self.assertEqual([(s["from"], s["to"]) for s in steps], [(211, 211), (251, 250), (253, 0)])
 
