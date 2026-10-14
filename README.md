@@ -52,6 +52,7 @@ Space хранит документы и архив. Это область по�
 | [command-catalog.md](docs/research/command-catalog.md) | Каталог команд и whitelist |
 | [g4-windows-plan.md](docs/plans/g4-windows-plan.md) | План G4-1: одна отправка requestAllInfo |
 | [g4-1-report.md](docs/research/g4-1-report.md) | G4-1: ответ Модуля на requestAllInfo |
+| [g4-2-windows-plan.md](docs/plans/g4-2-windows-plan.md) | План G4-2: одна отправка TUNEUP |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 

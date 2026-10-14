@@ -24,6 +24,10 @@ class Frames(unittest.TestCase):
         # Utils.requestAllInfo body 80 85 07; DabService.send fills SEQ and the sum.
         self.assertEqual(build_frame(0, bytes.fromhex("808507")).hex(" "), "fa 55 00 00 04 80 85 07 f4")
 
+    def test_build_tuneup(self):
+        # Utils.TUNEUP body 80 88; SEQ 1 in the G4-2 schedule.
+        self.assertEqual(build_frame(1, bytes.fromhex("8088")).hex(" "), "fa 55 01 00 03 80 88 f8")
+
     def test_build_frame_rejects_seq_outside_a_byte(self):
         with self.assertRaises(ValueError):
             build_frame(256, bytes.fromhex("808507"))
