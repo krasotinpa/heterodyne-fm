@@ -14,8 +14,7 @@ API, USB host и audio route требуют измерений. VID/PID не у�
 
 Агент создаёт feature-ветки, делает их push и открывает PR в `main` без отдельного запроса.
 Прямой push в `main` и merge запрещены; merge выполняет пользователь.
-Начальный whitelist radio TX пуст. Работа начинается offline.
-Whitelist ведётся только в `docs/research/command-catalog.md` решениями владельца.
+Whitelist radio TX пуст, кроме команд из `docs/research/command-catalog.md`, внесённых решением владельца.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
 Open/claim/line coding/DTR/RTS документируй отдельно от radio commands.
 Используй проверенный interface mapping. Не force claim всех interfaces.
