@@ -14,6 +14,7 @@ RAW_SHA256 = "f1697ad37d944abf4b1d09537caca7bd6f370793dd9aa3cc60b0f2a738e70d3d"
 
 # Synthetic frames prove negative handling only, not the hardware protocol.
 FRAME_24 = bytes.fromhex("FA55B800042400 00DC".replace(" ", ""))
+MARKER_ONLY = b"\xfa\x55"
 
 
 class SyntheticInput(unittest.TestCase):
@@ -57,6 +58,35 @@ class SyntheticInput(unittest.TestCase):
         self.assertTrue(outer["complete"])
         self.assertFalse(outer["end_equals_next_marker_or_eof"])
         self.assertTrue(inner["inside_previous_candidate"])
+        self.assertTrue(outer["zero_sum"])
+        self.assertEqual(outer["end"], 11)
+        self.assertEqual(inner["end"], 6 + 5 + 0x8D)
+        self.assertFalse(inner["complete"])
+
+    def test_zero_length_has_no_type_and_no_sum(self):
+        c = analyze(bytes.fromhex("FA55000000 FA55000000".replace(" ", "")))["candidates"][0]
+        self.assertTrue(c["complete"])
+        self.assertIsNone(c["type_byte"])
+        self.assertIsNone(c["zero_sum"])
+
+    def test_overlapping_marker_prefix(self):
+        r = analyze(b"\xfa\xfa\x55\x00\x00\x00")
+        self.assertEqual(r["bytes_before_first_marker"], 1)
+        self.assertEqual(r["candidates"][0]["offset"], 1)
+
+    def test_bare_marker_at_eof(self):
+        c = analyze(MARKER_ONLY)["candidates"][0]
+        self.assertIsNone(c["length_byte"])
+        self.assertIsNone(c["plus2_plus3_le"])
+        self.assertEqual(c["hex"], "FA 55")
+
+    def test_counter_break_detection(self):
+        frame = lambda n: b"\xfa\x55" + n.to_bytes(2, "little") + b"\x00"
+        r = analyze(frame(1) + frame(2) + frame(5) + frame(0xFFFF) + frame(0))
+        self.assertEqual(r["plus2_plus3_le_breaks"], [
+            {"from_offset": 5, "from_value": 2, "to_offset": 10, "to_value": 5},
+            {"from_offset": 10, "from_value": 5, "to_offset": 15, "to_value": 0xFFFF},
+        ])
 
     def test_bad_trailer_is_reported(self):
         c = analyze(FRAME_24[:-1] + b"\x00")["candidates"][0]

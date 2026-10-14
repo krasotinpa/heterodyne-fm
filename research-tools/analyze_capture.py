@@ -2,7 +2,9 @@
 
 Reports arithmetic facts about FA 55 candidates only. A candidate is a possible
 frame under hypotheses H01 (FA 55 start), H02 (+4 length) and H04 (additive
-trailer); nothing here assigns protocol semantics.
+trailer); nothing here assigns protocol semantics. "hex" holds the candidate
+bytes when complete, even past a marker inside it; otherwise bytes up to the
+next marker or EOF.
 
 Usage: python3 research-tools/analyze_capture.py <capture.bin>  (prints JSON)
 """
@@ -37,9 +39,9 @@ def analyze(data: bytes) -> dict:
             "end": end,
             "complete": complete,
             "end_equals_next_marker_or_eof": end == nxt,
-            "type_byte": f"0x{data[s + 5]:02X}" if s + 5 < len(data) else None,
+            "type_byte": f"0x{data[s + 5]:02X}" if length and s + 5 < len(data) else None,
             "plus2_plus3_le": int.from_bytes(data[s + 2:s + 4], "little") if s + 4 <= len(data) else None,
-            "zero_sum": sum(data[s + 5:end]) % 256 == 0 if complete else None,
+            "zero_sum": sum(data[s + 5:end]) % 256 == 0 if complete and length else None,
             "hex": data[s:end if complete else nxt].hex(" ").upper(),
         })
         if complete:
