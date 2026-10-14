@@ -311,6 +311,46 @@ class G44Evidence(unittest.TestCase):
         self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (7530, False))
 
 
+class G45Evidence(unittest.TestCase):
+    """G4-5: tx-begin offsets 2024, 2746, 3673, 4447, 5223, 5997, 6773, 7547, 8362 in g4-5-reads.csv."""
+
+    DIR = ROOT / "evidence" / "g4-5-20261014T201942Z"
+
+    def frames(self):
+        data = (self.DIR / "g4-5-rx.bin").read_bytes()
+        self.assertEqual(hashlib.sha256(data).hexdigest(), "c65ae4bf1c2da6941d5df5db16d93c39d463b58549708e90dda0fd3bd7030219")
+        return parse_frames(data)
+
+    def test_fm_step_goes_up_with_tunedown_and_back_with_tuneup(self):
+        frames = self.frames()["frames"]
+        bodies = [bytes.fromhex(next(x for x in frames if x["offset"] >= o and x["type"] == "0x22")["body"])
+                  for o in (2024, 2746, 3673, 4447, 5223, 5997, 6773, 7547, 8362)]
+        self.assertEqual([(b[1] >> 5 & 3, b[2]) for b in bodies],
+                         [(0, 58), (1, 30), (1, 30), (1, 31), (1, 31), (1, 30), (1, 30), (0, 58), (0, 58)])
+        self.assertIn(b" 90.6  MHz", bodies[3])
+
+    def test_fm_0x24_has_seven_extra_bytes(self):
+        long = [bytes.fromhex(x["body"]) for x in self.frames()["frames"] if x["type"] == "0x24" and x["length"] == 11]
+        self.assertEqual(len(long), 94)
+        # Body: type, +6, +7, seven bytes +8..+14, sum; +14 is 0xff only in the first long 0x24 after BAND
+        # and after each FM requestAllInfo.
+        self.assertEqual(Counter(b[9] for b in long), Counter({0x31: 90, 0xff: 4}))
+
+    def test_repeated_usb_packet_cuts_a_frame(self):
+        parsed = self.frames()
+        self.assertEqual(parsed["junk"], [{"offset": 0, "length": 85}, {"offset": 2047, "length": 37}])
+        self.assertEqual([(s["from"], s["to"]) for s in seq_steps([x["seq"] for x in parsed["frames"]])],
+                         [(119, 119), (253, 0), (253, 0)])
+
+    def test_trace_summary_shows_nine_sends(self):
+        import json
+        usb = json.loads((self.DIR / "g4-5-analysis.json").read_text())["usb"]
+        bodies = ["808507", "8084", "808507", "8089", "808507", "8088", "808507", "8084", "808507"]
+        self.assertEqual([p["data"] for p in usb["bulk_out"]],
+                         [build_frame(n, bytes.fromhex(b)).hex(" ") for n, b in enumerate(bodies)])
+        self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (10724, False))
+
+
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
 
