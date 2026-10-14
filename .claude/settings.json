@@ -14,10 +14,10 @@
       "Bash(.venv/bin/python -m pytest *)",
       "Bash(gh issue *)",
       "Bash(gh label list *)",
-      "Bash(graphify *)"
-    ],
-    "deny": [
-      "Bash(git push *)"
+      "Bash(graphify *)",
+      "Bash(git push -u origin *)",
+      "Bash(gh pr create *)",
+      "Bash(gh pr view *)"
     ]
   }
 }

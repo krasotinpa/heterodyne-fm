@@ -39,6 +39,7 @@ Space хранит документы и архив. Это область по�
 | [transfer-guide.md](docs/handoff/transfer-guide.md) | Перенос в будущий каталог |
 | [sources.md](docs/sources.md) | Первичные технические источники |
 | [capture-analysis.md](evidence/capture-analysis.md) | Независимые измерения |
+| [g0-capture-report.md](docs/research/g0-capture-report.md) | Отчёт G0: воспроизведение, наблюдения, H01–H07 |
 | [capture-analysis.json](evidence/capture-analysis.json) | Смещения и байты кандидатов |
 | [super-radio-com5.bin](evidence/super-radio-com5.bin) | Неизменённый исходный захват |
 | [provenance.md](evidence/provenance.md) | Происхождение доказательств |
