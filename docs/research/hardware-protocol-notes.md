@@ -9,8 +9,8 @@ Windows сведения взяты из пользовательских соо
 |---|---|---|
 | VID:PID | `0483:5740` | Не устанавливает chipset или команды |
 | Product | `DAB usb bridge` | Не доказывает DAB |
-| MI_00 | `DAB usb bridge` | Class, endpoints и роль неизвестны |
-| MI_02 | USB Serial Device COM5, `usbser` | Привязка Windows; descriptor pairing неизвестен |
+| MI_00 | `DAB usb bridge`, драйвер `usbaudio` | G1: USB Audio Class 1, IF 0–1, iso IN 0x81, PCM 48 кГц стерео 16 бит |
+| MI_02 | USB Serial Device COM5, `usbser` | G1: CDC ACM, IF 2–3, bulk 0x03/0x83 по 64 байта; Union ошибочно указывает IF 0–1 |
 | Serial settings в чате | 115200 8N1, DTR/RTS false | Не устанавливает обязательный baud и отсутствие control traffic |
 | Упаковка | Super Radio AM/FM, SMA, RDS | По сообщению пользователя; функции не проверены |
 
@@ -71,6 +71,7 @@ candidate_end = marker_offset + 5 + L
 
 Код Приложения производителя поддерживает H01–H07 и модель B; модель A ему противоречит.
 Подробности и таблица команд: [vendor-apk-analysis.md](vendor-apk-analysis.md). Это доказательство из кода, не эксперимент на Модуле.
+Дескрипторы G1 и их ошибки: [descriptor-map.md](descriptor-map.md).
 
 ## Аудиотракт
 

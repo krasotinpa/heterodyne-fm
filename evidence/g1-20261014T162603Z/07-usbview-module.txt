@@ -1,0 +1,265 @@
+       ---===>Device Information<===---
+English product name: "DAB usb bridge"
+
+ConnectionStatus:                  
+Current Config Value:              0x01  -> Device Bus Speed: Full (is not SuperSpeed or higher capable)
+Device Address:                    0x03
+Open Pipes:                           3
+
+          ===>Device Descriptor<===
+bLength:                           0x12
+bDescriptorType:                   0x01
+bcdUSB:                          0x0200
+bDeviceClass:                      0x00
+*!*ERROR: device class should be Multi-interface Function 0xEF
+          When IAD descriptor is used
+bDeviceSubClass:                   0x00
+*!*ERROR: device SubClass should be USB Common Sub Class 2
+          When IAD descriptor is used
+bDeviceProtocol:                   0x00
+*!*ERROR: device Protocol should be USB IAD Protocol 1
+          When IAD descriptor is used
+bMaxPacketSize0:                   0x40 = (64) Bytes
+idVendor:                        0x0483 = STMicroelectronics
+idProduct:                       0x5740
+bcdDevice:                       0x0200
+iManufacturer:                     0x01
+     English (United States)  "STMicroelectronics"
+iProduct:                          0x02
+     English (United States)  "DAB usb bridge"
+iSerialNumber:                     0x03
+     English (United States)  "<redacted-serial>"
+bNumConfigurations:                0x01
+
+          ---===>Open Pipes<===---
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x84  -> Direction: IN - EndpointID: 4
+bmAttributes:                      0x03  -> Interrupt Transfer Type
+wMaxPacketSize:                  0x0008 = 0x08 bytes
+bInterval:                         0x10
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x03  -> Direction: OUT - EndpointID: 3
+bmAttributes:                      0x02  -> Bulk Transfer Type
+wMaxPacketSize:                  0x0040 = 0x40 bytes
+bInterval:                         0x10
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x83  -> Direction: IN - EndpointID: 3
+bmAttributes:                      0x02  -> Bulk Transfer Type
+wMaxPacketSize:                  0x0040 = 0x40 bytes
+bInterval:                         0x10
+
+       ---===>Full Configuration Descriptor<===---
+
+          ===>Configuration Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x02
+wTotalLength:                    0x00B7  -> Validated
+bNumInterfaces:                    0x04
+bConfigurationValue:               0x01
+iConfiguration:                    0x00
+bmAttributes:                      0xC0  -> Self Powered
+MaxPower:                          0x32 = 100 mA
+
+          ===>IAD Descriptor<===
+bLength:                           0x08
+bDescriptorType:                   0x0B
+bFirstInterface:                   0x00
+bInterfaceCount:                   0x02
+bFunctionClass:                    0x01  -> Audio Interface Class
+bFunctionSubClass:                 0x00
+*!*CAUTION:    This appears to be an invalid bFunctionSubClass
+bFunctionProtocol:                 0x00
+iFunction:                         0x00
+
+          ===>Interface Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x04
+bInterfaceNumber:                  0x00
+bAlternateSetting:                 0x00
+bNumEndpoints:                     0x00
+bInterfaceClass:                   0x01  -> Audio Interface Class
+bInterfaceSubClass:                0x01  -> Audio Control Interface SubClass
+bInterfaceProtocol:                0x00
+iInterface:                        0x00
+
+          ===>Audio Control Interface Header Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x24 (CS_INTERFACE)
+bDescriptorSubtype:                0x01 (HEADER)
+bcdADC:                          0x0100
+wTotalLength:                    0x0027
+bInCollection:                     0x01
+baInterfaceNr[1]:                  0x01
+
+          ===>Descriptor Hex Dump<===
+bLength:                           0x0C
+bDescriptorType:                   0x24
+0C 24 03 01 10 07 00 02 03 00 00 00 
+
+          ===>Audio Control Feature Unit Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x24 (CS_INTERFACE)
+bDescriptorSubtype:                0x06 (FEATURE_UNIT)
+bUnitID:                           0x02
+bSourceID:                         0x01
+bControlSize:                      0x02
+bmaControls[master]:               01 00 
+iFeature:                          0x00
+
+          ===>Audio Control Output Terminal Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x24 (CS_INTERFACE)
+bDescriptorSubtype:                0x03 (OUTPUT_TERMINAL)
+bTerminalID:                       0x03
+wTerminalType:                   0x0101 (USB streaming)
+bAssocTerminal:                    0x00
+bSourceID:                         0x02
+iTerminal:                         0x00
+
+          ===>Interface Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x04
+bInterfaceNumber:                  0x01
+bAlternateSetting:                 0x00
+bNumEndpoints:                     0x00
+bInterfaceClass:                   0x01  -> Audio Interface Class
+bInterfaceSubClass:                0x02  -> Audio Streaming Interface SubClass
+bInterfaceProtocol:                0x00
+iInterface:                        0x00
+
+          ===>Interface Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x04
+bInterfaceNumber:                  0x01
+bAlternateSetting:                 0x01
+bNumEndpoints:                     0x01
+bInterfaceClass:                   0x01  -> Audio Interface Class
+bInterfaceSubClass:                0x02  -> Audio Streaming Interface SubClass
+bInterfaceProtocol:                0x00
+iInterface:                        0x00
+
+          ===>Audio Streaming Class Specific Interface Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x24 (CS_INTERFACE)
+bDescriptorSubtype:                0x01 (AS_GENERAL)
+bTerminalLink:                     0x03
+bDelay:                            0x01
+wFormatTag:                      0x0001 (PCM)
+
+          ===>Audio Streaming Format Type Descriptor<===
+bLength:                           0x0B
+bDescriptorType:                   0x24 (CS_INTERFACE)
+bDescriptorSubtype:                0x02 (FORMAT_TYPE)
+bFormatType:                       0x01 (FORMAT_TYPE_I)
+bNrChannels:                       0x02
+bSubframeSize:                     0x02
+bBitResolution:                    0x10 (16)
+bSamFreqType:                      0x01 (Discrete)
+tSamFreq[1]:                   0x00BB80 (48000 Hz)
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x81  -> Direction: IN - EndpointID: 1
+bmAttributes:                      0x05  -> Isochronous Transfer Type, Synchronization Type = Asynchronous, Usage Type = Data Endpoint
+wMaxPacketSize:                  0x0138 = 0x138 bytes
+wInterval:                       0x0001
+bSyncAddress:                      0x00
+
+          ===>Audio Streaming Class Specific Audio Data Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x25 (CS_ENDPOINT)
+bDescriptorSubtype:                0x01 (EP_GENERAL)
+bmAttributes:                      0x00
+bLockDelayUnits:                   0x00 (Undefined)
+wLockDelay:                      0x0000
+
+          ===>IAD Descriptor<===
+bLength:                           0x08
+bDescriptorType:                   0x0B
+bFirstInterface:                   0x02
+bInterfaceCount:                   0x02
+bFunctionClass:                    0x02  -> This is Communications (CDC Control) USB Device Interface Class
+bFunctionSubClass:                 0x02
+bFunctionProtocol:                 0x01
+iFunction:                         0x02
+     English (United States)  "DAB usb bridge"
+
+          ===>Interface Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x04
+bInterfaceNumber:                  0x02
+bAlternateSetting:                 0x00
+bNumEndpoints:                     0x01
+bInterfaceClass:                   0x02  -> This is Communications (CDC Control) USB Device Interface Class
+bInterfaceSubClass:                0x02
+bInterfaceProtocol:                0x01
+iInterface:                        0x00
+  -> This is a Communications (CDC Control) USB Device Interface Class
+
+          ===>Descriptor Hex Dump<===
+bLength:                           0x05
+bDescriptorType:                   0x24
+05 24 00 10 01 
+  -> This is a Communications (CDC Control) USB Device Interface Class
+
+          ===>Descriptor Hex Dump<===
+bLength:                           0x05
+bDescriptorType:                   0x24
+05 24 01 00 01 
+  -> This is a Communications (CDC Control) USB Device Interface Class
+
+          ===>Descriptor Hex Dump<===
+bLength:                           0x04
+bDescriptorType:                   0x24
+04 24 02 02 
+  -> This is a Communications (CDC Control) USB Device Interface Class
+
+          ===>Descriptor Hex Dump<===
+bLength:                           0x05
+bDescriptorType:                   0x24
+05 24 06 00 01 
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x84  -> Direction: IN - EndpointID: 4
+bmAttributes:                      0x03  -> Interrupt Transfer Type
+wMaxPacketSize:                  0x0008 = 0x08 bytes
+bInterval:                         0x10
+
+          ===>Interface Descriptor<===
+bLength:                           0x09
+bDescriptorType:                   0x04
+bInterfaceNumber:                  0x03
+bAlternateSetting:                 0x00
+bNumEndpoints:                     0x02
+bInterfaceClass:                   0x0A  -> This is a CDC Data USB Device Interface Class
+bInterfaceSubClass:                0x00
+bInterfaceProtocol:                0x00
+iInterface:                        0x00
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x03  -> Direction: OUT - EndpointID: 3
+bmAttributes:                      0x02  -> Bulk Transfer Type
+wMaxPacketSize:                  0x0040 = 0x40 bytes
+bInterval:                         0x10
+
+          ===>Endpoint Descriptor<===
+bLength:                           0x07
+bDescriptorType:                   0x05
+bEndpointAddress:                  0x83  -> Direction: IN - EndpointID: 3
+bmAttributes:                      0x02  -> Bulk Transfer Type
+wMaxPacketSize:                  0x0040 = 0x40 bytes
+bInterval:                         0x10

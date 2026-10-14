@@ -1,0 +1,19 @@
+
+
+Status       : OK
+Class        : USB
+FriendlyName : Составное USB устройство
+InstanceId   : USB\VID_0483&PID_5740\<redacted-serial>
+
+Status       : OK
+Class        : Ports
+FriendlyName : USB Serial Device (COM5)
+InstanceId   : USB\VID_0483&PID_5740&MI_02\6&B2D5A34&0&0002
+
+Status       : OK
+Class        : MEDIA
+FriendlyName : DAB usb bridge
+InstanceId   : USB\VID_0483&PID_5740&MI_00\6&B2D5A34&0&0000
+
+
+
