@@ -1,0 +1,10 @@
+transfer status 3
+transfer status 3
+transfer status 3
+transfer status 3
+transfer status 3
+transfer status 3
+transfer status 3
+packets 4496, bad 0, bytes 863424
+len 192: 4464
+len 198: 32

@@ -86,7 +86,7 @@ RX checksum не определяет TX encoding.
 
 ## G5 и G6
 
-G6a — звук Модуля через WSL и USB/IP до проверки на ГУ: [g6a-wsl-audio-plan.md](g6a-wsl-audio-plan.md).
+G6a — звук Модуля через WSL и USB/IP до проверки на ГУ: [g6a-wsl-audio-plan.md](g6a-wsl-audio-plan.md). Выполнено 15 октября 2026 года: [g6a-report.md](../research/g6a-report.md) — звук получен через libusb.
 
 1. Реализуй Windows prototype для whitelist.
 2. Повтори minimal control на Android.

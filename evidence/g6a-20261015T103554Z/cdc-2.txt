@@ -1,0 +1,3 @@
+1792062116.558250 tx tuneup: fa 55 00 00 03 80 88 f8 -> ok, 8 bytes, rx offset 296
+1792062118.612377 tx tuneup: fa 55 01 00 03 80 88 f8 -> ok, 8 bytes, rx offset 489
+1792062129.969699 tx rai: fa 55 02 00 04 80 85 07 f4 -> ok, 9 bytes, rx offset 1493
