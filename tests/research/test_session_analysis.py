@@ -426,6 +426,22 @@ class ProbeFrames(unittest.TestCase):
                                  capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, out.stderr)
 
+    def test_journal_check(self):
+        import os, shutil, subprocess
+        jdk = pathlib.Path(os.environ.get("JAVA_HOME", pathlib.Path.home() / "opt" / "jdk")) / "bin"
+        javac = jdk / "javac" if (jdk / "javac").exists() else shutil.which("javac")
+        if not javac:
+            self.skipTest("no JDK")
+        probe = ROOT / "research-tools" / "g2-probe"
+        pkg = "io/github/krasotinpa/superradio/probe"
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run([str(javac), "-d", d, str(probe / "src" / pkg / "Journal.java"),
+                            str(probe / "test" / pkg / "JournalCheck.java")], check=True)
+            java = pathlib.Path(javac).with_name("java")
+            out = subprocess.run([str(java), "-ea", "-cp", d, "io.github.krasotinpa.superradio.probe.JournalCheck"],
+                                 capture_output=True, text=True)
+            self.assertEqual(out.returncode, 0, out.stderr)
+
 
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
 B_SHA = "af12a4332beab2097e427fee4dfd3b9b744649a34d9e0d1150b363e160949551"
