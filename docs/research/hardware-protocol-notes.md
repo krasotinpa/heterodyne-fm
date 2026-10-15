@@ -75,6 +75,7 @@ candidate_end = marker_offset + 5 + L
 G1b: 753 Кадра RX подтверждают модель B наблюдением; SEQ идёт 0…253; `0x24` b7 меняется с антенной ([g1b-report.md](g1b-report.md)).
 G4-1 и G4-2: Модуль отвечает на requestAllInfo; TUNEUP `80 88` сменил станцию AM 1044 → 1035 кГц; H06 согласуется одним наблюдением ([g4-2-report.md](g4-2-report.md)).
 G4-3: TUNEDOWN `80 89` вернул станцию 1035 → 1044 кГц; после 20 минут отключения от USB Модуль стартовал на той же станции, одно наблюдение ([g4-3-report.md](g4-3-report.md)).
+G4-6–G4-8: playSelect `80 82 20 <cid> 00 <cid>` переводит Модуль на заданный cid за 19–44 мс в AM (cid 21–58) и FM (cid 0–205); AM «кГц = 522 + 9 × cid», FM «МГц = 87,5 + 0,1 × cid»; `<b7>` диапазон не задаёт ([g4-6-report.md](g4-6-report.md), [g4-7-report.md](g4-7-report.md), [g4-8-report.md](g4-8-report.md)).
 G4-4: BAND `80 84` переключает AM ↔ FM; FM — режим 1 в `0x22`, cid 30 «90.5  MHz», длинный `0x24`; гипотеза МГц = 87,5 + 0,1 × cid по одной точке ([g4-4-report.md](g4-4-report.md)). Байты +8…+14 длинного `0x24` приложение производителя не читает ([vendor-apk-analysis.md](vendor-apk-analysis.md)).
 G4-5: шаг в FM — 0,1 МГц, `80 89` вверх, `80 88` вниз, как в AM; гипотеза FM согласуется с двумя точками ([g4-5-report.md](g4-5-report.md)).
 G6a: звук идёт по IF 1, iso EP `0x81`, 48 кГц; `snd-usb-audio` Linux 6.18 не принимает Модуль (mixer `-ENODEV`), захват через libusb работает; FM 90,3 — речь слышна ([g6a-report.md](g6a-report.md)).
