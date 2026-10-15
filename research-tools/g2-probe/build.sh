@@ -9,10 +9,12 @@ SDK=${ANDROID_HOME:-$HOME/opt/android-sdk}
 BT=$SDK/build-tools/34.0.0
 JAR=$SDK/platforms/android-30/android.jar
 KEY=${PROBE_KEYSTORE:-$HOME/.android/super-radio-probe.jks}
+"$JAVA_HOME/bin/javac" -version 2>&1 | grep -q ' 17\.' || { echo "need JDK 17 in JAVA_HOME" >&2; exit 1; }
 rm -rf build && mkdir -p build/classes build/dex
 
 "$BT/aapt2" compile --dir res -o build/res.zip
 "$BT/aapt2" link -I "$JAR" --manifest AndroidManifest.xml -o build/unsigned.apk build/res.zip
+# ponytail: --release 8 checks java.* against JDK 8, not android.jar; fine for this one-file probe.
 "$JAVA_HOME/bin/javac" --release 8 -nowarn -classpath "$JAR" -d build/classes $(find src -name '*.java')
 "$BT/d8" --min-api 26 --lib "$JAR" --output build/dex $(find build/classes -name '*.class')
 python3 -c "import zipfile; zipfile.ZipFile('build/unsigned.apk', 'a', zipfile.ZIP_DEFLATED).write('build/dex/classes.dex', 'classes.dex')"

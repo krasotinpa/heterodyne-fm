@@ -22,6 +22,7 @@ import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.Arrays;
+import java.util.Locale;
 
 /**
  * G2 probe: reads system, USB and audio facts and shows them on screen.
@@ -39,6 +40,9 @@ public class MainActivity extends Activity {
         @Override public void onReceive(Context c, Intent i) {
             if (ACTION_PERMISSION.equals(i.getAction())) {
                 permissionResult = i.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false) ? "выдано" : "отказано";
+            } else if (UsbManager.ACTION_USB_DEVICE_DETACHED.equals(i.getAction())) {
+                asked = false;
+                permissionResult = "не запрашивалось";
             }
             render();
         }
@@ -77,9 +81,10 @@ public class MainActivity extends Activity {
 
     void render() {
         StringBuilder s = new StringBuilder("Super Radio Probe 0.1 — только чтение\n\n");
-        system(s);
-        usb(s);
-        audio(s);
+        // A vendor HAL may throw anywhere; keep the rest of the report instead of crashing.
+        try { system(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
+        try { usb(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
+        try { audio(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
         view.setText(s);
     }
 
@@ -127,7 +132,7 @@ public class MainActivity extends Activity {
         for (UsbDevice d : um.getDeviceList().values()) {
             boolean module = d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID;
             boolean granted = um.hasPermission(d);
-            s.append(String.format("%s %04x:%04x класс %d%s\n", d.getDeviceName(), d.getVendorId(), d.getProductId(),
+            s.append(String.format(Locale.ROOT, "%s %04x:%04x класс %d%s\n", d.getDeviceName(), d.getVendorId(), d.getProductId(),
                 d.getDeviceClass(), module ? "  <- Модуль" : ""));
             s.append("  разрешение: ").append(granted).append('\n');
             if (granted) {
@@ -135,11 +140,11 @@ public class MainActivity extends Activity {
             }
             for (int i = 0; i < d.getInterfaceCount(); i++) {
                 UsbInterface f = d.getInterface(i);
-                s.append(String.format("  IF %d alt %d класс %d/%d/%d\n", f.getId(), f.getAlternateSetting(),
+                s.append(String.format(Locale.ROOT, "  IF %d alt %d класс %d/%d/%d\n", f.getId(), f.getAlternateSetting(),
                     f.getInterfaceClass(), f.getInterfaceSubclass(), f.getInterfaceProtocol()));
                 for (int e = 0; e < f.getEndpointCount(); e++) {
                     UsbEndpoint ep = f.getEndpoint(e);
-                    s.append(String.format("    EP 0x%02x тип %d max %d\n", ep.getAddress(), ep.getType(), ep.getMaxPacketSize()));
+                    s.append(String.format(Locale.ROOT, "    EP 0x%02x тип %d max %d\n", ep.getAddress(), ep.getType(), ep.getMaxPacketSize()));
                 }
             }
             if (module && !granted && !asked) {
@@ -159,7 +164,9 @@ public class MainActivity extends Activity {
             s.append(a.isSource() ? "вход  " : "выход ").append("тип ").append(a.getType())
                 .append(" \"").append(a.getProductName()).append("\" id ").append(a.getId())
                 .append(" частоты ").append(Arrays.toString(a.getSampleRates()))
-                .append(" каналы ").append(Arrays.toString(a.getChannelCounts())).append('\n');
+                .append(" каналы ").append(Arrays.toString(a.getChannelCounts()));
+            if (Build.VERSION.SDK_INT >= 28) s.append(" адрес ").append(a.getAddress());
+            s.append('\n');
         }
     }
 }
