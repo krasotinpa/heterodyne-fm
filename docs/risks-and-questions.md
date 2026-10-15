@@ -21,9 +21,9 @@
 
 ## Вопросы владельцу
 
-1. Точная модель ГУ, API/build/ABI и screen?
+1. Точная модель ГУ, API/build/ABI и screen? Частично: G7PH-23MM, Android 11, `userdebug` ([g2-head-unit.md](research/g2-head-unit.md)); ABI и экран не установлены.
 2. Возможны ли sideload и экспорт diagnostic report?
-3. Какие USB-порты доступны, где работали data devices?
+3. Какие USB-порты доступны, где работали data devices? Частично: один USB-C данных и один зарядный на консоли; host для Модуля не проверен.
 4. Есть ли официальный APK/SDK, версия и источник?
 5. Какой регион и band/channel steps нужны?
 6. Какие known FM/AM станции доступны для испытания?
