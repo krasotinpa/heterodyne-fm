@@ -16,6 +16,8 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -28,16 +30,27 @@ import java.util.Locale;
 
 /**
  * G2 probe: reads system, USB and audio facts and shows them on screen.
- * The report is read-only. The "Тест звука" button runs AudioTest (ADR 0001): claim IF 1, alt 1, iso reads, playback.
+ * The report is read-only. The "Тест звука" button starts ProbeService (ADR 0001 audio path plus MediaSession, focus and a journal, #34).
  * No radio commands are sent.
  */
 public class MainActivity extends Activity {
     static final int MODULE_VID = 0x0483, MODULE_PID = 0x5740;
     static final String ACTION_PERMISSION = "io.github.krasotinpa.superradio.probe.USB_PERMISSION";
 
-    TextView view, audioStatus;
+    TextView view, audioStatus, journalView;
     Button audioButton;
-    AudioTest audio;
+    Journal j;
+    final Handler ui = new Handler(Looper.getMainLooper());
+    final Runnable poll = new Runnable() {
+        @Override public void run() {
+            set(audioStatus, ProbeService.lastStatus);
+            set(audioButton, ProbeService.running ? "Стоп" : "Тест звука 10 мин");
+            set(journalView, j.text());   // setText only on change: keeps the selection and skips a 400-line relayout
+            ui.postDelayed(this, 1000);
+        }
+    };
+
+    static void set(TextView v, String s) { if (!s.contentEquals(v.getText())) v.setText(s); }
     String permissionResult = "не запрашивалось";
     boolean asked;
 
@@ -55,24 +68,41 @@ public class MainActivity extends Activity {
 
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
+        j = ProbeService.journal(this);
+        j.line("экран: onCreate, intent " + getIntent().getAction());
         view = new TextView(this);
         view.setTypeface(Typeface.MONOSPACE);
         view.setTextSize(16);
         view.setTextIsSelectable(true);
         view.setPadding(24, 24, 24, 24);
         audioButton = new Button(this);
-        audioButton.setText("Тест звука 30 с");
+        audioButton.setText("Тест звука 10 мин");
         audioButton.setOnClickListener(v -> toggleAudio());
+        Button clear = new Button(this);
+        clear.setText("Очистить журнал");
+        clear.setOnClickListener(v -> { ProbeService.clearJournal(this); j.line("журнал очищен"); });
+        journalView = new TextView(this);
+        journalView.setTypeface(Typeface.MONOSPACE);
+        journalView.setTextSize(16);
+        journalView.setTextIsSelectable(true);
+        journalView.setPadding(24, 8, 24, 8);
         audioStatus = new TextView(this);
         audioStatus.setTypeface(Typeface.MONOSPACE);
         audioStatus.setTextSize(16);
         audioStatus.setPadding(24, 8, 24, 8);
         ScrollView scroll = new ScrollView(this);
-        scroll.addView(view);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.addView(audioButton);
+        LinearLayout buttons = new LinearLayout(this);
+        buttons.addView(audioButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2));
+        buttons.addView(clear, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.addView(buttons);
         root.addView(audioStatus);
+        LinearLayout body = new LinearLayout(this);
+        body.setOrientation(LinearLayout.VERTICAL);
+        body.addView(journalView);
+        body.addView(view);
+        scroll.addView(body);
         root.addView(scroll);
         setContentView(root);
         IntentFilter f = new IntentFilter(ACTION_PERMISSION);
@@ -82,25 +112,28 @@ public class MainActivity extends Activity {
     }
 
     void toggleAudio() {
-        if (audio != null) { audio.stop = true; return; }
-        UsbManager um = (UsbManager) getSystemService(USB_SERVICE);
-        UsbDevice module = null;
-        for (UsbDevice d : um.getDeviceList().values()) {
-            if (d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID) module = d;
+        if (!ProbeService.running) {
+            UsbManager um = (UsbManager) getSystemService(USB_SERVICE);
+            for (UsbDevice d : um.getDeviceList().values()) {
+                if (d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID && !um.hasPermission(d)) {
+                    asked = false;   // render() asks again; the service refuses to start without permission
+                    j.line("кнопка: нет разрешения USB, запрос повторён");
+                    render();
+                    return;
+                }
+            }
         }
-        if (module == null) { audioStatus.setText("Тест звука: Модуль не подключён"); return; }
-        if (!um.hasPermission(module)) { asked = false; audioStatus.setText("Тест звука: нет разрешения USB — разреши и нажми снова"); render(); return; }
-        audio = new AudioTest(um, module, 30, msg -> runOnUiThread(() -> audioStatus.setText(msg)));
-        audioButton.setText("Стоп");
-        AudioTest a = audio;
-        new Thread(() -> {
-            a.run();
-            runOnUiThread(() -> { audio = null; audioButton.setText("Тест звука 30 с"); });
-        }, "audio-test").start();
+        Intent i = new Intent(this, ProbeService.class).setAction(ProbeService.running ? ProbeService.ACTION_STOP : ProbeService.ACTION_START);
+        j.line("кнопка: " + (ProbeService.running ? "стоп" : "тест звука"));
+        startForegroundService(i);
     }
 
+    @Override protected void onStart() { super.onStart(); j.line("экран: onStart"); ui.post(poll); }
+
+    @Override protected void onStop() { ui.removeCallbacks(poll); j.line("экран: onStop"); super.onStop(); }
+
     @Override protected void onDestroy() {
-        if (audio != null) audio.stop = true;
+        j.line("экран: onDestroy");
         unregisterReceiver(receiver);
         super.onDestroy();
     }
@@ -112,11 +145,12 @@ public class MainActivity extends Activity {
 
     @Override protected void onNewIntent(Intent i) {
         super.onNewIntent(i);
+        j.line("экран: onNewIntent " + i.getAction());
         render();
     }
 
     void render() {
-        StringBuilder s = new StringBuilder("Super Radio Probe 0.2 — отчёт только читает\n\n");
+        StringBuilder s = new StringBuilder("Super Radio Probe 0.3 — отчёт только читает\n\n");
         // A vendor HAL may throw anywhere; keep the rest of the report instead of crashing.
         try { system(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
         try { usb(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
