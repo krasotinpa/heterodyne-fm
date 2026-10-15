@@ -61,6 +61,7 @@ Profile хранит commands, interfaces, capabilities, limits и evidence.
 Frequency хранится целым числом с явной единицей; floating point не определяет wire representation.
 
 Audio backend выбирается по дескрипторам и испытаниям: UAC capture, proprietary либо внешний вход.
+Выбрано: свой изохронный приём через usbfs и `AudioTrack` — [ADR 0001](adr/0001-audio-path.md).
 UAC playback presence не доказывает радио input. Capture/output проверяются отдельно.
 Focus, mute, route loss и detach имеют явную политику.
 Если hardware mute неизвестен, останавливай proven playback path, без выдуманной mute command.
