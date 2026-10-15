@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the G2 probe APK without Gradle. Toolchain: JDK 17, platforms;android-30, build-tools;34.0.0.
+# Builds the G2 probe APK without Gradle. Toolchain: JDK 17, platforms;android-30, build-tools;34.0.0, ndk;28.2.13676358.
 # Usage: research-tools/g2-probe/build.sh   ->  research-tools/g2-probe/build/super-radio-probe.apk
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -7,6 +7,7 @@ export JAVA_HOME=${JAVA_HOME:-$HOME/opt/jdk}
 export PATH=$JAVA_HOME/bin:$PATH
 SDK=${ANDROID_HOME:-$HOME/opt/android-sdk}
 BT=$SDK/build-tools/34.0.0
+NDK=$SDK/ndk/28.2.13676358/toolchains/llvm/prebuilt/linux-x86_64/bin
 JAR=$SDK/platforms/android-30/android.jar
 KEY=${PROBE_KEYSTORE:-$HOME/.android/super-radio-probe.jks}
 "$JAVA_HOME/bin/javac" -version 2>&1 | grep -q ' 17\.' || { echo "need JDK 17 in JAVA_HOME" >&2; exit 1; }
@@ -17,8 +18,18 @@ rm -rf build && mkdir -p build/classes build/dex
 # ponytail: --release 8 checks java.* against JDK 8, not android.jar; fine for this one-file probe.
 "$JAVA_HOME/bin/javac" --release 8 -nowarn -classpath "$JAR" -d build/classes $(find src -name '*.java')
 "$BT/d8" --min-api 26 --lib "$JAR" --output build/dex $(find build/classes -name '*.class')
-python3 -c "import zipfile; zipfile.ZipFile('build/unsigned.apk', 'a', zipfile.ZIP_DEFLATED).write('build/dex/classes.dex', 'classes.dex')"
-"$BT/zipalign" -f 4 build/unsigned.apk build/aligned.apk
+# Native usbfs iso reader (ADR 0001): arm64-v8a, plus armeabi-v7a until G2 confirms the ABI.
+mkdir -p build/lib/arm64-v8a build/lib/armeabi-v7a
+"$NDK/aarch64-linux-android26-clang" -shared -fPIC -O2 -Wall -Wextra -Werror -o build/lib/arm64-v8a/libusbiso.so jni/usbiso.c
+"$NDK/armv7a-linux-androideabi26-clang" -shared -fPIC -O2 -Wall -Wextra -Werror -o build/lib/armeabi-v7a/libusbiso.so jni/usbiso.c
+python3 - <<'PY'
+import zipfile
+with zipfile.ZipFile('build/unsigned.apk', 'a', zipfile.ZIP_DEFLATED) as z:
+    z.write('build/dex/classes.dex', 'classes.dex')
+    for abi in ('arm64-v8a', 'armeabi-v7a'):
+        z.write(f'build/lib/{abi}/libusbiso.so', f'lib/{abi}/libusbiso.so')
+PY
+"$BT/zipalign" -f -p 4 build/unsigned.apk build/aligned.apk
 
 if [ ! -f "$KEY" ]; then
   mkdir -p "$(dirname "$KEY")"
@@ -30,7 +41,7 @@ fi
 # Check: the APK carries the expected package, SDK levels and the optional USB host feature.
 badging=$("$BT/aapt2" dump badging build/super-radio-probe.apk)
 for want in "package: name='io.github.krasotinpa.superradio.probe'" "sdkVersion:'26'" "targetSdkVersion:'30'" \
-            "uses-feature-not-required: name='android.hardware.usb.host'"; do
+            "uses-feature-not-required: name='android.hardware.usb.host'" "native-code: 'arm64-v8a' 'armeabi-v7a'"; do
   grep -qF "$want" <<<"$badging" || { echo "missing in APK: $want" >&2; exit 1; }
 done
 "$BT/apksigner" verify build/super-radio-probe.apk
