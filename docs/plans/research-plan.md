@@ -80,7 +80,7 @@ G4-5 — шаг частоты в FM: BAND, TUNEDOWN, TUNEUP, BAND между re
 G4-6 — playSelect и быстрые Шаги: [g4-6-windows-plan.md](g4-6-windows-plan.md). Выполнено 15 октября 2026 года: [g4-6-report.md](../research/g4-6-report.md).
 G4-7 — playSelect в FM и роль байта `<b7>`: [g4-7-windows-plan.md](g4-7-windows-plan.md). Выполнено 15 октября 2026 года: [g4-7-report.md](../research/g4-7-report.md).
 G4-8 — границы cid у playSelect: [g4-8-windows-plan.md](g4-8-windows-plan.md). Выполнено 15 октября 2026 года: [g4-8-report.md](../research/g4-8-report.md).
-G4-9 — SEEKUP и SEEKDOWN (следующая станция с сигналом): [g4-9-windows-plan.md](g4-9-windows-plan.md). План ждёт merge владельцем.
+G4-9 — SEEKUP и SEEKDOWN (следующая станция с сигналом): [g4-9-windows-plan.md](g4-9-windows-plan.md). Выполнено 15 октября 2026 года: [g4-9-report.md](../research/g4-9-report.md).
 
 Whitelist — перечень известных разрешённых команд. Начальный whitelist пуст.
 Каталог хранит direction, endpoint, hex template, parameters/ranges, response, timeout, side effects и evidence.

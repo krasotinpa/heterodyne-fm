@@ -1,0 +1,30 @@
+
+Caption                   Version    BuildNumber
+-------                   -------    -----------
+Майкрософт Windows 11 Pro 10.0.22631 22631      
+
+
+
+5.1.22621.3672
+TShark (Wireshark) 4.6.9 (v4.6.9-0-g2d548b197c75).
+
+Copyright 1998-2026 Gerald Combs <gerald@wireshark.org> and contributors.
+1. \Device\NPF_{2E561037-D489-42EA-9F69-9DE8E4C2A16C} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕* 10)
+2. \Device\NPF_{423D58DE-4FD6-496F-8D95-828DBC5E5DF7} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕* 9)
+3. \Device\NPF_{663EB4F0-E053-499A-8B56-231C03C65CAF} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕* 8)
+4. \Device\NPF_{2DE8320B-F674-40E3-A9F0-E431AD03E922} (vEthernet (WSL (Hyper-V firewall)))
+5. \Device\NPF_{73029D67-0D90-4353-A36E-CC7A1CC6161F} (╨С╨╡╤Б╨┐╤А╨╛╨▓╨╛╨┤╨╜╨░╤П ╤Б╨╡╤В╤М)
+6. \Device\NPF_{9E9D66AF-C918-437D-852E-885D31B3593B} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕* 2)
+7. \Device\NPF_{368D7341-6C80-4DBD-AD1D-3B381CA2094C} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕* 1)
+8. \Device\NPF_{5C126E50-F6F2-55A9-17FA-CB227F15E53A} (AdGuard VPN)
+9. \Device\NPF_Loopback (Adapter for loopback traffic capture)
+10. \Device\NPF_{87617765-E9CA-4218-AD2A-34F07197CAE4} (Ethernet 2)
+11. \Device\NPF_{E4AC39AD-006B-4AC5-A8A1-321DD7C2C12F} (OpenVPN Connect DCO Adapter)
+12. \Device\NPF_{C4E4AE45-5654-47C1-AE2C-CD3953756C69} (Ethernet 3)
+13. \Device\NPF_{9B9E39F0-5602-40B3-85AC-6F5E6B30DE10} (VPN - VPN Client)
+14. \Device\NPF_{BC62F597-3FF6-4AD6-AE6E-CDC264F6D107} (╨Я╨╛╨┤╨║╨╗╤О╤З╨╡╨╜╨╕╨╡ ╨┐╨╛ ╨╗╨╛╨║╨░╨╗╤М╨╜╨╛╨╣ ╤Б╨╡╤В╨╕ 2)
+15. \\.\USBPcap1 (USBPcap1)
+16. \\.\USBPcap2 (USBPcap2)
+17. \\.\USBPcap3 (USBPcap3)
+18. etwdump (Event Tracing for Windows (ETW) reader)
+admin=False
