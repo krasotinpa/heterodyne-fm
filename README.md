@@ -61,6 +61,7 @@ Space хранит документы и архив. Это область по�
 | [g4-5-windows-plan.md](docs/plans/g4-5-windows-plan.md) | План G4-5: шаг частоты в FM |
 | [g4-5-report.md](docs/research/g4-5-report.md) | G4-5: шаг в FM 90.5 ↔ 90.6 МГц |
 | [g2-head-unit.md](docs/research/g2-head-unit.md) | G2, часть 1: ГУ G7PH-23MM, Android 11 userdebug, разъёмы USB-C |
+| [g2-probe-plan.md](docs/plans/g2-probe-plan.md) | G2, часть 2: диагностическое приложение на ГУ |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
