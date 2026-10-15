@@ -376,6 +376,32 @@ class G6aEvidence(unittest.TestCase):
         self.assertEqual(len(sent), 6)
         self.assertTrue(all(x.replace(" ", "") in allowed for x in sent))
 
+    def test_usbmon_audit_classifies_requests(self):
+        sys.path.insert(0, str(ROOT / "research-tools" / "g6a-iso"))
+        from usbmon_audit import audit
+        log = ["x 1 S Ci:1:001:0 s a3 00 0000 0001 0004 4 <",          # root hub: skipped
+               "x 2 S Co:1:002:0 s 01 0b 0001 0001 0000 0",            # SET_INTERFACE IF 1 alt 1
+               "x 3 S Co:1:002:0 s 21 20 0000 0002 0007 7 = 00c20100 000008",  # CDC SET_LINE_CODING
+               "x 4 S Ci:1:002:0 s c0 01 0000 0000 0004 4 <",          # vendor
+               "x 5 S Bo:1:002:3 -115 9 = fa550000 04808507 f4"]
+        control, bulk_out, _, _ = audit(log)
+        self.assertEqual(sorted(k[0] for k in control), ["class", "standard", "vendor"])
+        self.assertEqual(bulk_out, [("3", "fa550000 04808507 f4")])
+
+    def test_cdc_send_refuses_bad_schedules(self):
+        import shutil, subprocess
+        if not shutil.which("gcc") or not pathlib.Path("/usr/include/libusb-1.0/libusb.h").exists():
+            self.skipTest("gcc or libusb headers missing")
+        with tempfile.TemporaryDirectory() as d:
+            exe = pathlib.Path(d) / "cdc_send"
+            subprocess.run(["gcc", "-O2", "-o", str(exe), str(ROOT / "research-tools" / "g6a-iso" / "cdc_send.c"), "-lusb-1.0"], check=True)
+            run = lambda *a: subprocess.run([str(exe), "--check", *a], capture_output=True).returncode
+            self.assertEqual(run("0", "rai", "10000", "band", "12000", "rai", "100"), 0)
+            self.assertEqual(run("0", "seek", "100"), 2)
+            self.assertEqual(run("0", "rai", "9999", "rai", "100"), 2)
+            self.assertEqual(run("0", "tuneup", "999", "tuneup", "100"), 2)
+            self.assertEqual(run("0", "rai"), 2)
+
     def test_iso_capture_has_no_bad_packets(self):
         for name in ("iso-30.txt", "iso-fm.txt"):
             self.assertRegex((self.DIR / name).read_text(), r"bad 0,")

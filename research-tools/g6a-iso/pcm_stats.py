@@ -1,7 +1,10 @@
-"""Stats for raw s16le stereo 48 kHz PCM; writes a WAV next to it. Usage: python3 pcm_stats.py in.pcm"""
+"""Stats for raw s16le stereo 48 kHz PCM; writes a WAV next to it.
+Usage: python3 pcm_stats.py in.pcm [skip_bytes]   (G6a captures need skip_bytes=2 to align frames)"""
 import array, math, sys, wave
 path = sys.argv[1]
-raw = open(path, 'rb').read()
+skip = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+raw = open(path, 'rb').read()[skip:]
+if len(raw) < 4: sys.exit("no PCM frames")
 odd = len(raw) % 4
 a = array.array('h'); a.frombytes(raw[:len(raw) - len(raw) % 2])
 frames = len(a) // 2
@@ -22,8 +25,10 @@ for l, r in zip(L, R):
     else:
         if run > 2400: runs += 1
         longest = max(longest, run); run = 0
+longest = max(longest, run)
+runs += run > 2400
 print(f"zero runs >50 ms: {runs}, longest zero run {longest/48:.1f} ms")
 # 1-second windows: rms per channel
 print("rms per second L/R:", ' '.join(f"{math.sqrt(sum(v*v for v in L[i:i+48000])/48000):.0f}/{math.sqrt(sum(v*v for v in R[i:i+48000])/48000):.0f}" for i in range(0, frames - 47999, 48000)))
-w = wave.open(path.rsplit('.', 1)[0] + '.wav', 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(48000)
+w = wave.open(path.rsplit('.', 1)[0] + (f'-skip{skip}' if skip else '') + '.wav', 'wb'); w.setnchannels(2); w.setsampwidth(2); w.setframerate(48000)
 w.writeframes(raw[:frames*4]); w.close()

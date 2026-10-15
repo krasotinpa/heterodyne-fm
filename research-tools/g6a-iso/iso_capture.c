@@ -1,7 +1,7 @@
 /*
  * G6a: read the Module's UAC1 iso stream (IF 1 alt 1, EP 0x81) with libusb and save raw PCM.
  * Requests sent: claim IF 1, SET_INTERFACE alt 1, then alt 0 at the end. No class or vendor requests, CDC untouched.
- * Build: gcc -O2 -o iso_capture iso_capture.c -lusb-1.0
+ * Build: gcc -O2 -Wall -Wextra -o iso_capture iso_capture.c -lusb-1.0
  * Run:   sudo ./iso_capture <seconds> <out.pcm>   -> s16le, 2 channels, 48 kHz (per descriptor)
  */
 #include <libusb-1.0/libusb.h>
@@ -61,8 +61,14 @@ int main(int argc, char **argv) {
         libusb_set_iso_packet_lengths(x[i], PKT);
         if (libusb_submit_transfer(x[i]) == 0) inflight++;
     }
-    time_t end = time(NULL) + seconds;
-    while (inflight && time(NULL) < end) libusb_handle_events(ctx);
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
+    double elapsed = 0;
+    while (inflight && elapsed < seconds) {
+        libusb_handle_events(ctx);
+        clock_gettime(CLOCK_MONOTONIC, &t1);
+        elapsed = (t1.tv_sec - t0.tv_sec) + (t1.tv_nsec - t0.tv_nsec) / 1e9;
+    }
     running = 0;
     for (int i = 0; i < NXFER; i++) libusb_cancel_transfer(x[i]);
     while (inflight) libusb_handle_events(ctx);
@@ -73,7 +79,7 @@ int main(int argc, char **argv) {
     libusb_exit(ctx);
     fclose(out);
 
-    printf("packets %ld, bad %ld, bytes %ld\n", packets, bad_packets, bytes);
+    printf("packets %ld, bad %ld, bytes %ld, elapsed %.3f s\n", packets, bad_packets, bytes, elapsed);
     for (int n = 0; n <= PKT; n++) if (hist[n]) printf("len %d: %ld\n", n, hist[n]);
     return 0;
 }

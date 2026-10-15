@@ -2,10 +2,12 @@
  * G6a: send whitelisted command frames to the Module over the CDC data interface (IF 3) and log what comes back.
  * Bulk only: EP 0x03 OUT, EP 0x83 IN. IF 2 (CDC control) is not claimed: no line coding, no DTR/RTS.
  * Allowed bodies (docs/research/command-catalog.md): 80 85 07 requestAllInfo, 80 84 BAND, 80 88 TUNEUP, 80 89 TUNEDOWN.
- * Build: gcc -O2 -o cdc_send cdc_send.c -lusb-1.0
+ * Build: gcc -O2 -Wall -Wextra -o cdc_send cdc_send.c -lusb-1.0
  * Run:   sudo ./cdc_send <rx.bin> <wait_ms> <cmd> [<wait_ms> <cmd> ...] <tail_ms>
+ *        rx.bin = --check validates the schedule and exits without opening the device.
  *        cmd: rai | band | tuneup | tunedown. Each wait is the read time before that send.
  * Limits from the catalog: rai >= 10 s apart, band >= 2 s, tune >= 1 s; the tool refuses shorter gaps.
+ * ponytail: limits and SEQ are per run; wait >= 10 s between runs.
  */
 #include <libusb-1.0/libusb.h>
 #include <stdio.h>
@@ -17,19 +19,22 @@
 #define PID 0x5740
 #define IFACE 3
 
-static double now(void) { struct timespec t; clock_gettime(CLOCK_REALTIME, &t); return t.tv_sec + t.tv_nsec / 1e9; }
+static double now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return t.tv_sec + t.tv_nsec / 1e9; }
+static double wall(void) { struct timespec t; clock_gettime(CLOCK_REALTIME, &t); return t.tv_sec + t.tv_nsec / 1e9; }
 
 static libusb_device_handle *h;
 static FILE *rx;
 
-static void read_for(int ms) {
+/* Returns 0, or a libusb error; on error the caller stops writing, so a failed read can never shorten a wait. */
+static int read_for(int ms) {
     double end = now() + ms / 1000.0;
     unsigned char buf[64];
     while (now() < end) {
         int n = 0, r = libusb_bulk_transfer(h, 0x83, buf, sizeof buf, &n, 100);
         if (n > 0) { fwrite(buf, 1, n, rx); fflush(rx); }
-        if (r && r != LIBUSB_ERROR_TIMEOUT) { fprintf(stderr, "read: %s\n", libusb_error_name(r)); return; }
+        if (r && r != LIBUSB_ERROR_TIMEOUT) { fprintf(stderr, "read: %s\n", libusb_error_name(r)); return r; }
     }
+    return 0;
 }
 
 int main(int argc, char **argv) {
@@ -48,7 +53,7 @@ int main(int argc, char **argv) {
         if (cmds[k].last && (t - cmds[k].last) * 1000 < cmds[k].min_gap_ms) { fprintf(stderr, "%s too soon\n", argv[i + 1]); return 2; }
         cmds[k].last = t ? t : 1e-9;
     }
-    for (int j = 0; j < 4; j++) cmds[j].last = 0;
+    if (!strcmp(argv[1], "--check")) { puts("schedule ok"); return 0; }
 
     rx = fopen(argv[1], "wb");
     if (!rx || libusb_init(NULL)) return 1;
@@ -60,7 +65,7 @@ int main(int argc, char **argv) {
 
     int seq = 0;
     for (int i = 2; i + 1 < argc; i += 2) {
-        read_for(atoi(argv[i]));
+        if ((r = read_for(atoi(argv[i])))) break;
         int k = 0;
         while (strcmp(argv[i + 1], cmds[k].name)) k++;
         unsigned char f[16] = {0xFA, 0x55, (unsigned char)seq++, 0, (unsigned char)(cmds[k].len + 1)};
@@ -68,7 +73,7 @@ int main(int argc, char **argv) {
         for (int b = 0; b < cmds[k].len; b++) { f[5 + b] = cmds[k].body[b]; sum += cmds[k].body[b]; }
         f[5 + cmds[k].len] = (unsigned char)(-sum);
         int len = 6 + cmds[k].len, n = 0;
-        printf("%.6f tx %s:", now(), cmds[k].name);
+        printf("%.6f tx %s:", wall(), cmds[k].name);
         for (int b = 0; b < len; b++) printf(" %02x", f[b]);
         r = libusb_bulk_transfer(h, 0x03, f, len, &n, 2000);
         printf(" -> %s, %d bytes, rx offset %ld\n", r ? libusb_error_name(r) : "ok", n, ftell(rx));
