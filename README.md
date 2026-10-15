@@ -64,6 +64,7 @@ Space хранит документы и архив. Это область по�
 | [g2-probe-plan.md](docs/plans/g2-probe-plan.md) | G2, часть 2: диагностическое приложение на ГУ |
 | [g6a-wsl-audio-plan.md](docs/plans/g6a-wsl-audio-plan.md) | План G6a: звук Модуля через WSL и USB/IP |
 | [g6a-report.md](docs/research/g6a-report.md) | G6a: звук Модуля получен через libusb; snd-usb-audio его не принимает |
+| [0001-audio-path.md](docs/adr/0001-audio-path.md) | ADR 0001: звук — свой изохронный приём через usbfs |
 | [CONTEXT.md](CONTEXT.md) | Глоссарий проекта |
 | [validation-report.md](docs/handoff/validation-report.md) | Проверка пакета и независимое ревью |
 
