@@ -11,3 +11,4 @@ __pycache__/
 
 # graphify code graph: rebuilt locally with `graphify update .`, never tracked
 /graphify-out/
+/research-tools/g2-probe/build/
