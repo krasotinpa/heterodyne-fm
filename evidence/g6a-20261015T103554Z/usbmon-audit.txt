@@ -1,0 +1,19 @@
+control requests to the Module (kind, recipient, bmRequestType, bRequest, wValue, wIndex): count
+  ('standard', 'device', '00', '05', '*', '0000') 1
+  ('standard', 'device', '00', '09', '*', '0000') 13
+  ('standard', 'device', '80', '00', '*', '0000') 1
+  ('standard', 'device', '80', '06', '*', '0000') 12
+  ('standard', 'device', '80', '06', '*', '0409') 19
+  ('standard', 'interface', '01', '0b', '0000', '0001') 17
+  ('standard', 'interface', '01', '0b', '0001', '0001') 10
+vendor requests: 0
+class requests to IF 2/3: 0
+bulk OUT submissions: 6
+  ep 3 fa550000 04808507 f4
+  ep 3 fa550100 038084fc
+  ep 3 fa550200 04808507 f4
+  ep 3 fa550000 038088f8
+  ep 3 fa550100 038088f8
+  ep 3 fa550200 04808507 f4
+iso submissions: {'Zi:1': 7834}
+other: {'Bi:3': 469}

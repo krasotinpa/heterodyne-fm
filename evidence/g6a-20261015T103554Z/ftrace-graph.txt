@@ -1,0 +1,88 @@
+# tracer: function_graph
+#
+# CPU  DURATION                  FUNCTION CALLS
+# |     |   |                     |   |   |   |
+  2)   2.474 us    |  snd_usb_apply_boot_quirk [snd_usb_audio]();
+  2)   0.218 us    |  snd_usb_apply_boot_quirk_once [snd_usb_audio]();
+  2)               |  snd_card_new [snd]() {
+  2)               |    snd_ctl_create [snd]() {
+  2)   1.865 us    |      snd_device_alloc [snd]();
+  2)   0.246 us    |      snd_device_new [snd]();
+  2)   3.583 us    |    }
+  2)   8.914 us    |  }
+  2)   1.229 us    |  snd_usb_init_quirk_flags_table [snd_usb_audio]();
+  2)   0.470 us    |  snd_component_add [snd]();
+  2)   1.443 us    |  snd_usb_audio_create_proc [snd_usb_audio]();
+  2)   0.429 us    |  snd_usb_find_csint_desc [snd_usb_audio]();
+  2)   0.210 us    |  snd_usb_add_ctrl_interface_link [snd_usb_audio]();
+  2)               |  snd_usb_parse_audio_interface [snd_usb_audio]() {
+  2)   0.217 us    |    snd_usb_apply_interface_quirk [snd_usb_audio]();
+  2)   0.177 us    |    snd_usb_find_ctrl_interface [snd_usb_audio]();
+  2)   0.170 us    |    snd_usb_find_csint_desc [snd_usb_audio]();
+  2)   0.317 us    |    snd_usb_find_csint_desc [snd_usb_audio]();
+  2)   0.168 us    |    snd_usb_find_csint_desc [snd_usb_audio]();
+  2)   0.181 us    |    snd_usb_parse_datainterval [snd_usb_audio]();
+  2)   0.188 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.180 us    |    snd_usb_audioformat_attributes_quirk [snd_usb_audio]();
+  2)               |    snd_usb_parse_audio_format [snd_usb_audio]() {
+  2)   0.157 us    |      snd_usb_is_big_endian_format [snd_usb_audio]();
+  2)   0.200 us    |      snd_usb_interface_dsd_format_quirks [snd_usb_audio]();
+  2)   3.063 us    |    }
+  2)               |    snd_usb_audioformat_set_sync_ep [snd_usb_audio]() {
+  2)   0.224 us    |      snd_usb_get_host_interface [snd_usb_audio]();
+  2)   0.215 us    |      snd_usb_parse_implicit_fb_quirk [snd_usb_audio]();
+  2)   1.061 us    |    }
+  2)               |    snd_usb_add_audio_stream [snd_usb_audio]() {
+  2)   1.161 us    |      snd_device_alloc [snd]();
+  2)   0.486 us    |      snd_device_new [snd]();
+  2)   0.337 us    |      snd_usb_set_pcm_ops [snd_usb_audio]();
+  2)   0.363 us    |      snd_usb_preallocate_buffer [snd_usb_audio]();
+  2)   0.461 us    |      snd_usb_proc_pcm_format_add [snd_usb_audio]();
+  2)   0.863 us    |      snd_ctl_new1 [snd]();
+  2)               |      snd_ctl_add [snd]() {
+  2)   0.301 us    |        snd_ctl_find_id [snd]();
+  2)               |        snd_ctl_notify_one [snd]() {
+  2)   0.219 us    |          snd_ctl_notify [snd]();
+  2)   1.146 us    |        }
+  2)   2.822 us    |      }
+  2) + 12.192 us   |    }
+  2)   4.874 us    |    snd_usb_add_endpoint [snd_usb_audio]();
+  2)   2.036 us    |    snd_usb_init_pitch [snd_usb_audio]();
+  2) + 10.384 us   |    snd_usb_init_sample_rate [snd_usb_audio]();
+  2) # 2875.820 us |  }
+  2)               |  snd_usb_create_mixer [snd_usb_audio]() {
+  2)   0.563 us    |    snd_usb_find_csint_desc [snd_usb_audio]();
+  2)   0.751 us    |    snd_usb_validate_audio_desc [snd_usb_audio]();
+  2)   0.257 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.249 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.231 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.401 us    |    snd_usb_validate_audio_desc [snd_usb_audio]();
+  2)   0.212 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.200 us    |    snd_usb_find_desc [snd_usb_audio]();
+  2)   0.238 us    |    snd_usb_validate_audio_desc [snd_usb_audio]();
+  2) + 10.422 us   |  }
+  2)               |  snd_card_register [snd]() {
+  2)               |    snd_device_register_all [snd]() {
+  2)               |      snd_register_device [snd]() {
+  1) ! 241.272 us  |      } /* snd_register_device [snd] */
+  1)   1.058 us    |      snd_device_new [snd]();
+  1)   1.461 us    |      snd_device_register [snd]();
+  1) ! 423.795 us  |      snd_register_device [snd]();
+  1) ! 680.744 us  |    } /* snd_device_register_all [snd] */
+  1) ! 778.741 us  |  } /* snd_card_register [snd] */
+  1)               |  snd_card_free [snd]() {
+  1)               |    snd_device_disconnect_all [snd]() {
+  1) ! 461.752 us  |      snd_unregister_device [snd]();
+  1)               |      snd_unregister_device [snd]() {
+  4) ! 305.351 us  |      } /* snd_unregister_device [snd] */
+  4)               |      snd_ctl_remove [snd]() {
+  4)               |        snd_ctl_notify_one [snd]() {
+  4)   0.264 us    |          snd_ctl_notify [snd]();
+  4)   1.138 us    |        }
+  4)   3.297 us    |      }
+  4) ! 779.032 us  |    } /* snd_device_disconnect_all [snd] */
+  4)               |    snd_device_free_all [snd]() {
+  4)   0.329 us    |      snd_media_stream_delete [snd_usb_audio]();
+  4)   7.396 us    |    }
+  4)   0.934 us    |    snd_usb_endpoint_free_all [snd_usb_audio]();
+  4) ! 815.145 us  |  } /* snd_card_free [snd] */

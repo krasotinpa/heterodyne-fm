@@ -1,0 +1,4 @@
+             tee-21497   [016] ..... 20684.437207: ret_snd_usb_add_audio_stream: (snd_usb_add_audio_stream+0xadd/0x1690 [snd_usb_audio] <- snd_usb_add_audio_stream) ret=0
+             tee-21497   [016] ..... 20684.440127: ret_snd_usb_parse_audio_interface: (snd_usb_autosuspend+0x123/0x2e0 [snd_usb_audio] <- snd_usb_parse_audio_interface) ret=0
+             tee-21497   [016] ..... 20684.444858: ret_snd_usb_create_mixer: (snd_usb_find_suppported_substream+0x5ac/0x15b0 [snd_usb_audio] <- snd_usb_create_mixer) ret=-19
+             tee-21497   [016] ..... 20684.445402: ret_snd_card_register: (snd_usb_lock_shutdown+0x4e0/0x4f0 [snd_usb_audio] <- snd_card_register) ret=0

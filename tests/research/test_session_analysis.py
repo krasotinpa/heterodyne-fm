@@ -1,6 +1,7 @@
 """G1b: model B frames, SEQ steps and USBPcap traces. Run: python3 -m unittest discover -s tests/research"""
 import hashlib
 import pathlib
+import re
 import struct
 import sys
 import tempfile
@@ -349,6 +350,35 @@ class G45Evidence(unittest.TestCase):
         self.assertEqual([p["data"] for p in usb["bulk_out"]],
                          [build_frame(n, bytes.fromhex(b)).hex(" ") for n, b in enumerate(bodies)])
         self.assertEqual((usb["bulk_in_bytes"], usb["bulk_in_equals_rx"]), (10724, False))
+
+
+class G6aEvidence(unittest.TestCase):
+    """G6a: Module over USB/IP in WSL; whitelisted frames via libusb on IF 3, audio via libusb iso on IF 1."""
+
+    DIR = ROOT / "evidence" / "g6a-20261015T103554Z"
+
+    def stations(self, name):
+        frames = parse_frames((self.DIR / name).read_bytes())["frames"]
+        return [((b[1] >> 5) & 3, b[2]) for b in (bytes.fromhex(x["body"]) for x in frames if x["type"] == "0x22")]
+
+    def test_band_then_two_tuneup_reach_fm_90_3(self):
+        self.assertEqual(self.stations("cdc-1.bin"), [(0, 58), (1, 30), (1, 30)])
+        self.assertEqual(self.stations("cdc-2.bin"), [(1, 29), (1, 28), (1, 28), (1, 28)])
+        self.assertIn(b" 90.3  MHz", (self.DIR / "cdc-2.bin").read_bytes())
+
+    def test_usbmon_audit_has_only_standard_requests_and_whitelisted_frames(self):
+        audit = (self.DIR / "usbmon-audit.txt").read_text()
+        self.assertIn("vendor requests: 0", audit)
+        self.assertIn("class requests to IF 2/3: 0", audit)
+        self.assertNotIn("'class'", audit)
+        sent = re.findall(r"ep 3 (.+)", audit)
+        allowed = {build_frame(n, bytes.fromhex(b)).hex() for n in range(3) for b in ("808507", "8084", "8088")}
+        self.assertEqual(len(sent), 6)
+        self.assertTrue(all(x.replace(" ", "") in allowed for x in sent))
+
+    def test_iso_capture_has_no_bad_packets(self):
+        for name in ("iso-30.txt", "iso-fm.txt"):
+            self.assertRegex((self.DIR / name).read_text(), r"bad 0,")
 
 
 A_SHA = "8b2e17d5ae8c372eaf4090b139660804c33977d86bb7bbcf48cb59ae063ba7d7"
