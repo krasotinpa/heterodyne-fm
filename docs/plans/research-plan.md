@@ -77,6 +77,7 @@ G4-2 — одна отправка TUNEUP между двумя requestAllInfo: 
 G4-3 — одна отправка TUNEDOWN для возврата на 1044 кГц: [g4-3-windows-plan.md](g4-3-windows-plan.md). Выполнено 14 октября 2026 года: [g4-3-report.md](../research/g4-3-report.md).
 G4-4 — две отправки BAND (AM → FM → AM): [g4-4-windows-plan.md](g4-4-windows-plan.md). Выполнено 14 октября 2026 года: [g4-4-report.md](../research/g4-4-report.md). TUNEUP и TUNEDOWN — постоянные команды с 14 октября 2026 года.
 G4-5 — шаг частоты в FM: BAND, TUNEDOWN, TUNEUP, BAND между requestAllInfo: [g4-5-windows-plan.md](g4-5-windows-plan.md). Выполнено 14 октября 2026 года: [g4-5-report.md](../research/g4-5-report.md). BAND — постоянная команда с 14 октября 2026 года.
+G4-6 — playSelect и быстрые Шаги: [g4-6-windows-plan.md](g4-6-windows-plan.md). План ждёт merge владельцем.
 
 Whitelist — перечень известных разрешённых команд. Начальный whitelist пуст.
 Каталог хранит direction, endpoint, hex template, parameters/ranges, response, timeout, side effects и evidence.
