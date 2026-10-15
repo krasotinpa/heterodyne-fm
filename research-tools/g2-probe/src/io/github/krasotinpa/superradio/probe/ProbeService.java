@@ -104,11 +104,11 @@ public class ProbeService extends Service {
     @Override public int onStartCommand(Intent i, int flags, int startId) {
         String action = i == null ? "null" : i.getAction();
         j.line("сервис: onStartCommand " + action);
-        if (ACTION_STOP.equals(action)) { stopTest(); return START_NOT_STICKY; }
+        // Every start came through startForegroundService, so startForeground must follow even for STOP.
         Notification n = new Notification.Builder(this, "probe").setContentTitle("Super Radio Probe").setContentText("тест звука")
             .setSmallIcon(android.R.drawable.ic_media_play).setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken())).build();
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
-        startTest();
+        if (ACTION_STOP.equals(action)) stopTest(); else startTest();
         return START_NOT_STICKY;
     }
 
@@ -149,7 +149,7 @@ public class ProbeService extends Service {
         }, "audio-test").start();
     }
 
-    void stopTest() { if (test != null) test.stop = true; else stopSelf(); }
+    void stopTest() { if (running && test != null) test.stop = true; else { stopForeground(true); stopSelf(); } }
 
     static PlaybackState state(int s) {
         return new PlaybackState.Builder().setActions(PlaybackState.ACTION_PLAY | PlaybackState.ACTION_PAUSE | PlaybackState.ACTION_PLAY_PAUSE
@@ -162,8 +162,8 @@ public class ProbeService extends Service {
         j.line("сервис: onDestroy, тест " + (running ? "ещё идёт" : "не идёт"));
         if (test != null) test.stop = true;
         unregisterReceiver(screen);
-        am.unregisterAudioPlaybackCallback(playback);
-        session.release();
+        if (am != null) am.unregisterAudioPlaybackCallback(playback);
+        if (session != null) session.release();
         super.onDestroy();
     }
 

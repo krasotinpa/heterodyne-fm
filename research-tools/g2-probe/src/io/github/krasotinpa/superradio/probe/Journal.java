@@ -30,9 +30,9 @@ final class Journal {
         if (sink != null) sink.accept(s);
     }
 
-    /** Older lines restored from the sink file, oldest first; they go below anything already logged. */
+    /** Older lines restored from the sink file, newest first; they go below anything already logged. */
     synchronized void restore(Collection<String> old) {
-        for (String s : old) { lines.addLast(s); if (lines.size() > MAX) break; }
+        for (String s : old) { if (lines.size() >= MAX) break; lines.addLast(s); }
     }
 
     synchronized String text() { return String.join("\n", lines); }

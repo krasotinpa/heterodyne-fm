@@ -43,12 +43,14 @@ public class MainActivity extends Activity {
     final Handler ui = new Handler(Looper.getMainLooper());
     final Runnable poll = new Runnable() {
         @Override public void run() {
-            audioStatus.setText(ProbeService.lastStatus);
-            audioButton.setText(ProbeService.running ? "Стоп" : "Тест звука 10 мин");
-            journalView.setText(j.text());
+            set(audioStatus, ProbeService.lastStatus);
+            set(audioButton, ProbeService.running ? "Стоп" : "Тест звука 10 мин");
+            set(journalView, j.text());   // setText only on change: keeps the selection and skips a 400-line relayout
             ui.postDelayed(this, 1000);
         }
     };
+
+    static void set(TextView v, String s) { if (!s.contentEquals(v.getText())) v.setText(s); }
     String permissionResult = "не запрашивалось";
     boolean asked;
 
@@ -89,7 +91,6 @@ public class MainActivity extends Activity {
         audioStatus.setTextSize(16);
         audioStatus.setPadding(24, 8, 24, 8);
         ScrollView scroll = new ScrollView(this);
-        scroll.addView(view);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         LinearLayout buttons = new LinearLayout(this);
@@ -101,7 +102,6 @@ public class MainActivity extends Activity {
         body.setOrientation(LinearLayout.VERTICAL);
         body.addView(journalView);
         body.addView(view);
-        scroll.removeView(view);
         scroll.addView(body);
         root.addView(scroll);
         setContentView(root);
@@ -112,6 +112,17 @@ public class MainActivity extends Activity {
     }
 
     void toggleAudio() {
+        if (!ProbeService.running) {
+            UsbManager um = (UsbManager) getSystemService(USB_SERVICE);
+            for (UsbDevice d : um.getDeviceList().values()) {
+                if (d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID && !um.hasPermission(d)) {
+                    asked = false;   // render() asks again; the service refuses to start without permission
+                    j.line("кнопка: нет разрешения USB, запрос повторён");
+                    render();
+                    return;
+                }
+            }
+        }
         Intent i = new Intent(this, ProbeService.class).setAction(ProbeService.running ? ProbeService.ACTION_STOP : ProbeService.ACTION_START);
         j.line("кнопка: " + (ProbeService.running ? "стоп" : "тест звука"));
         startForegroundService(i);
