@@ -16,6 +16,8 @@ import android.media.AudioDeviceInfo;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.widget.Button;
+import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
@@ -26,13 +28,16 @@ import java.util.Locale;
 
 /**
  * G2 probe: reads system, USB and audio facts and shows them on screen.
- * Read-only: it may ask for USB permission, but never opens, claims or writes to any device.
+ * The report is read-only. The "Тест звука" button runs AudioTest (ADR 0001): claim IF 1, alt 1, iso reads, playback.
+ * No radio commands are sent.
  */
 public class MainActivity extends Activity {
     static final int MODULE_VID = 0x0483, MODULE_PID = 0x5740;
     static final String ACTION_PERMISSION = "io.github.krasotinpa.superradio.probe.USB_PERMISSION";
 
-    TextView view;
+    TextView view, audioStatus;
+    Button audioButton;
+    AudioTest audio;
     String permissionResult = "не запрашивалось";
     boolean asked;
 
@@ -55,16 +60,47 @@ public class MainActivity extends Activity {
         view.setTextSize(16);
         view.setTextIsSelectable(true);
         view.setPadding(24, 24, 24, 24);
+        audioButton = new Button(this);
+        audioButton.setText("Тест звука 30 с");
+        audioButton.setOnClickListener(v -> toggleAudio());
+        audioStatus = new TextView(this);
+        audioStatus.setTypeface(Typeface.MONOSPACE);
+        audioStatus.setTextSize(16);
+        audioStatus.setPadding(24, 8, 24, 8);
         ScrollView scroll = new ScrollView(this);
         scroll.addView(view);
-        setContentView(scroll);
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.addView(audioButton);
+        root.addView(audioStatus);
+        root.addView(scroll);
+        setContentView(root);
         IntentFilter f = new IntentFilter(ACTION_PERMISSION);
         f.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         f.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         registerReceiver(receiver, f);
     }
 
+    void toggleAudio() {
+        if (audio != null) { audio.stop = true; return; }
+        UsbManager um = (UsbManager) getSystemService(USB_SERVICE);
+        UsbDevice module = null;
+        for (UsbDevice d : um.getDeviceList().values()) {
+            if (d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID) module = d;
+        }
+        if (module == null) { audioStatus.setText("Тест звука: Модуль не подключён"); return; }
+        if (!um.hasPermission(module)) { audioStatus.setText("Тест звука: нет разрешения USB — разреши и нажми снова"); render(); return; }
+        audio = new AudioTest(um, module, 30, msg -> runOnUiThread(() -> audioStatus.setText(msg)));
+        audioButton.setText("Стоп");
+        AudioTest a = audio;
+        new Thread(() -> {
+            a.run();
+            runOnUiThread(() -> { audio = null; audioButton.setText("Тест звука 30 с"); });
+        }, "audio-test").start();
+    }
+
     @Override protected void onDestroy() {
+        if (audio != null) audio.stop = true;
         unregisterReceiver(receiver);
         super.onDestroy();
     }
@@ -80,7 +116,7 @@ public class MainActivity extends Activity {
     }
 
     void render() {
-        StringBuilder s = new StringBuilder("Super Radio Probe 0.1 — только чтение\n\n");
+        StringBuilder s = new StringBuilder("Super Radio Probe 0.2 — отчёт только читает\n\n");
         // A vendor HAL may throw anywhere; keep the rest of the report instead of crashing.
         try { system(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
         try { usb(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
