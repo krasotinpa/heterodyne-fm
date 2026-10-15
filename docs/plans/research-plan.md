@@ -86,6 +86,8 @@ RX checksum не определяет TX encoding.
 
 ## G5 и G6
 
+G6a — звук Модуля через WSL и USB/IP до проверки на ГУ: [g6a-wsl-audio-plan.md](g6a-wsl-audio-plan.md).
+
 1. Реализуй Windows prototype для whitelist.
 2. Повтори minimal control на Android.
 3. Сверь actual TX/RX и confirmed frequency.
