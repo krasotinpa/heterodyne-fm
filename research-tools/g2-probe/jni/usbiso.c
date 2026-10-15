@@ -13,7 +13,7 @@
 #define EP 0x81
 #define PKT 312   /* wMaxPacketSize */
 #define NPKT 8    /* 1 ms packets per URB */
-#define NURB 8
+#define NURB 32   /* 256 ms in flight */
 
 static int fd_ = -1, inflight;
 static struct usbdevfs_urb *urbs[NURB];
@@ -40,6 +40,7 @@ JNIEXPORT jint JNICALL Java_io_github_krasotinpa_superradio_probe_UsbIso_open(JN
     bad = 0;
     for (int i = 0; i < NURB; i++) {
         urbs[i] = calloc(1, sizeof(struct usbdevfs_urb) + NPKT * sizeof(struct usbdevfs_iso_packet_desc) + PKT * NPKT);
+        if (!urbs[i]) return -ENOMEM;
         int r = submit(urbs[i]);
         if (r) return r;
     }
@@ -51,7 +52,9 @@ JNIEXPORT jint JNICALL Java_io_github_krasotinpa_superradio_probe_UsbIso_read(JN
     (void)c;
     struct usbdevfs_urb *u;
     if (fd_ < 0) return -EBADF;
-    if (ioctl(fd_, USBDEVFS_REAPURB, &u) < 0) return -errno;
+    int r;
+    while ((r = ioctl(fd_, USBDEVFS_REAPURB, &u)) < 0 && errno == EINTR) { }
+    if (r < 0) return -errno;
     inflight--;
     jint n = 0, cap = (*env)->GetArrayLength(env, out);
     unsigned char *base = u->buffer;
@@ -62,7 +65,7 @@ JNIEXPORT jint JNICALL Java_io_github_krasotinpa_superradio_probe_UsbIso_read(JN
         (*env)->SetByteArrayRegion(env, out, n, p->actual_length, (jbyte *)base + i * PKT);
         n += p->actual_length;
     }
-    int r = submit(u);
+    r = submit(u);
     return r ? r : n;
 }
 
@@ -77,7 +80,10 @@ JNIEXPORT void JNICALL Java_io_github_krasotinpa_superradio_probe_UsbIso_close(J
     if (fd_ < 0) return;
     for (int i = 0; i < NURB; i++) if (urbs[i]) ioctl(fd_, USBDEVFS_DISCARDURB, urbs[i]);
     struct usbdevfs_urb *u;
-    while (inflight > 0 && ioctl(fd_, USBDEVFS_REAPURB, &u) == 0) inflight--;
+    while (inflight > 0) {
+        if (ioctl(fd_, USBDEVFS_REAPURB, &u) == 0) inflight--;
+        else if (errno != EINTR) break;   /* ENODEV after unplug: the kernel already dropped the URBs */
+    }
     for (int i = 0; i < NURB; i++) { free(urbs[i]); urbs[i] = NULL; }
     inflight = 0;
     fd_ = -1;

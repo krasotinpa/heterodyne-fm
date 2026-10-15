@@ -17,6 +17,7 @@ public class FramesCheck {
         s = stream(0, true);  assert Frames.frameOffset(s, s.length) == 0 : "mono, aligned";
         s = stream(2, true);  assert Frames.frameOffset(s, s.length) == 2 : "mono, 2-byte lead";
         s = stream(0, false); assert Frames.frameOffset(s, s.length) == 2 : "stereo: tie picks 2";
+        s = new byte[19200];  assert Frames.frameOffset(s, s.length) == 2 : "silence: tie picks 2";
         assert Frames.s16(new byte[] {(byte) 0xff, (byte) 0x7f}, 0) == 32767;
         assert Frames.s16(new byte[] {0x00, (byte) 0x80}, 0) == -32768;
         System.out.println("FramesCheck ok");

@@ -14,7 +14,7 @@ final class Frames {
         }
         int frames = len / 4;
         // Chance equal pairs in stereo are rare; offset 0 needs clear mono evidence.
-        return equal[0] > frames / 2 && equal[0] > equal[1] ? 0 : 2;
+        return equal[0] > frames / 2 && equal[0] - equal[1] > frames / 10 ? 0 : 2;
     }
 
     static int s16(byte[] b, int i) { return (short) ((b[i] & 0xff) | (b[i + 1] << 8)); }

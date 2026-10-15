@@ -89,7 +89,7 @@ public class MainActivity extends Activity {
             if (d.getVendorId() == MODULE_VID && d.getProductId() == MODULE_PID) module = d;
         }
         if (module == null) { audioStatus.setText("Тест звука: Модуль не подключён"); return; }
-        if (!um.hasPermission(module)) { audioStatus.setText("Тест звука: нет разрешения USB — разреши и нажми снова"); render(); return; }
+        if (!um.hasPermission(module)) { asked = false; audioStatus.setText("Тест звука: нет разрешения USB — разреши и нажми снова"); render(); return; }
         audio = new AudioTest(um, module, 30, msg -> runOnUiThread(() -> audioStatus.setText(msg)));
         audioButton.setText("Стоп");
         AudioTest a = audio;

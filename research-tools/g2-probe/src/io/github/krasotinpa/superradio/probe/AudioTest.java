@@ -15,6 +15,7 @@ import java.util.function.Consumer;
 /**
  * Plays the Module's audio for a fixed time (ADR 0001): claim IF 1, alt 1, usbfs iso reads, AudioTrack.
  * USB requests: claim and SET_INTERFACE only. No radio commands.
+ * Frame alignment is decided from 0.1 s of data and re-decided after any lost packet (ADR 0001, decision 4).
  * ponytail: no drift compensation; fine for a 30 s test, AudioTrack under/overrun shows up in the counters.
  */
 final class AudioTest implements Runnable {
@@ -49,7 +50,7 @@ final class AudioTest implements Runnable {
             if1 = alt1;
             if (!conn.setInterface(alt1)) throw new IllegalStateException("setInterface alt 1 не удался");
             int r = UsbIso.open(conn.getFileDescriptor());
-            isoOpen = true;
+            isoOpen = r != -16;   // -EBUSY: another test owns the native session; do not close it
             if (r < 0) throw new IllegalStateException("usbfs open: errno " + -r);
 
             int minBuf = AudioTrack.getMinBufferSize(RATE, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT);
@@ -58,42 +59,48 @@ final class AudioTest implements Runnable {
                     .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                 .setAudioFormat(new AudioFormat.Builder().setSampleRate(RATE).setEncoding(AudioFormat.ENCODING_PCM_16BIT)
                     .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO).build())
-                .setBufferSizeInBytes(Math.max(minBuf, RATE * BYTES_PER_FRAME / 4))
+                .setBufferSizeInBytes(Math.max(minBuf, RATE * BYTES_PER_FRAME))   // 1 s
                 .setTransferMode(AudioTrack.MODE_STREAM).build();
             track.setVolume(0.3f);   // car tests run at low volume
 
             byte[] urb = new byte[8 * 312];
-            byte[] pending = new byte[RATE * BYTES_PER_FRAME];   // first 0.5 s decide the frame offset
-            int have = 0, offset = -1;
+            final int decide = RATE * BYTES_PER_FRAME / 10;      // 0.1 s decides the frame offset
+            byte[] pending = new byte[decide + urb.length];
+            int have = 0, offset = -1, realigned = -1;
+            long badSeen = 0;
+            boolean playing = false;
             long bytes = 0, sumSq = 0, samples = 0;
             long start = SystemClock.elapsedRealtime(), lastUi = 0;
             while (!stop && SystemClock.elapsedRealtime() - start < seconds * 1000L) {
                 int n = UsbIso.read(urb);
                 if (n < 0) throw new IllegalStateException("usbfs read: errno " + -n);
                 bytes += n;
+                long bad = UsbIso.badPackets();
+                if (bad != badSeen) { badSeen = bad; offset = -1; have = 0; continue; }   // gap: drop and realign
                 System.arraycopy(urb, 0, pending, have, n);
                 have += n;
                 if (offset < 0) {
-                    if (have < RATE * BYTES_PER_FRAME / 2) continue;
+                    if (have < decide) continue;
                     offset = Frames.frameOffset(pending, have);
+                    realigned++;
                     System.arraycopy(pending, offset, pending, 0, have - offset);
                     have -= offset;
-                    track.play();
                 }
                 int whole = have / BYTES_PER_FRAME * BYTES_PER_FRAME;
                 for (int i = 0; i + 1 < whole; i += 2) { long v = Frames.s16(pending, i); sumSq += v * v; samples++; }
                 track.write(pending, 0, whole);
+                if (!playing && bytes > RATE * BYTES_PER_FRAME / 4) { track.play(); playing = true; }   // 0.25 s prefilled, buffer holds 1 s
                 System.arraycopy(pending, whole, pending, 0, have - whole);
                 have -= whole;
                 long now = SystemClock.elapsedRealtime();
                 if (now - lastUi > 1000) {
                     lastUi = now;
-                    status.accept(report("идёт", now - start, bytes, offset, sumSq, samples, track));
+                    status.accept(report("идёт", now - start, bytes, offset, realigned, sumSq, samples, track));
                 }
             }
-            result = report("завершён", SystemClock.elapsedRealtime() - start, bytes, offset, sumSq, samples, track);
+            result = report("завершён", SystemClock.elapsedRealtime() - start, bytes, offset, realigned, sumSq, samples, track);
         } catch (Throwable t) {
-            result = "Тест звука: ошибка — " + t.getMessage();
+            result = "Тест звука: ошибка — " + t;
         } finally {
             if (isoOpen) UsbIso.close();
             if (track != null) { try { track.stop(); } catch (IllegalStateException ignored) { } track.release(); }
@@ -106,11 +113,11 @@ final class AudioTest implements Runnable {
         status.accept(result);
     }
 
-    static String report(String state, long ms, long bytes, int offset, long sumSq, long samples, AudioTrack t) {
+    static String report(String state, long ms, long bytes, int offset, int realigned, long sumSq, long samples, AudioTrack t) {
         double rms = samples > 0 ? Math.sqrt((double) sumSq / samples) : 0;
         return String.format(Locale.ROOT,
-            "Тест звука: %s, %.1f с\nбайт %d (ожидалось ~%d), плохих пакетов %d\nсмещение кадра %d, уровень %.1f dBFS, недогрузок AudioTrack %d",
-            state, ms / 1000.0, bytes, ms * RATE * BYTES_PER_FRAME / 1000, UsbIso.badPackets(), offset,
+            "Тест звука: %s, %.1f с\nбайт %d (ожидалось ~%d), плохих пакетов %d\nсмещение кадра %d, повторных выравниваний %d, уровень %.1f dBFS, недогрузок AudioTrack %d",
+            state, ms / 1000.0, bytes, ms * RATE * BYTES_PER_FRAME / 1000, UsbIso.badPackets(), offset, Math.max(realigned, 0),
             rms > 0 ? 20 * Math.log10(rms / 32768) : -99.0, t.getUnderrunCount());
     }
 }
