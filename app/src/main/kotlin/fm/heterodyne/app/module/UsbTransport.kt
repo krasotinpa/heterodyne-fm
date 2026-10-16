@@ -9,6 +9,7 @@ interface UsbTransport {
 }
 
 class FakeTransport : UsbTransport {
+    val sentFrames = mutableListOf<ByteArray>()
     var openCount = 0; private set
     var sendCount = 0; private set
     var closeCount = 0; private set
@@ -23,7 +24,7 @@ class FakeTransport : UsbTransport {
     }
     fun enqueueReceived(bytes: ByteArray) { check(isOpen); received.addLast(bytes.copyOf()) }
     override fun receive(): ByteArray { check(isOpen); return received.removeFirst() }
-    override fun send(bytes: ByteArray) { sendCount++; error("Radio TX is disabled") }
+    override fun send(bytes: ByteArray) { check(isOpen); sendCount++; sentFrames.add(bytes.copyOf()) }
     override fun close() {
         closeCalls++
         if (isOpen) closeCount++

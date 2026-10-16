@@ -15,22 +15,24 @@ import fm.heterodyne.app.DiagnosticLog
 import fm.heterodyne.app.audio.*
 import fm.heterodyne.app.module.*
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /** Application owns one adapter. Discovery, permission and open run on its worker, outside UI. */
 class AndroidUsbAdapter(
     private val context: Context,
+    stationChanged: (Band, Int?) -> Unit = { _, _ -> },
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
 ) {
     private val manager = context.getSystemService(UsbManager::class.java)
-    private val worker = Executors.newSingleThreadExecutor()
+    private val worker = Executors.newSingleThreadScheduledExecutor()
     private val log by lazy {
         DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics")).also {
             it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
         }
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
-    private val controller: ModuleController by lazy { ModuleController(transport, log, changed) }
+    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = changed) }
     private var playbackStopped: (() -> Unit)? = null
     private var audioGeneration = 0L
     @Volatile private var closing = false
@@ -45,6 +47,7 @@ class AndroidUsbAdapter(
     private val permissionAction = "${context.packageName}.USB_PERMISSION"
     private val instance = java.util.UUID.randomUUID().toString()
     private var started = false
+    private var polling: java.util.concurrent.ScheduledFuture<*>? = null
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE)
@@ -79,6 +82,7 @@ class AndroidUsbAdapter(
         if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         else context.registerReceiver(receiver, filter)
         started = true
+        polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
@@ -123,6 +127,7 @@ class AndroidUsbAdapter(
         if (!started) return
         context.unregisterReceiver(receiver)
         started = false
+        polling?.cancel(false)
         closing = true
         worker.execute { try { controller.close() } finally { worker.shutdown() } }
     }
@@ -145,7 +150,7 @@ private fun UsbDevice.description() = UsbDescription(deviceName, vendorId, produ
     })
 
 /**
- * USB lifecycle only, independently of radio commands (empty TX whitelist for #77).
+ * USB lifecycle is separate from radio commands; only ModuleController owns TX policy.
  * openDevice -> claim IF 2 and IF 3, force=false; close releases those claims and connection.
  * Audio borrows that connection, claims IF 1 force=true, and selects alt 1.
  * No IF 0 claim, line coding, DTR/RTS or CDC control transfers. Not tested on hardware.
@@ -160,6 +165,7 @@ private class AndroidUsbTransport(
     private var audioAlt0: UsbInterface? = null
     val fileDescriptor get() = checkNotNull(connection).fileDescriptor
     private val claimed = mutableListOf<UsbInterface>()
+    private var output: android.hardware.usb.UsbEndpoint? = null
     private var input: android.hardware.usb.UsbEndpoint? = null
     override fun open(profile: DeviceProfile) {
         check(connection == null)
@@ -174,18 +180,25 @@ private class AndroidUsbTransport(
                     .single { it.id == number && it.alternateSetting == 0 }
                 check(connection!!.claimInterface(item, false))
                 claimed.add(item)
-                if (number == profile.dataInterface) input = (0 until item.endpointCount)
-                    .map(item::getEndpoint).single { it.address == profile.bulkIn }
+                if (number == profile.dataInterface) {
+                    val endpoints = (0 until item.endpointCount).map(item::getEndpoint)
+                    input = endpoints.single { it.address == profile.bulkIn }
+                    output = endpoints.single { it.address == profile.bulkOut }
+                }
             }
         } catch (failure: Exception) { close(); throw failure }
     }
     override fun receive(): ByteArray {
         val bytes = ByteArray(64)
         val count = checkNotNull(connection).bulkTransfer(checkNotNull(input), bytes, bytes.size, 250)
-        check(count >= 0) { "USB receive failed" }
-        return bytes.copyOf(count)
+        // Android returns -1 for both an idle read timeout and other IO failures.
+        // Detach is handled by the broadcast; timeout escalation belongs to the session ticket.
+        return if (count > 0) bytes.copyOf(count) else byteArrayOf()
     }
-    override fun send(bytes: ByteArray): Unit = error("Radio TX is disabled")
+    override fun send(bytes: ByteArray) {
+        val count = checkNotNull(connection).bulkTransfer(checkNotNull(output), bytes, bytes.size, 250)
+        check(count == bytes.size) { "USB write incomplete" }
+    }
     override fun claim() {
         check(audioInterface == null)
         val device = checkNotNull(device)
@@ -214,6 +227,7 @@ private class AndroidUsbTransport(
             connection = null
             device = null
             input = null
+            output = null
             try { claimed.forEach { opened.releaseInterface(it) } }
             finally { claimed.clear(); opened.close() }
         }

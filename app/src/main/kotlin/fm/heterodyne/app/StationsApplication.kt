@@ -49,9 +49,9 @@ class StationsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, { state ->
+        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, changed = { state ->
             main.post { moduleState = state }
-        }, { counters -> main.post { audioState = counters.state } })
+        }, audioChanged = { counters -> main.post { audioState = counters.state } })
         usb.start()
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {

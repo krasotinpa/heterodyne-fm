@@ -24,7 +24,7 @@ Detach → discard/reap → release IF 1 → release AudioTrack → stopSelf
 
 Транспорт сохраняет захват IF 2/3 с `force=false`.
 Аудио дополнительно захватывает IF 1 с `force=true` и выбирает alt 1.
-IF 0 не захватывается. CDC-запросов line coding, DTR/RTS и radio TX нет.
+IF 0 не захватывается. Звук не шлёт CDC-запросов (line coding, DTR/RTS) и не добавляет radio TX; команды остаются в `ModuleController` (#78).
 Транспорт сначала останавливает аудио; fd соединения остаётся открыт до завершения native cleanup.
 При detach контроллер пропускает alt 0, поскольку устройство уже отключено.
 Native read с ENODEV также запускает очистку без alt 0, даже до detach broadcast.
