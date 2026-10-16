@@ -3,6 +3,12 @@ package fm.heterodyne.app.module
 import fm.heterodyne.app.DiagnosticLog
 
 enum class Band { AM, FM, DAB }
+fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) {
+    Band.FM -> frequencyKhz in 87500..108000 && (frequencyKhz - 87500) % 100 == 0
+    Band.AM -> frequencyKhz in 711..1044 && (frequencyKhz - 522) % 9 == 0
+    else -> false
+}
+
 enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, RateLimited, TransportError }
 
 enum class TransitionState { Idle, Waiting, Unconfirmed, Unresponsive, Disconnected, CommandPause, Seeking }
@@ -53,6 +59,8 @@ class ModuleController(
     private var seeking: Long? = null
     private var seekReply: Long? = null
     private var lastCheck: Long? = null
+    private val restart = SessionRestart()
+    fun restoreStation(station: TuneTarget?) { restart.restore(station) }
     private var returning = false
     private var probeNeeded = false
     private fun radio(next: TransitionState) {
@@ -70,6 +78,7 @@ class ModuleController(
     fun tick() {
         advance(true)
         if (probeNeeded) tryCheckConnection()
+        restart.take(clock())?.let { select(it.band, it.frequencyKhz) }
     }
 
     private fun advance(dispatchPending: Boolean) {
@@ -111,6 +120,7 @@ class ModuleController(
             val b6 = frame[6].toInt() and 0xff
             val cid = ((b6 and 0x0f) shl 8) or (frame[7].toInt() and 0xff)
             band = when ((b6 shr 5) and 3) { 0 -> Band.AM; 1 -> Band.FM; else -> Band.DAB }
+            if (band == Band.AM || band == Band.FM) restart.bandReceived()
             if (bandReply == band) {
                 bandReply = null
                 if (target == null) { started = null; radio(TransitionState.Idle) }
@@ -150,12 +160,8 @@ class ModuleController(
     }
 
     fun select(nextBand: Band, frequencyKhz: Int): TuneResult {
-        val valid = when (nextBand) {
-            Band.FM -> frequencyKhz in 87500..108000 && (frequencyKhz - 87500) % 100 == 0
-            Band.AM -> frequencyKhz in 711..1044 && (frequencyKhz - 522) % 9 == 0
-            else -> false
-        }
-        if (!valid) return TuneResult.InvalidFrequency
+        if (!isSelectableFrequency(nextBand, frequencyKhz)) return TuneResult.InvalidFrequency
+        restart.manualSelection()
         advance(false)
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band == null || band == Band.DAB) return TuneResult.BandNotFM
@@ -239,9 +245,13 @@ class ModuleController(
             return TuneResult.RateLimited
         stepStarted = null
         // Consume the return obligation at send time; a timeout must not retry it.
+        val returnProbe = probeNeeded
         probeNeeded = false
-        lastCheck = clock(); checking = true; started = clock()
-        return send(0x85, 7)
+        val sentAt = clock()
+        lastCheck = sentAt; checking = true; started = sentAt
+        val result = send(0x85, 7)
+        if (returnProbe && result == TuneResult.Sent) restart.returnProbeSent(sentAt)
+        return result
     }
     private fun send(vararg payload: Int): TuneResult {
         // Host SEQ starts at 1 and wraps FF -> 00; RX SEQ is independent.
@@ -281,7 +291,11 @@ class ModuleController(
         }
     }
 
-    private fun transition(next: ConnectionState) { state = next; changed(next) }
+    private fun transition(next: ConnectionState) {
+        state = next
+        restart.connection(next)
+        changed(next)
+    }
     fun found(device: DeviceProfile) {
         if (profile?.deviceId == device.deviceId) return
         if (profile != null) disconnect()

@@ -14,6 +14,10 @@ import fm.heterodyne.app.stations.Catalog
 import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
 import fm.heterodyne.app.stations.StationsState
+import fm.heterodyne.app.stations.Band as StationBand
+import fm.heterodyne.app.stations.SessionStation
+import fm.heterodyne.app.module.TuneTarget
+import fm.heterodyne.app.module.isSelectableFrequency
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.module.Direction
@@ -92,10 +96,7 @@ class StationsApplication : Application() {
         storage.execute {
             val state = current.state ?: return@execute
             val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
-            val next = state.copy(regions = state.regions + (state.selectedRegion to region))
-            current = if (repository.save(next)) current.copy(state = next, error = null)
-            else current.copy(error = "Не удалось сохранить Набор")
-            publish()
+            save(state.copy(regions = state.regions + (state.selectedRegion to region)))
         }
     }
 
@@ -152,10 +153,19 @@ class StationsApplication : Application() {
         developerMode = DeveloperMode(preferences.getBoolean("developer", false)) {
             preferences.edit().putBoolean("developer", it).apply()
         }
-        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, stationChanged = { band, khz ->
+        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, stationChanged = { band, frequency ->
             main.post {
-                currentStation = if (khz == null || band == fm.heterodyne.app.module.Band.DAB) null
-                else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), khz)
+                currentStation = if (frequency == null || band == fm.heterodyne.app.module.Band.DAB) null
+                else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), frequency)
+            }
+            if (frequency != null && isSelectableFrequency(band, frequency)) {
+                storage.execute {
+                    val state = current.state ?: return@execute
+                    val station = SessionStation(StationBand.valueOf(band.name), frequency)
+                    if (save(state.copy(lastStation = station, band = station.band))) {
+                        usb.restoreStation(TuneTarget(band, frequency))
+                    }
+                }
             }
         }, changed = { state ->
             main.post {
@@ -171,7 +181,6 @@ class StationsApplication : Application() {
                 transition = snapshot
                 snapshot.confirmed?.let { bandStations[it.band] = it.frequencyKhz }
             } })
-        usb.start()
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
             try {
@@ -184,6 +193,9 @@ class StationsApplication : Application() {
                 current = current.copy(error = "Не удалось прочитать Справочники")
             }
             publish()
+            val station = current.state?.lastStation
+            usb.restoreStation(station?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) })
+            main.post { usb.start() }
         }
     }
 
@@ -193,10 +205,17 @@ class StationsApplication : Application() {
             val state = current.state ?: return@execute
             if (id !in state.regions) return@execute
             val next = state.copy(selectedRegion = id)
-            current = if (repository.save(next)) current.copy(state = next, error = null)
-            else current.copy(error = "Не удалось сохранить Регион")
-            publish()
+            save(next)
         }
+    }
+
+    private fun save(state: StationsState): Boolean {
+        if (state == current.state && !current.recovered && current.error == null) return true
+        val saved = repository.save(state)
+        current = if (saved) current.copy(state = state, error = null)
+        else current.copy(error = "Не удалось сохранить состояние")
+        publish()
+        return saved
     }
 
     private fun publish() {

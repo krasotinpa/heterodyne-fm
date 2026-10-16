@@ -120,6 +120,7 @@ class AndroidUsbAdapter(
         polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
+    fun restoreStation(station: TuneTarget?) { worker.execute { controller.restoreStation(station) } }
     fun select(band: Band, frequencyKhz: Int) { worker.execute { controller.select(band, frequencyKhz) } }
     fun seek(direction: Direction) { worker.execute { controller.seek(direction) } }
     fun checkConnection() { worker.execute { controller.checkConnection() } }

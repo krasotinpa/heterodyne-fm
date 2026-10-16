@@ -94,6 +94,10 @@ class MainActivity : ComponentActivity() {
                 if (current == null) {
                     BasicText("Загрузка…", style = style)
                 } else {
+                    BasicText("Диапазон: ${current.band}", style = style)
+                    current.lastStation?.let {
+                        BasicText("Последняя Станция: ${it.band} · ${it.frequencyKhz} кГц", style = style)
+                    }
                     val catalog = catalogs.first { it.region.id == current.selectedRegion }
                     LazyColumn {
                         items(catalogs, key = { it.region.id }) { option ->
