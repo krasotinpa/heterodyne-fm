@@ -36,10 +36,10 @@ class AndroidUsbAdapter(
     private var playbackStopped: (() -> Unit)? = null
     private var audioGeneration = 0L
     @Volatile private var closing = false
+    private val sink by lazy { AudioTrackSink() }
+    private val focus by lazy { AudioFocusController(AndroidAudioFocusManager(
+        context.getSystemService(android.media.AudioManager::class.java)), sink) }
     private val audio: AudioPlayback by lazy {
-        val sink = AudioTrackSink()
-        val focus = AudioFocusController(AndroidAudioFocusManager(
-            context.getSystemService(android.media.AudioManager::class.java)), sink)
         AudioPlayback({ controller.state == ConnectionState.Observing },
             UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus) { counters ->
             audioChanged(counters)
@@ -99,6 +99,13 @@ class AndroidUsbAdapter(
                 worker.execute { receiveAudio(generation) }
             } else if (audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
+    }
+    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
+        if (!closing) worker.execute { controller.select(Band.valueOf(entry.band.name), entry.frequencyKhz) }
+    }
+    fun stepStation(direction: Direction) { if (!closing) worker.execute { controller.step(direction) } }
+    fun reclaimAudioFocus(completed: () -> Unit) {
+        if (!closing) worker.execute { focus.reclaim(); completed() }
     }
     fun stopAudio() { if (!closing) worker.execute { audio.stop() } }
     private fun finishPlayback() {
