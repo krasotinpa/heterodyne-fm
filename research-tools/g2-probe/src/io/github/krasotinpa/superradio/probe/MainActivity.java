@@ -90,6 +90,11 @@ public class MainActivity extends Activity {
         audioStatus.setTypeface(Typeface.MONOSPACE);
         audioStatus.setTextSize(16);
         audioStatus.setPadding(24, 8, 24, 8);
+        Button wheelA = new Button(this), wheelB = new Button(this);
+        wheelA.setText("Руль: фокус + active");
+        wheelA.setOnClickListener(v -> wheel(ProbeService.ACTION_RECLAIM_FOCUS));
+        wheelB.setText("Руль: новая сессия");
+        wheelB.setOnClickListener(v -> wheel(ProbeService.ACTION_RECLAIM_NEW));
         ScrollView scroll = new ScrollView(this);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
@@ -97,6 +102,10 @@ public class MainActivity extends Activity {
         buttons.addView(audioButton, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 2));
         buttons.addView(clear, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         root.addView(buttons);
+        LinearLayout wheel = new LinearLayout(this);
+        wheel.addView(wheelA, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        wheel.addView(wheelB, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1));
+        root.addView(wheel);
         root.addView(audioStatus);
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -109,6 +118,11 @@ public class MainActivity extends Activity {
         f.addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED);
         f.addAction(UsbManager.ACTION_USB_DEVICE_DETACHED);
         registerReceiver(receiver, f);
+    }
+
+    void wheel(String action) {
+        j.line("кнопка: " + action.substring(action.lastIndexOf('.') + 1));
+        startForegroundService(new Intent(this, ProbeService.class).setAction(action));
     }
 
     void toggleAudio() {
@@ -150,7 +164,7 @@ public class MainActivity extends Activity {
     }
 
     void render() {
-        StringBuilder s = new StringBuilder("Super Radio Probe 0.4 — отчёт только читает\n\n");
+        StringBuilder s = new StringBuilder("Super Radio Probe 0.5 — отчёт только читает\n\n");
         // A vendor HAL may throw anywhere; keep the rest of the report instead of crashing.
         try { system(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
         try { usb(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }

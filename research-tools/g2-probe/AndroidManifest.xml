@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="io.github.krasotinpa.superradio.probe"
-    android:versionCode="4" android:versionName="0.4">
+    android:versionCode="5" android:versionName="0.5">
     <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="30" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
