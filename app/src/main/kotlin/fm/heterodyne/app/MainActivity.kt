@@ -37,6 +37,14 @@ class MainActivity : ComponentActivity() {
                     if (stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
                     Modifier.clickable { stations.retryModulePermission() }.padding(12.dp), style,
                 )
+                val playing = stations.audioState == fm.heterodyne.app.audio.AudioState.Starting ||
+                    stations.audioState == fm.heterodyne.app.audio.AudioState.Playing
+                BasicText(
+                    if (playing) "Стоп" else "Играть",
+                    Modifier.clickable(enabled = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) {
+                        if (playing) stations.stopAudio() else stations.startAudio()
+                    }.padding(12.dp), style,
+                )
                 BasicText("Станции", style = style)
                 if (snapshot.recovered) {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)

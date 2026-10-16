@@ -12,11 +12,16 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
 import fm.heterodyne.app.DiagnosticLog
+import fm.heterodyne.app.audio.*
 import fm.heterodyne.app.module.*
 import java.util.concurrent.Executors
 
 /** Application owns one adapter. Discovery, permission and open run on its worker, outside UI. */
-class AndroidUsbAdapter(private val context: Context, changed: (ConnectionState) -> Unit) {
+class AndroidUsbAdapter(
+    private val context: Context,
+    changed: (ConnectionState) -> Unit,
+    private val audioChanged: (AudioCounters) -> Unit = {},
+) {
     private val manager = context.getSystemService(UsbManager::class.java)
     private val worker = Executors.newSingleThreadExecutor()
     private val log by lazy {
@@ -24,8 +29,19 @@ class AndroidUsbAdapter(private val context: Context, changed: (ConnectionState)
             it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
         }
     }
-    private val transport = AndroidUsbTransport(manager)
-    private val controller by lazy { ModuleController(transport, log, changed) }
+    private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
+    private val controller: ModuleController by lazy { ModuleController(transport, log, changed) }
+    private var playbackStopped: (() -> Unit)? = null
+    private var audioGeneration = 0L
+    @Volatile private var closing = false
+    private val audio: AudioPlayback by lazy {
+        AudioPlayback({ controller.state == ConnectionState.Observing },
+            UsbIsoSource { transport.fileDescriptor }, AudioTrackSink(), transport, log) { counters ->
+            audioChanged(counters)
+            if (counters.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
+        }
+    }
+    val audioCounters get() = audio.snapshot
     private val permissionAction = "${context.packageName}.USB_PERMISSION"
     private val instance = java.util.UUID.randomUUID().toString()
     private var started = false
@@ -36,7 +52,11 @@ class AndroidUsbAdapter(private val context: Context, changed: (ConnectionState)
                 try {
                     when (intent.action) {
                         UsbManager.ACTION_USB_DEVICE_ATTACHED -> discover()
-                        UsbManager.ACTION_USB_DEVICE_DETACHED -> device?.let { controller.detach(it.deviceName); discover() }
+                        UsbManager.ACTION_USB_DEVICE_DETACHED -> device?.let {
+                            if (controller.deviceId == it.deviceName) audio.onModuleDetached()
+                            controller.detach(it.deviceName)
+                            discover()
+                        }
                         permissionAction -> {
                             val uri = intent.data
                             if (uri?.authority != instance) return@execute
@@ -62,6 +82,30 @@ class AndroidUsbAdapter(private val context: Context, changed: (ConnectionState)
         retry()
     }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
+    fun playAudio(stopped: () -> Unit) {
+        if (closing) { stopped(); return }
+        worker.execute {
+            if (closing) { stopped(); return@execute }
+            playbackStopped = stopped
+            if (audio.play()) {
+                val generation = ++audioGeneration
+                worker.execute { receiveAudio(generation) }
+            } else if (audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
+        }
+    }
+    fun stopAudio() { if (!closing) worker.execute { audio.stop() } }
+    private fun finishPlayback() {
+        val stopped = playbackStopped ?: return
+        playbackStopped = null
+        stopped()
+    }
+    private fun receiveAudio(generation: Long) {
+        if (closing || generation != audioGeneration) return
+        audio.receive()
+        if (!closing && audio.snapshot.state in listOf(AudioState.Starting, AudioState.Playing)) {
+            worker.execute { receiveAudio(generation) }
+        }
+    }
     private fun discover() {
         val device = manager.deviceList.values.firstOrNull { UsbDiscovery.find(it.description()) != null } ?: return
         if (controller.deviceId != null && controller.deviceId != device.deviceName) return
@@ -79,8 +123,8 @@ class AndroidUsbAdapter(private val context: Context, changed: (ConnectionState)
         if (!started) return
         context.unregisterReceiver(receiver)
         started = false
-        worker.execute { controller.close() }
-        worker.shutdown()
+        closing = true
+        worker.execute { try { controller.close() } finally { worker.shutdown() } }
     }
 }
 
@@ -103,10 +147,18 @@ private fun UsbDevice.description() = UsbDescription(deviceName, vendorId, produ
 /**
  * USB lifecycle only, independently of radio commands (empty TX whitelist for #77).
  * openDevice -> claim IF 2 and IF 3, force=false; close releases those claims and connection.
- * No line coding, DTR/RTS, control transfers or audio interfaces. Not tested on hardware.
+ * Audio borrows that connection, claims IF 1 force=true, and selects alt 1.
+ * No IF 0 claim, line coding, DTR/RTS or CDC control transfers. Not tested on hardware.
  */
-private class AndroidUsbTransport(private val manager: UsbManager) : UsbTransport {
+private class AndroidUsbTransport(
+    private val manager: UsbManager,
+    private val beforeClose: () -> Unit,
+) : UsbTransport, UsbAudioPort {
     private var connection: UsbDeviceConnection? = null
+    private var device: UsbDevice? = null
+    private var audioInterface: UsbInterface? = null
+    private var audioAlt0: UsbInterface? = null
+    val fileDescriptor get() = checkNotNull(connection).fileDescriptor
     private val claimed = mutableListOf<UsbInterface>()
     private var input: android.hardware.usb.UsbEndpoint? = null
     override fun open(profile: DeviceProfile) {
@@ -115,6 +167,7 @@ private class AndroidUsbTransport(private val manager: UsbManager) : UsbTranspor
         check(manager.hasPermission(device))
         check(UsbDiscovery.find(device.description()) != null)
         connection = checkNotNull(manager.openDevice(device))
+        this.device = device
         try {
             for (number in listOf(profile.controlInterface, profile.dataInterface)) {
                 val item = (0 until device.interfaceCount).map(device::getInterface)
@@ -133,11 +186,36 @@ private class AndroidUsbTransport(private val manager: UsbManager) : UsbTranspor
         return bytes.copyOf(count)
     }
     override fun send(bytes: ByteArray): Unit = error("Radio TX is disabled")
+    override fun claim() {
+        check(audioInterface == null)
+        val device = checkNotNull(device)
+        val interfaces = (0 until device.interfaceCount).map(device::getInterface)
+        val alt0 = interfaces.single { it.id == 1 && it.alternateSetting == 0 }
+        val alt1 = interfaces.single { it.id == 1 && it.alternateSetting == 1 }
+        check((0 until alt1.endpointCount).map(alt1::getEndpoint).any {
+            it.address == 0x81 && it.type == 1 && it.maxPacketSize == 312
+        })
+        check(checkNotNull(connection).claimInterface(alt1, true))
+        audioInterface = alt1
+        audioAlt0 = alt0
+    }
+    override fun alt1() { check(checkNotNull(connection).setInterface(checkNotNull(audioInterface))) }
+    override fun alt0() { check(checkNotNull(connection).setInterface(checkNotNull(audioAlt0))) }
+    override fun release() {
+        val item = audioInterface ?: return
+        audioInterface = null
+        audioAlt0 = null
+        checkNotNull(connection).releaseInterface(item)
+    }
     override fun close() {
         val opened = connection ?: return
-        connection = null
-        input = null
-        try { claimed.forEach { opened.releaseInterface(it) } }
-        finally { claimed.clear(); opened.close() }
+        try { beforeClose() }
+        finally {
+            connection = null
+            device = null
+            input = null
+            try { claimed.forEach { opened.releaseInterface(it) } }
+            finally { claimed.clear(); opened.close() }
+        }
     }
 }

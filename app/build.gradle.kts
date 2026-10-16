@@ -7,6 +7,7 @@ android {
     namespace = "fm.heterodyne.app"
     compileSdk = libs.versions.compile.sdk.get().toInt()
     buildToolsVersion = libs.versions.build.tools.get()
+    ndkVersion = libs.versions.ndk.get()
 
     defaultConfig {
         applicationId = "fm.heterodyne.app"
@@ -14,6 +15,11 @@ android {
         targetSdk = libs.versions.target.sdk.get().toInt()
         versionCode = 1
         versionName = "0.1.0"
+        ndk { abiFilters += "arm64-v8a" }
+    }
+
+    externalNativeBuild {
+        ndkBuild { path = file("src/main/jni/Android.mk") }
     }
 
     buildFeatures {

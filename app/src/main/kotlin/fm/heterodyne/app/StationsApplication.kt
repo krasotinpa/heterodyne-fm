@@ -1,11 +1,14 @@
 package fm.heterodyne.app
 
 import android.app.Application
+import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import fm.heterodyne.app.audio.AudioState
+import fm.heterodyne.app.audio.PlaybackService
 import fm.heterodyne.app.stations.AtomicStationsFile
 import fm.heterodyne.app.stations.Catalog
 import fm.heterodyne.app.stations.LoadStatus
@@ -29,8 +32,14 @@ class StationsApplication : Application() {
     private lateinit var usb: fm.heterodyne.app.usb.AndroidUsbAdapter
     var moduleState by mutableStateOf(fm.heterodyne.app.module.ConnectionState.Disconnected)
         private set
+    var audioState by mutableStateOf(AudioState.Stopped)
+        private set
+    val audioCounters get() = usb.audioCounters
 
     fun retryModulePermission() { usb.retry() }
+    fun startAudio() { startForegroundService(Intent(this, PlaybackService::class.java)) }
+    fun playAudio(stopped: () -> Unit) { usb.playAudio(stopped) }
+    fun stopAudio() { usb.stopAudio() }
 
     private lateinit var repository: StationsRepository
     // Only the storage queue reads or changes these values.
@@ -40,9 +49,9 @@ class StationsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this) { state ->
+        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, { state ->
             main.post { moduleState = state }
-        }
+        }, { counters -> main.post { audioState = counters.state } })
         usb.start()
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
