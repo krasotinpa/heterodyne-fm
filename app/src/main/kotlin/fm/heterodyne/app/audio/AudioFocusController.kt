@@ -19,6 +19,12 @@ class AudioFocusController(private val manager: AudioFocusManager, private val s
         manager.request { change -> onFocus(token, change) }
     }
 
+    @Synchronized fun reclaim() {
+        if (session == null) return
+        stop()
+        start()
+    }
+
     @Synchronized fun stop() {
         if (session == null) return
         session = null
