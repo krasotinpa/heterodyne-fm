@@ -8,12 +8,17 @@
 - Haiku — механические правки по готовой спецификации.
 - Sonnet — тексты, документация, координация нескольких файлов.
 - Opus/Fable — проектирование, протокольный анализ, трудная диагностика.
+- Codex — реализация тикета `ready-for-agent` в отдельном worktree и adversarial review; процесс в [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md).
 - Сессия по умолчанию закреплена на Sonnet в `.claude/settings.json`. Переключайся через `/model`.
 
 ## Ponytail
 
 Ponytail всегда включён на уровне `full`. Вызывай скилл `ponytail` перед первым изменением кода в сессии.
 Документация и переводы выполняются без него.
+
+## Реализация через Codex
+
+Код пишет Codex в отдельном worktree. Claude проверяет, ревьюит и коммитит. См. [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md).
 
 ## Исследование кода
 

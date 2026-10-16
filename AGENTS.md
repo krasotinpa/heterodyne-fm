@@ -43,6 +43,7 @@ Android toolchain и dependencies закрепляй после получени
 
 ## Реализация и review
 
+Код тикетов `ready-for-agent` пишет Codex по [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md); тикеты `ready-for-human` берёт человек.
 Один исполнитель работает связными блоками. Проверяемое поведение реализуется test-first.
 После реализации выполни один полный local validation gate по docs/test-plan.md.
 После успешного gate проведи одну независимую review-волну всей ветки.
