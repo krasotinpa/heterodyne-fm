@@ -50,6 +50,9 @@ class MainActivity : ComponentActivity() {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
                 }
                 (linkError ?: snapshot.error)?.let { BasicText(it, style = style) }
+                if (playing) {
+                    BasicText("Вернуть руль", Modifier.clickable { stations.startAudio() }.padding(12.dp), style)
+                }
                 if (current == null) {
                     BasicText("Загрузка…", style = style)
                 } else {

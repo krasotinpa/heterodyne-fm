@@ -22,6 +22,23 @@ class AudioFocusTest {
         override fun release() {}
     }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink))
 
+    @Test fun reclaimRequestsFocusAgainOnlyWhileStarted() {
+        val focus = AudioFocusController(manager, sink)
+        focus.reclaim()
+        assertEquals(0, manager.requests)
+        focus.start()
+        val old = manager.listener
+        focus.reclaim()
+        assertEquals(2, manager.requests)
+        old(AudioFocusChange.Transient)
+        assertEquals(1f, sink.level)
+        manager.signal(AudioFocusChange.Duck)
+        assertEquals(0.3f, sink.level)
+        focus.stop()
+        focus.reclaim()
+        assertEquals(2, manager.requests)
+    }
+
     @Test fun permanentLossKeepsSoundAndStream() {
         val audio = playback()
         assertTrue(audio.play())

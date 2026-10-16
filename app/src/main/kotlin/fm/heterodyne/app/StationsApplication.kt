@@ -40,11 +40,17 @@ class StationsApplication : Application() {
         private set
     var audioState by mutableStateOf(AudioState.Stopped)
         private set
+    var currentStation by mutableStateOf<fm.heterodyne.app.stations.StationEntry?>(null)
+        private set
+    val activeEntries get() = screen.state?.let { it.regions.getValue(it.selectedRegion).active.entries }.orEmpty()
     val audioCounters get() = usb.audioCounters
 
     fun retryModulePermission() { usb.retry() }
     fun startAudio() { startForegroundService(Intent(this, PlaybackService::class.java)) }
     fun playAudio(stopped: () -> Unit) { usb.playAudio(stopped) }
+    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { usb.selectStation(entry) }
+    fun stepStation(direction: fm.heterodyne.app.module.Direction) { usb.stepStation(direction) }
+    fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
     fun stopAudio() { usb.stopAudio() }
 
     private lateinit var repository: StationsRepository
@@ -56,6 +62,10 @@ class StationsApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, stationChanged = { band, frequency ->
+            main.post {
+                currentStation = if (frequency == null || band == fm.heterodyne.app.module.Band.DAB) null
+                else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), frequency)
+            }
             if (frequency != null && isSelectableFrequency(band, frequency)) {
                 storage.execute {
                     val state = current.state ?: return@execute
@@ -66,7 +76,10 @@ class StationsApplication : Application() {
                 }
             }
         }, changed = { state ->
-            main.post { moduleState = state }
+            main.post {
+                moduleState = state
+                if (state == fm.heterodyne.app.module.ConnectionState.Disconnected) currentStation = null
+            }
         }, audioChanged = { counters -> main.post { audioState = counters.state } })
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
