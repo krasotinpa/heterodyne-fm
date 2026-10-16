@@ -173,9 +173,9 @@ class TuneTest {
         }
     }
 
-    @Test fun incompleteCandidateResyncsToLatestCompleteValidMarker() {
+    @Test fun incompleteCandidateResyncsToEarliestCompleteValidMarker() {
         receive(hex("FA 55 01 0F F0 23") + fixture("fm0") + fixture("fm205"))
-        assertEquals(listOf(Band.FM to 108000), stations)
+        assertEquals(listOf(Band.FM to 87500, Band.FM to 108000), stations)
     }
 
 }
