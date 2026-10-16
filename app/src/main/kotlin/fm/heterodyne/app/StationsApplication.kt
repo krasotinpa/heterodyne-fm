@@ -25,6 +25,13 @@ data class StationsScreenState(
 class StationsApplication : Application() {
     private val storage = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
+    // One USB owner survives Activity recreation; process death releases the OS connection.
+    private lateinit var usb: fm.heterodyne.app.usb.AndroidUsbAdapter
+    var moduleState by mutableStateOf(fm.heterodyne.app.module.ConnectionState.Disconnected)
+        private set
+
+    fun retryModulePermission() { usb.retry() }
+
     private lateinit var repository: StationsRepository
     // Only the storage queue reads or changes these values.
     private var current = StationsScreenState()
@@ -33,6 +40,10 @@ class StationsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this) { state ->
+            main.post { moduleState = state }
+        }
+        usb.start()
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
             try {
