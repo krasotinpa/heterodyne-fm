@@ -23,6 +23,7 @@ class AndroidUsbAdapter(
     stationChanged: (Band, Int?) -> Unit = { _, _ -> },
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
+    transitionObserved: (TransitionSnapshot) -> Unit = {},
 ) {
     private val manager = context.getSystemService(UsbManager::class.java)
     private val worker = Executors.newSingleThreadScheduledExecutor()
@@ -32,7 +33,7 @@ class AndroidUsbAdapter(
         }
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
-    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = changed) }
+    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = changed, transitionObserved = transitionObserved) }
     private var playbackStopped: (() -> Unit)? = null
     private var audioGeneration = 0L
     @Volatile private var closing = false
@@ -88,6 +89,10 @@ class AndroidUsbAdapter(
         polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
+    fun select(band: Band, frequencyKhz: Int) { worker.execute { controller.select(band, frequencyKhz) } }
+    fun step(direction: Direction) { worker.execute { controller.step(direction) } }
+    fun seek(direction: Direction) { worker.execute { controller.seek(direction) } }
+    fun checkConnection() { worker.execute { controller.checkConnection() } }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
     fun playAudio(stopped: () -> Unit) {
         if (closing) { stopped(); return }

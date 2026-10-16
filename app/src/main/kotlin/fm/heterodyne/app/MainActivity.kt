@@ -1,6 +1,7 @@
 package fm.heterodyne.app
 
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -26,6 +28,27 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
         setContent {
+            var parked by rememberSaveable { mutableStateOf(false) }
+            BackHandler(enabled = parked) { parked = false }
+            if (!parked) {
+                fm.heterodyne.app.ui.EfirScreen(
+                    stations.screen, stations.transition,
+                    connected = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
+                    playing = stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
+                    actions = fm.heterodyne.app.ui.EfirActions(
+                        select = stations::selectStation, station = stations::nextStation,
+                        step = stations::step, seek = stations::seek, band = stations::changeBand,
+                        activate = stations::activateSet, parked = { parked = true },
+                        check = stations::checkConnection,
+                        play = {
+                            if (stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
+                                stations.stopAudio() else stations.startAudio()
+                        },
+                        permission = stations::retryModulePermission,
+                    ),
+                )
+                return@setContent
+            }
             val snapshot = stations.screen
             val current = snapshot.state
             val catalogs = snapshot.catalogs
@@ -33,6 +56,7 @@ class MainActivity : ComponentActivity() {
             val uriHandler = LocalUriHandler.current
             val style = TextStyle(color = Color.White)
             Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+                fm.heterodyne.app.ui.Control("Эфир", true, { parked = false })
                 BasicText(
                     if (stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
                     Modifier.clickable { stations.retryModulePermission() }.padding(12.dp), style,
