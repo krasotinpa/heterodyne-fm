@@ -1,8 +1,12 @@
 package fm.heterodyne.app.audio
 
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
 
 /** Borrows the Module connection descriptor. All native calls run on the USB worker. */
 class UsbIsoSource(private val descriptor: () -> Int) : AudioSource {
@@ -36,6 +40,7 @@ class AudioTrackSink : AudioSink {
             .setTransferMode(AudioTrack.MODE_STREAM).build()
         checkNotNull(track).setVolume(1.0f)
     }
+    override fun setVolume(volume: Float) { checkNotNull(track).setVolume(volume) }
     override fun write(bytes: ByteArray, offset: Int, length: Int) {
         check(checkNotNull(track).write(bytes, offset, length) >= 0) { "AudioTrack write failed" }
     }
@@ -47,5 +52,33 @@ class AudioTrackSink : AudioSink {
         try { opened.stop() } catch (_: IllegalStateException) {
             // A failed start can leave the track uninitialized.
         } finally { opened.release() }
+    }
+}
+
+class AndroidAudioFocusManager(private val manager: AudioManager) : AudioFocusManager {
+    private var request: AudioFocusRequest? = null
+
+    override fun request(listener: (AudioFocusChange) -> Unit): Boolean {
+        val next = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+            .setWillPauseWhenDucked(true)
+            .setOnAudioFocusChangeListener({ change ->
+                when (change) {
+                    AudioManager.AUDIOFOCUS_LOSS -> listener(AudioFocusChange.Loss)
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> listener(AudioFocusChange.Duck)
+                    AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> listener(AudioFocusChange.Transient)
+                    AudioManager.AUDIOFOCUS_GAIN -> listener(AudioFocusChange.Gain)
+                }
+            }, Handler(Looper.getMainLooper()))
+            .build()
+        request = next
+        return manager.requestAudioFocus(next) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    }
+
+    override fun abandon() {
+        val previous = request ?: return
+        request = null
+        manager.abandonAudioFocusRequest(previous)
     }
 }
