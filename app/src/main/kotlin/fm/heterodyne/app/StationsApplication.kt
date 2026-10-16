@@ -14,12 +14,17 @@ import fm.heterodyne.app.stations.Catalog
 import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
 import fm.heterodyne.app.stations.StationsState
-import fm.heterodyne.app.stations.Band
+import fm.heterodyne.app.stations.Band as StationBand
 import fm.heterodyne.app.stations.SessionStation
 import fm.heterodyne.app.module.TuneTarget
-import fm.heterodyne.app.module.TuneResult
 import fm.heterodyne.app.module.isSelectableFrequency
-import fm.heterodyne.app.module.Band as ModuleBand
+import fm.heterodyne.app.module.Band
+import fm.heterodyne.app.module.ConnectionState
+import fm.heterodyne.app.module.Direction
+import fm.heterodyne.app.module.TransitionSnapshot
+import fm.heterodyne.app.module.TransitionState
+import fm.heterodyne.app.stations.StationEntry
+import fm.heterodyne.app.usb.AndroidUsbAdapter
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -35,14 +40,66 @@ class StationsApplication : Application() {
     private val storage = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
     // One USB owner survives Activity recreation; process death releases the OS connection.
-    private lateinit var usb: fm.heterodyne.app.usb.AndroidUsbAdapter
-    var moduleState by mutableStateOf(fm.heterodyne.app.module.ConnectionState.Disconnected)
+    private lateinit var usb: AndroidUsbAdapter
+    var moduleState by mutableStateOf(ConnectionState.Disconnected)
         private set
     var audioState by mutableStateOf(AudioState.Stopped)
         private set
     var currentStation by mutableStateOf<fm.heterodyne.app.stations.StationEntry?>(null)
         private set
     val activeEntries get() = screen.state?.let { it.regions.getValue(it.selectedRegion).active.entries }.orEmpty()
+    var transition by mutableStateOf(TransitionSnapshot(
+        TransitionState.Disconnected, null, null))
+        private set
+    private var cursor: StationEntry? = null
+    private val bandStations = mutableMapOf<Band, Int>()
+
+    fun pickStation(entry: StationEntry) {
+        if (moduleState != ConnectionState.Observing) return
+        cursor = entry
+        selectStation(entry)
+        startAudio()
+    }
+
+    fun nextStation(direction: Direction) {
+        val state = screen.state ?: return
+        val entries = state.regions.getValue(state.selectedRegion).active.entries
+        if (entries.isEmpty()) return
+        val confirmed = transition.confirmed
+        val index = entries.indexOfFirst {
+            if (cursor != null) it.band == cursor?.band && it.frequencyKhz == cursor?.frequencyKhz
+            else it.band.name == confirmed?.band?.name && it.frequencyKhz == confirmed?.frequencyKhz
+        }
+        val next = if (index < 0) {
+            if (direction == Direction.Up) 0 else entries.lastIndex
+        } else Math.floorMod(index + if (direction == Direction.Up) 1 else -1, entries.size)
+        pickStation(entries[next])
+    }
+
+    fun step(direction: Direction) { cursor = null; stepStation(direction) }
+    fun seek(direction: Direction) { cursor = null; usb.seek(direction) }
+    fun checkConnection() { usb.checkConnection() }
+    fun changeBand() {
+        val current = transition.confirmed ?: return
+        val next = if (current.band == Band.FM)
+            Band.AM else Band.FM
+        // select composes BAND and playSelect; no separate UI command or timing policy.
+        val frequency = bandStations[next]?.takeIf {
+            if (next == Band.AM) it in 711..1044 else it in 87500..108000
+        } ?: if (next == Band.AM) 711 else 87500
+        cursor = null
+        usb.select(next, frequency)
+    }
+
+    fun activateSet(name: String) {
+        cursor = null
+        storage.execute {
+            val state = current.state ?: return@execute
+            val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
+            save(state.copy(regions = state.regions + (state.selectedRegion to region)))
+        }
+    }
+
     val audioCounters get() = usb.audioCounters
 
     lateinit var developerMode: DeveloperMode
@@ -104,7 +161,7 @@ class StationsApplication : Application() {
             if (frequency != null && isSelectableFrequency(band, frequency)) {
                 storage.execute {
                     val state = current.state ?: return@execute
-                    val station = SessionStation(Band.valueOf(band.name), frequency)
+                    val station = SessionStation(StationBand.valueOf(band.name), frequency)
                     if (save(state.copy(lastStation = station, band = station.band))) {
                         usb.restoreStation(TuneTarget(band, frequency))
                     }
@@ -115,7 +172,15 @@ class StationsApplication : Application() {
                 moduleState = state
                 if (state == fm.heterodyne.app.module.ConnectionState.Disconnected) currentStation = null
             }
-        }, audioChanged = { counters -> main.post { audioState = counters.state } })
+        }, audioChanged = { counters -> main.post { audioState = counters.state } },
+            transitionObserved = { snapshot -> main.post {
+                if (snapshot.target == null && cursor?.let {
+                    it.band.name == snapshot.confirmed?.band?.name && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
+                } == true) cursor = null
+                if (snapshot.state == TransitionState.Disconnected) cursor = null
+                transition = snapshot
+                snapshot.confirmed?.let { bandStations[it.band] = it.frequencyKhz }
+            } })
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
             try {
@@ -129,42 +194,18 @@ class StationsApplication : Application() {
             }
             publish()
             val station = current.state?.lastStation
-            usb.restoreStation(station?.let { TuneTarget(ModuleBand.valueOf(it.band.name), it.frequencyKhz) })
+            usb.restoreStation(station?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) })
             main.post { usb.start() }
         }
     }
 
     fun selectRegion(id: String) {
+        cursor = null
         storage.execute {
             val state = current.state ?: return@execute
             if (id !in state.regions) return@execute
             val next = state.copy(selectedRegion = id)
             save(next)
-        }
-    }
-
-    fun selectSet(name: String) {
-        storage.execute {
-            val state = current.state ?: return@execute
-            val region = state.regions.getValue(state.selectedRegion)
-            val next = region.activate(name).value ?: return@execute
-            save(state.copy(regions = state.regions + (state.selectedRegion to next)))
-        }
-    }
-
-    fun selectStation(band: Band, frequencyKhz: Int) {
-        val moduleBand = ModuleBand.valueOf(band.name)
-        if (!isSelectableFrequency(moduleBand, frequencyKhz)) return
-        // Cancel on the USB queue before storage I/O can delay the user's intent.
-        usb.userSelectionPending()
-        storage.execute {
-            val state = current.state ?: return@execute
-            val station = SessionStation(band, frequencyKhz)
-            if (!save(state.copy(lastStation = station, band = band))) return@execute
-            usb.restoreStation(TuneTarget(moduleBand, frequencyKhz))
-            usb.select(moduleBand, frequencyKhz) { result ->
-                if (result == TuneResult.Sent || result == TuneResult.RateLimited) main.post { startAudio() }
-            }
         }
     }
 

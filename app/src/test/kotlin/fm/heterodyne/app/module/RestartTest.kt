@@ -87,16 +87,6 @@ class RestartTest {
         assertEquals(1, fake.sendCount)
     }
 
-    @Test fun manualIntentSuppressesRestoreWhileStorageIsStillSaving() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
-        connect(); receive(); controller.detach("module"); connect()
-        controller.userSelectionPending()
-        receive()
-        assertEquals(1, fake.sendCount)
-        assertEquals(TuneResult.Sent, controller.select(Band.FM, 87500))
-        assertEquals(0, fake.sentFrames.last()[8].toInt() and 255)
-    }
-
     @Test fun returnWithoutSpontaneousRxOnlyProbesAndTimeoutNeverSelects() {
         controller.restoreStation(TuneTarget(Band.FM, 108000))
         connect(); controller.detach("module"); connect()

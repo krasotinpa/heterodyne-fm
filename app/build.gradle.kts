@@ -27,6 +27,8 @@ android {
         buildConfig = true
     }
 
+    testOptions { unitTests.isIncludeAndroidResources = true }
+
     lint {
         // ADR 0002 deliberately targets API 30 for sideloading on the head unit.
         // This check enforces Google Play publication policy.
@@ -47,6 +49,10 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
     implementation(libs.activity.compose)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test)
+    testImplementation(libs.robolectric)
+    debugImplementation(libs.compose.ui.test.manifest)
     testImplementation(libs.junit)
     testImplementation(libs.json)
 }

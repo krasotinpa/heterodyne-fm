@@ -1,6 +1,7 @@
 package fm.heterodyne.app
 
 import android.os.Bundle
+import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicText
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -30,9 +32,28 @@ class MainActivity : ComponentActivity() {
             val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
             ) { uri -> stations.finishExport(uri) }
-            // #84/#86 подключат реальное состояние Режима стоянки.
-            val parked = true
-            if (diagnostics && parked) {
+            var parked by rememberSaveable { mutableStateOf(false) }
+            BackHandler(enabled = parked) { if (diagnostics) diagnostics = false else parked = false }
+            if (!parked) {
+                fm.heterodyne.app.ui.EfirScreen(
+                    stations.screen, stations.transition,
+                    connected = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
+                    playing = stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
+                    actions = fm.heterodyne.app.ui.EfirActions(
+                        select = stations::pickStation, station = stations::nextStation,
+                        step = stations::step, seek = stations::seek, band = stations::changeBand,
+                        activate = stations::activateSet, parked = { parked = true },
+                        check = stations::checkConnection,
+                        play = {
+                            if (stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
+                                stations.stopAudio() else stations.startAudio()
+                        },
+                        permission = stations::retryModulePermission,
+                    ),
+                )
+                return@setContent
+            }
+            if (diagnostics) {
                 DiagnosticsScreen(stations, parked, export = {
                     stations.beginExport {
                         try { exportLauncher.launch("heterodyne-diagnostic.log") }
@@ -48,6 +69,7 @@ class MainActivity : ComponentActivity() {
             val uriHandler = LocalUriHandler.current
             val style = TextStyle(color = Color.White)
             Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+                fm.heterodyne.app.ui.Control("Эфир", true, { parked = false })
                 BasicText(
                     if (stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
                     Modifier.clickable { stations.retryModulePermission() }.padding(12.dp), style,
@@ -60,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         if (playing) stations.stopAudio() else stations.startAudio()
                     }.padding(12.dp), style,
                 )
-                BasicText("Диагностика", Modifier.clickable(enabled = parked) { diagnostics = true }.padding(12.dp), style)
+                BasicText("Диагностика", Modifier.clickable { diagnostics = true }.padding(12.dp), style)
                 BasicText("Станции", style = style)
                 if (snapshot.recovered) {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
@@ -88,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         item { BasicText("Наборы", style = style) }
                         items(current.regions.getValue(current.selectedRegion).sets, key = { it.name }) { set ->
                             val active = current.regions.getValue(current.selectedRegion).activeName == set.name
-                            BasicText(set.name + if (active) " — Активный" else "", Modifier.clickable { stations.selectSet(set.name) }.padding(12.dp), style)
+                            BasicText(set.name + if (active) " — Активный" else "", Modifier.padding(12.dp), style)
                         }
                         item {
                             BasicText("Источник: ${catalog.source.text}",
@@ -99,9 +121,7 @@ class MainActivity : ComponentActivity() {
                         }
                         item { BasicText("Справочник", style = style) }
                         items(catalog.stations, key = { it.id }) { station ->
-                            BasicText("${station.name} · ${station.band} · ${station.frequencyKhz} кГц", Modifier.clickable(
-                                enabled = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
-                            ) { stations.selectStation(station.band, station.frequencyKhz) }.padding(12.dp), style)
+                            BasicText("${station.name} · ${station.band} · ${station.frequencyKhz} кГц", Modifier.padding(12.dp), style)
                         }
                     }
                 }

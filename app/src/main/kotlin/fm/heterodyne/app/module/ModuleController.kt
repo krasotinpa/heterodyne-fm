@@ -61,7 +61,6 @@ class ModuleController(
     private var lastCheck: Long? = null
     private val restart = SessionRestart()
     fun restoreStation(station: TuneTarget?) { restart.restore(station) }
-    fun userSelectionPending() { restart.manualSelection() }
     private var returning = false
     private var probeNeeded = false
     private fun radio(next: TransitionState) {
