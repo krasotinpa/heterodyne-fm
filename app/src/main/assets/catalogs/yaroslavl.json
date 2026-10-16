@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "revision": "2024-12-12",
+  "region": {
+    "id": "yaroslavl",
+    "name": "Ярославль"
+  },
+  "source": {
+    "text": "vcfm.ru",
+    "url": "https://vcfm.ru/"
+  },
+  "stations": [
+    {
+      "id": "yaroslavl-radio-rodnyh-dorog",
+      "name": "Радио Родных дорог",
+      "band": "FM",
+      "frequencyKhz": 93000
+    },
+    {
+      "id": "yaroslavl-biznes-fm",
+      "name": "Бизнес FM",
+      "band": "FM",
+      "frequencyKhz": 93600
+    },
+    {
+      "id": "yaroslavl-radio-iskatel",
+      "name": "Радио Искатель",
+      "band": "FM",
+      "frequencyKhz": 95800
+    },
+    {
+      "id": "yaroslavl-radio-kp",
+      "name": "Радио КП",
+      "band": "FM",
+      "frequencyKhz": 96200
+    },
+    {
+      "id": "yaroslavl-radio-shanson",
+      "name": "Радио Шансон",
+      "band": "FM",
+      "frequencyKhz": 96600
+    },
+    {
+      "id": "yaroslavl-radio-vera",
+      "name": "Радио Вера",
+      "band": "FM",
+      "frequencyKhz": 98300
+    },
+    {
+      "id": "yaroslavl-radio-gordost",
+      "name": "Радио Гордость",
+      "band": "FM",
+      "frequencyKhz": 98700
+    },
+    {
+      "id": "yaroslavl-radio-rossii",
+      "name": "Радио России",
+      "band": "FM",
+      "frequencyKhz": 99100
+    },
+    {
+      "id": "yaroslavl-novoe-radio",
+      "name": "Новое радио",
+      "band": "FM",
+      "frequencyKhz": 99500
+    },
+    {
+      "id": "yaroslavl-vesti-fm",
+      "name": "Вести FM",
+      "band": "FM",
+      "frequencyKhz": 99900
+    },
+    {
+      "id": "yaroslavl-love-radio",
+      "name": "Love Радио",
+      "band": "FM",
+      "frequencyKhz": 100600
+    },
+    {
+      "id": "yaroslavl-nrj",
+      "name": "NRJ",
+      "band": "FM",
+      "frequencyKhz": 101100
+    },
+    {
+      "id": "yaroslavl-radio-7",
+      "name": "Радио 7",
+      "band": "FM",
+      "frequencyKhz": 101700
+    },
+    {
+      "id": "yaroslavl-retro-fm",
+      "name": "Ретро FM",
+      "band": "FM",
+      "frequencyKhz": 102200
+    },
+    {
+      "id": "yaroslavl-russkoe-radio",
+      "name": "Русское радио",
+      "band": "FM",
+      "frequencyKhz": 102600
+    },
+    {
+      "id": "yaroslavl-radio-dacha",
+      "name": "Радио Дача",
+      "band": "FM",
+      "frequencyKhz": 103300
+    },
+    {
+      "id": "yaroslavl-dorozhnoe-radio",
+      "name": "Дорожное радио",
+      "band": "FM",
+      "frequencyKhz": 103800
+    },
+    {
+      "id": "yaroslavl-avtoradio",
+      "name": "Авторадио",
+      "band": "FM",
+      "frequencyKhz": 104500
+    },
+    {
+      "id": "yaroslavl-evropa",
+      "name": "Европа+",
+      "band": "FM",
+      "frequencyKhz": 105100
+    },
+    {
+      "id": "yaroslavl-hit-fm",
+      "name": "Хит FM",
+      "band": "FM",
+      "frequencyKhz": 105600
+    },
+    {
+      "id": "yaroslavl-marusya-fm",
+      "name": "Маруся FM",
+      "band": "FM",
+      "frequencyKhz": 106500
+    },
+    {
+      "id": "yaroslavl-detskoe-radio",
+      "name": "Детское радио",
+      "band": "FM",
+      "frequencyKhz": 107000
+    },
+    {
+      "id": "yaroslavl-mayak",
+      "name": "Маяк",
+      "band": "FM",
+      "frequencyKhz": 107900
+    }
+  ]
+}

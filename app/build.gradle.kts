@@ -42,4 +42,5 @@ dependencies {
     implementation(libs.compose.foundation)
     implementation(libs.activity.compose)
     testImplementation(libs.junit)
+    testImplementation(libs.json)
 }

@@ -1,0 +1,326 @@
+{
+  "schema": 1,
+  "revision": "2024-12-07",
+  "region": {
+    "id": "moskva",
+    "name": "Москва"
+  },
+  "source": {
+    "text": "vcfm.ru",
+    "url": "https://vcfm.ru/"
+  },
+  "stations": [
+    {
+      "id": "moskva-biznes-fm",
+      "name": "Бизнес FM",
+      "band": "FM",
+      "frequencyKhz": 87500
+    },
+    {
+      "id": "moskva-like-fm",
+      "name": "Like FM",
+      "band": "FM",
+      "frequencyKhz": 87900
+    },
+    {
+      "id": "moskva-retro-fm",
+      "name": "Ретро FM",
+      "band": "FM",
+      "frequencyKhz": 88300
+    },
+    {
+      "id": "moskva-yumor-fm",
+      "name": "Юмор FM",
+      "band": "FM",
+      "frequencyKhz": 88700
+    },
+    {
+      "id": "moskva-radio-dzhaz",
+      "name": "Радио Джаз",
+      "band": "FM",
+      "frequencyKhz": 89100
+    },
+    {
+      "id": "moskva-kalina-krasnaya",
+      "name": "Калина красная",
+      "band": "FM",
+      "frequencyKhz": 89500
+    },
+    {
+      "id": "moskva-radio-rekord",
+      "name": "Радио Рекорд",
+      "band": "FM",
+      "frequencyKhz": 89900
+    },
+    {
+      "id": "moskva-avtoradio",
+      "name": "Авторадио",
+      "band": "FM",
+      "frequencyKhz": 90300
+    },
+    {
+      "id": "moskva-relaks-fm",
+      "name": "Релакс FM",
+      "band": "FM",
+      "frequencyKhz": 90800
+    },
+    {
+      "id": "moskva-radio-sputnik",
+      "name": "Радио Спутник",
+      "band": "FM",
+      "frequencyKhz": 91200
+    },
+    {
+      "id": "moskva-radio-kultura",
+      "name": "Радио Культура",
+      "band": "FM",
+      "frequencyKhz": 91600
+    },
+    {
+      "id": "moskva-moskva-fm",
+      "name": "Москва FM",
+      "band": "FM",
+      "frequencyKhz": 92000
+    },
+    {
+      "id": "moskva-radio-dacha",
+      "name": "Радио Дача",
+      "band": "FM",
+      "frequencyKhz": 92400
+    },
+    {
+      "id": "moskva-radio-karnaval",
+      "name": "Радио Карнавал",
+      "band": "FM",
+      "frequencyKhz": 92800
+    },
+    {
+      "id": "moskva-studio-21",
+      "name": "Studio 21",
+      "band": "FM",
+      "frequencyKhz": 93200
+    },
+    {
+      "id": "moskva-kommersant-fm",
+      "name": "Коммерсантъ FM",
+      "band": "FM",
+      "frequencyKhz": 93600
+    },
+    {
+      "id": "moskva-vostok-fm",
+      "name": "Восток FM",
+      "band": "FM",
+      "frequencyKhz": 94000
+    },
+    {
+      "id": "moskva-pervoe-sportivnoe-radio",
+      "name": "Первое Спортивное радио",
+      "band": "FM",
+      "frequencyKhz": 94400
+    },
+    {
+      "id": "moskva-govorit-moskva",
+      "name": "Говорит Москва",
+      "band": "FM",
+      "frequencyKhz": 94800
+    },
+    {
+      "id": "moskva-rock-fm",
+      "name": "Rock FM",
+      "band": "FM",
+      "frequencyKhz": 95200
+    },
+    {
+      "id": "moskva-radio-zvezda",
+      "name": "Радио Звезда",
+      "band": "FM",
+      "frequencyKhz": 95600
+    },
+    {
+      "id": "moskva-dorozhnoe-radio",
+      "name": "Дорожное радио",
+      "band": "FM",
+      "frequencyKhz": 96000
+    },
+    {
+      "id": "moskva-taksi-fm",
+      "name": "Такси FM",
+      "band": "FM",
+      "frequencyKhz": 96400
+    },
+    {
+      "id": "moskva-detskoe-radio",
+      "name": "Детское радио",
+      "band": "FM",
+      "frequencyKhz": 96800
+    },
+    {
+      "id": "moskva-radio-kp",
+      "name": "Радио КП",
+      "band": "FM",
+      "frequencyKhz": 97200
+    },
+    {
+      "id": "moskva-vesti-fm",
+      "name": "Вести FM",
+      "band": "FM",
+      "frequencyKhz": 97600
+    },
+    {
+      "id": "moskva-radio-shokolad",
+      "name": "Радио Шоколад",
+      "band": "FM",
+      "frequencyKhz": 98000
+    },
+    {
+      "id": "moskva-novoe-radio",
+      "name": "Новое радио",
+      "band": "FM",
+      "frequencyKhz": 98400
+    },
+    {
+      "id": "moskva-radio-romantika",
+      "name": "Радио Романтика",
+      "band": "FM",
+      "frequencyKhz": 98800
+    },
+    {
+      "id": "moskva-radio-orfey",
+      "name": "Радио Орфей",
+      "band": "FM",
+      "frequencyKhz": 99200
+    },
+    {
+      "id": "moskva-radio-russkiy-hit",
+      "name": "Радио Русский хит",
+      "band": "FM",
+      "frequencyKhz": 99600
+    },
+    {
+      "id": "moskva-serebryanyy-dozhd",
+      "name": "Серебряный дождь",
+      "band": "FM",
+      "frequencyKhz": 100100
+    },
+    {
+      "id": "moskva-zhara-fm",
+      "name": "Жара FM",
+      "band": "FM",
+      "frequencyKhz": 100500
+    },
+    {
+      "id": "moskva-radio-vera",
+      "name": "Радио Вера",
+      "band": "FM",
+      "frequencyKhz": 100900
+    },
+    {
+      "id": "moskva-dfm",
+      "name": "DFM",
+      "band": "FM",
+      "frequencyKhz": 101200
+    },
+    {
+      "id": "moskva-radio-rossii",
+      "name": "Радио России",
+      "band": "FM",
+      "frequencyKhz": 101500
+    },
+    {
+      "id": "moskva-nashe-radio",
+      "name": "Наше радио",
+      "band": "FM",
+      "frequencyKhz": 101800
+    },
+    {
+      "id": "moskva-radio-monte-karlo",
+      "name": "Радио Монте-Карло",
+      "band": "FM",
+      "frequencyKhz": 102100
+    },
+    {
+      "id": "moskva-comedy-radio",
+      "name": "Comedy Radio",
+      "band": "FM",
+      "frequencyKhz": 102500
+    },
+    {
+      "id": "moskva-radio-shanson",
+      "name": "Радио Шансон",
+      "band": "FM",
+      "frequencyKhz": 103000
+    },
+    {
+      "id": "moskva-mayak",
+      "name": "Маяк",
+      "band": "FM",
+      "frequencyKhz": 103400
+    },
+    {
+      "id": "moskva-radio-maksimum",
+      "name": "Радио Максимум",
+      "band": "FM",
+      "frequencyKhz": 103700
+    },
+    {
+      "id": "moskva-nrj",
+      "name": "NRJ",
+      "band": "FM",
+      "frequencyKhz": 104200
+    },
+    {
+      "id": "moskva-radio-7",
+      "name": "Радио 7",
+      "band": "FM",
+      "frequencyKhz": 104700
+    },
+    {
+      "id": "moskva-radio-gordost",
+      "name": "Радио Гордость",
+      "band": "FM",
+      "frequencyKhz": 105000
+    },
+    {
+      "id": "moskva-capital-fm",
+      "name": "Capital FM",
+      "band": "FM",
+      "frequencyKhz": 105300
+    },
+    {
+      "id": "moskva-russkoe-radio",
+      "name": "Русское радио",
+      "band": "FM",
+      "frequencyKhz": 105700
+    },
+    {
+      "id": "moskva-evropa",
+      "name": "Европа+",
+      "band": "FM",
+      "frequencyKhz": 106200
+    },
+    {
+      "id": "moskva-love-radio",
+      "name": "Love Радио",
+      "band": "FM",
+      "frequencyKhz": 106600
+    },
+    {
+      "id": "moskva-kiss-fm",
+      "name": "Kiss FM",
+      "band": "FM",
+      "frequencyKhz": 107000
+    },
+    {
+      "id": "moskva-hit-fm",
+      "name": "Хит FM",
+      "band": "FM",
+      "frequencyKhz": 107400
+    },
+    {
+      "id": "moskva-militseyskaya-volna",
+      "name": "Милицейская волна",
+      "band": "FM",
+      "frequencyKhz": 107800
+    }
+  ]
+}
