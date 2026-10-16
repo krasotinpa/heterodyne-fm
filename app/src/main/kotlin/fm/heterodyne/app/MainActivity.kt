@@ -31,38 +31,38 @@ class MainActivity : ComponentActivity() {
             var diagnostics by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
             val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
-            ) { uri -> stations.finishExport(uri) }
+            ) { uri -> stations.diagnostics.finishExport(uri) }
             var parked by rememberSaveable { mutableStateOf(false) }
             BackHandler(enabled = parked) { if (diagnostics) diagnostics = false else parked = false }
             if (!parked) {
                 fm.heterodyne.app.ui.EfirScreen(
-                    stations.screen, stations.transition,
-                    connected = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
-                    playing = stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
+                    stations.session.screen, stations.module.transition,
+                    connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
+                    playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                     actions = fm.heterodyne.app.ui.EfirActions(
-                        select = stations::pickStation, station = stations::nextStation,
-                        step = stations::step, seek = stations::seek, band = stations::changeBand,
-                        activate = stations::activateSet, parked = { parked = true },
-                        check = stations::checkConnection,
+                        select = stations.module::pickStation, station = stations.module::nextStation,
+                        step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
+                        activate = stations.module::activateSet, parked = { parked = true },
+                        check = stations.module::checkConnection,
                         play = {
-                            if (stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
-                                stations.stopAudio() else stations.startAudio()
+                            if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
+                                stations.module.stopAudio() else stations.module.startAudio()
                         },
-                        permission = stations::retryModulePermission,
+                        permission = stations.module::retryModulePermission,
                     ),
                 )
                 return@setContent
             }
             if (diagnostics) {
-                DiagnosticsScreen(stations, parked, export = {
-                    stations.beginExport {
+                DiagnosticsScreen(stations.diagnostics, parked, export = {
+                    stations.diagnostics.beginExport {
                         try { exportLauncher.launch("heterodyne-diagnostic.log") }
-                        catch (_: Exception) { stations.finishExport(null) }
+                        catch (_: Exception) { stations.diagnostics.finishExport(null) }
                     }
                 }) { diagnostics = false }
                 return@setContent
             }
-            val snapshot = stations.screen
+            val snapshot = stations.session.screen
             val current = snapshot.state
             val catalogs = snapshot.catalogs
             var linkError by remember { mutableStateOf<String?>(null) }
@@ -71,15 +71,15 @@ class MainActivity : ComponentActivity() {
             Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
                 fm.heterodyne.app.ui.Control("Эфир", true, { parked = false })
                 BasicText(
-                    if (stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
-                    Modifier.clickable { stations.retryModulePermission() }.padding(12.dp), style,
+                    if (stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
+                    Modifier.clickable { stations.module.retryModulePermission() }.padding(12.dp), style,
                 )
-                val playing = stations.audioState == fm.heterodyne.app.audio.AudioState.Starting ||
-                    stations.audioState == fm.heterodyne.app.audio.AudioState.Playing
+                val playing = stations.module.audioState == fm.heterodyne.app.audio.AudioState.Starting ||
+                    stations.module.audioState == fm.heterodyne.app.audio.AudioState.Playing
                 BasicText(
                     if (playing) "Стоп" else "Играть",
-                    Modifier.clickable(enabled = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) {
-                        if (playing) stations.stopAudio() else stations.startAudio()
+                    Modifier.clickable(enabled = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) {
+                        if (playing) stations.module.stopAudio() else stations.module.startAudio()
                     }.padding(12.dp), style,
                 )
                 BasicText("Диагностика", Modifier.clickable { diagnostics = true }.padding(12.dp), style)
@@ -89,7 +89,7 @@ class MainActivity : ComponentActivity() {
                 }
                 (linkError ?: snapshot.error)?.let { BasicText(it, style = style) }
                 if (playing) {
-                    BasicText("Вернуть руль", Modifier.clickable { stations.startAudio() }.padding(12.dp), style)
+                    BasicText("Вернуть руль", Modifier.clickable { stations.module.startAudio() }.padding(12.dp), style)
                 }
                 if (current == null) {
                     BasicText("Загрузка…", style = style)
@@ -103,7 +103,7 @@ class MainActivity : ComponentActivity() {
                         items(catalogs, key = { it.region.id }) { option ->
                             BasicText(
                                 (if (option.region.id == current.selectedRegion) "● " else "○ ") + option.region.name,
-                                modifier = Modifier.clickable { stations.selectRegion(option.region.id) }.padding(12.dp),
+                                modifier = Modifier.clickable { stations.module.selectRegion(option.region.id) }.padding(12.dp),
                                 style = style,
                             )
                         }
@@ -131,7 +131,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @androidx.compose.runtime.Composable
-private fun DiagnosticsScreen(app: StationsApplication, parked: Boolean, export: () -> Unit, back: () -> Unit) {
+private fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, export: () -> Unit, back: () -> Unit) {
     var enabled by remember { mutableStateOf(app.developerMode.enabled) }
     var journal by remember { mutableStateOf("Загрузка…") }
     var frames by remember { mutableStateOf(emptyList<String>()) }
