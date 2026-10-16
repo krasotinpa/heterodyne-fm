@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
     @Override protected void onCreate(Bundle b) {
         super.onCreate(b);
         j = ProbeService.journal(this);
-        j.line("экран: onCreate, intent " + getIntent().getAction());
+        j.line("экран: onCreate, intent " + getIntent().getAction() + ", с загрузки ГУ " + android.os.SystemClock.elapsedRealtime() / 1000 + " с");
         view = new TextView(this);
         view.setTypeface(Typeface.MONOSPACE);
         view.setTextSize(16);
@@ -150,7 +150,7 @@ public class MainActivity extends Activity {
     }
 
     void render() {
-        StringBuilder s = new StringBuilder("Super Radio Probe 0.3 — отчёт только читает\n\n");
+        StringBuilder s = new StringBuilder("Super Radio Probe 0.4 — отчёт только читает\n\n");
         // A vendor HAL may throw anywhere; keep the rest of the report instead of crashing.
         try { system(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
         try { usb(s); } catch (Throwable t) { s.append("ошибка: ").append(t).append("\n\n"); }
