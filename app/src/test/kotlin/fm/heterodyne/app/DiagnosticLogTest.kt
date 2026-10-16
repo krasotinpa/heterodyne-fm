@@ -11,6 +11,39 @@ class DiagnosticLogTest {
     private fun contents(dir: File) = dir.listFiles()!!.filter { it.isFile }.sortedBy { it.name }
         .joinToString("") { it.readText() }
 
+    @Test fun readingAndExportRetainRedactionAndLiveListenerSeesRepeatedRx() {
+        val log = DiagnosticLog(temporary.newFolder(), clock = { 123L })
+        val live = DiagnosticFrames(2)
+        log.frameListener = live::accept
+        log.moduleSerial("private-serial")
+        log.rx(byteArrayOf(1))
+        log.rx(byteArrayOf(1))
+        val output = java.io.ByteArrayOutputStream()
+        log.copyTo(output)
+        assertEquals(log.readTail(32768), output.toString("UTF-8"))
+        assertFalse(log.readTail(32768).contains("private-serial"))
+        assertTrue(log.readTail(32768).contains("×2"))
+        assertEquals(2, live.snapshot().size)
+    }
+
+    @Test fun tailIsByteBoundedRedactedAndStartsAtWholeUtf8Record() {
+        val dir = temporary.newFolder()
+        val log = DiagnosticLog(dir, clock = { 0L })
+        assertEquals("", log.readTail(32768))
+        repeat(1000) { log.event("Журнал 😀 запись-$it") }
+        log.moduleSerial("private-serial")
+        val tail = log.readTail(32768)
+        assertTrue(tail.toByteArray(Charsets.UTF_8).size <= 32768)
+        assertFalse(tail.contains("private-serial"))
+        assertTrue(tail.contains("moduleSerialSha256="))
+        assertFalse(tail.contains('�'))
+        assertTrue(tail.lines().filter { it.isNotEmpty() }.all { it.startsWith("0 EVENT ") })
+        log.event("Ж😀")
+        assertEquals("0 EVENT Ж😀\n", log.readTail(15))
+        assertEquals("", log.readTail(5))
+        assertEquals("", log.readTail(0))
+    }
+
     @Test fun recordsFramesEventsAndBuildVersionImmediately() {
         val dir = temporary.newFolder()
         val log = DiagnosticLog(dir, clock = { 123L })
