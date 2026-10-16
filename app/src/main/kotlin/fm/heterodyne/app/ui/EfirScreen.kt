@@ -83,6 +83,7 @@ fun EfirScreen(
                 Control("Поиск ▶" + if (transition.state == TransitionState.CommandPause) " · пауза" else "", connected, { actions.seek(Direction.Up) })
                 Control("Стоянка", true, actions.parked)
             }
+            BandScale(catalog?.stations.orEmpty(), entries, transition)
             val banner = transition.banner ?: when (transition.state) {
                 TransitionState.Waiting -> "ожидание"
                 TransitionState.CommandPause -> "Пауза команды: Шаг / Поиск"
