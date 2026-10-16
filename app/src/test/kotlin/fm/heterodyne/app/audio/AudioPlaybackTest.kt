@@ -201,6 +201,7 @@ private class FakeSource(private val calls: MutableList<String>, var failure: St
 }
 
 private class FakeSink(private val calls: MutableList<String>, private val failure: String? = null) : AudioSink {
+    override fun setVolume(volume: Float) {}
     override fun open() { calls.add("sink open"); check(failure != "sink open") }
     var written = 0
     var writeCalls = 0

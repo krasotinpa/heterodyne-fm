@@ -20,6 +20,8 @@ interface AudioSource {
 }
 
 interface AudioSink {
+    fun setVolume(volume: Float)
+    fun mute() { setVolume(0f) }
     fun open()
     fun write(bytes: ByteArray, offset: Int, length: Int)
     fun play()
@@ -41,6 +43,7 @@ class AudioPlayback(
     private val sink: AudioSink,
     private val port: UsbAudioPort,
     private val log: DiagnosticLog,
+    private val focus: AudioFocusController? = null,
     private val changed: (AudioCounters) -> Unit = {},
 ) {
     @Volatile var snapshot = AudioCounters(); private set
@@ -65,6 +68,7 @@ class AudioPlayback(
             source.open()
             sinkOpened = true
             sink.open()
+            focus?.start()
             receiver = AudioTest(source, sink)
             return true
         } catch (_: Throwable) {
@@ -100,6 +104,7 @@ class AudioPlayback(
         receiver = null
         var cleanupFailed = failed
         val releases = mutableListOf<() -> Unit>()
+        focus?.let { releases.add(it::stop) }
         if (sourceOpened) releases.add(source::close)
         if (alternate && !detached) releases.add(port::alt0)
         if (claimed) releases.add(port::release)
