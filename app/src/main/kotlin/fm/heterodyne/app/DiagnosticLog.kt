@@ -23,6 +23,40 @@ class DiagnosticLog(
         MessageDigest.getInstance("SHA-256").digest(it)
     },
 ) {
+    var frameListener: ((String, ByteArray, Long) -> Unit)? = null
+
+    @Synchronized
+    fun readTail(maxBytes: Int): String {
+        require(maxBytes >= 0) { "Tail limit must not be negative" }
+        if (maxBytes == 0 || !file.exists()) return ""
+        return RandomAccessFile(file, "r").use { input ->
+            val length = input.length()
+            val offset = (length - maxBytes).coerceAtLeast(0)
+            val startsAtLine = if (offset == 0L) true else {
+                input.seek(offset - 1)
+                input.read() == '\n'.code
+            }
+            input.seek(offset)
+            val bytes = ByteArray((length - offset).toInt())
+            input.readFully(bytes)
+            // Discard the partial record, including any split UTF-8 character.
+            val start = if (startsAtLine) 0 else {
+                val newline = bytes.indexOf('\n'.code.toByte())
+                if (newline < 0) bytes.size else newline + 1
+            }
+            String(bytes, start, bytes.size - start, Charsets.UTF_8)
+        }
+    }
+
+    @Synchronized
+    fun copyTo(output: java.io.OutputStream) {
+        if (file.exists()) file.inputStream().use { it.copyTo(output) }
+    }
+
+    private fun notifyFrame(direction: String, frame: ByteArray) {
+        try { frameListener?.invoke(direction, frame.copyOf(), clock()) } catch (_: Exception) { /* Passive observer. */ }
+    }
+
     private val salt = salt.copyOf()
     private val file = File(directory, "diagnostic.log")
     private val temporary = File(directory, "diagnostic.log.tmp")
@@ -65,12 +99,14 @@ class DiagnosticLog(
 
     @Synchronized
     fun tx(frame: ByteArray) {
+        notifyFrame("TX", frame)
         lastRx = null
         write("${clock()} TX ${frame.hex()}\n")
     }
 
     @Synchronized
     fun rx(frame: ByteArray) {
+        notifyFrame("RX", frame)
         val hex = frame.hex()
         val now = clock()
         val previous = lastRx?.takeIf { it.hex == hex }
