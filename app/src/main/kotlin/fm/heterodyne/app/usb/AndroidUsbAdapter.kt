@@ -24,15 +24,45 @@ class AndroidUsbAdapter(
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
 ) {
+    val frames = fm.heterodyne.app.DiagnosticFrames()
+    private val export = fm.heterodyne.app.DiagnosticExport(
+        { controller.suspendForExport(); frames.resetConnection() }, { retry() })
+    fun readJournal(done: (String) -> Unit) { worker.execute {
+        done(try { log.readTail(32768) } catch (_: Exception) { "Не удалось прочитать Журнал" })
+    } }
+    fun beginExport(done: (Boolean) -> Unit) { worker.execute {
+        try { export.begin(); done(true) } catch (_: Exception) { done(false) }
+    } }
+    fun finishExport(output: (() -> java.io.OutputStream)? = null, done: (String?) -> Unit) {
+        worker.execute { done(export.finish(output?.let { open -> { open().use { log.copyTo(it) } } })) }
+    }
+    fun diagnosticCommand(command: DiagnosticCommand, done: (TuneResult) -> Unit) { worker.execute {
+        if (export.active) { done(TuneResult.NotConnected); return@execute }
+        val result = when (command) {
+            DiagnosticCommand.RequestAllInfo -> controller.checkConnection()
+            DiagnosticCommand.TuneUp -> controller.step(Direction.Down)
+            DiagnosticCommand.TuneDown -> controller.step(Direction.Up)
+            DiagnosticCommand.Band -> controller.switchBand()
+            DiagnosticCommand.PlaySelect -> controller.snapshot.confirmed?.let { controller.select(it.band, it.frequencyKhz) }
+                ?: TuneResult.BandNotFM
+            DiagnosticCommand.SeekUp -> controller.seek(Direction.Down)
+            DiagnosticCommand.SeekDown -> controller.seek(Direction.Up)
+        }
+        done(result)
+    } }
     private val manager = context.getSystemService(UsbManager::class.java)
     private val worker = Executors.newSingleThreadScheduledExecutor()
     private val log by lazy {
         DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics")).also {
+            it.frameListener = frames::accept
             it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
         }
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
-    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = changed) }
+    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = { state ->
+        if (state == ConnectionState.Disconnected) frames.resetConnection()
+        changed(state)
+    }) }
     private var playbackStopped: (() -> Unit)? = null
     private var audioGeneration = 0L
     @Volatile private var closing = false
@@ -64,6 +94,7 @@ class AndroidUsbAdapter(
                             discover()
                         }
                         permissionAction -> {
+                            if (export.active) return@execute
                             val uri = intent.data
                             if (uri?.authority != instance) return@execute
                             val token = uri.lastPathSegment?.toLongOrNull() ?: return@execute
@@ -92,7 +123,7 @@ class AndroidUsbAdapter(
     fun playAudio(stopped: () -> Unit) {
         if (closing) { stopped(); return }
         worker.execute {
-            if (closing) { stopped(); return@execute }
+            if (closing || export.active) { stopped(); return@execute }
             playbackStopped = stopped
             if (audio.play()) {
                 val generation = ++audioGeneration
@@ -121,6 +152,7 @@ class AndroidUsbAdapter(
         }
     }
     private fun discover() {
+        if (export.active) return
         val device = manager.deviceList.values.firstOrNull { UsbDiscovery.find(it.description()) != null } ?: return
         if (controller.deviceId != null && controller.deviceId != device.deviceName) return
         controller.found(UsbDiscovery.find(device.description())!!)
@@ -242,4 +274,10 @@ private class AndroidUsbTransport(
             finally { claimed.clear(); opened.close() }
         }
     }
+}
+
+/** Closed list; no raw command entry point. Direction names follow the command catalog. */
+enum class DiagnosticCommand(val label: String) {
+    RequestAllInfo("requestAllInfo"), TuneUp("TUNEUP"), TuneDown("TUNEDOWN"), Band("BAND"),
+    PlaySelect("playSelect — текущая частота"), SeekUp("SEEKUP"), SeekDown("SEEKDOWN")
 }

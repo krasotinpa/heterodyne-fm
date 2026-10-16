@@ -111,7 +111,10 @@ class ModuleController(
             val b6 = frame[6].toInt() and 0xff
             val cid = ((b6 and 0x0f) shl 8) or (frame[7].toInt() and 0xff)
             band = when ((b6 shr 5) and 3) { 0 -> Band.AM; 1 -> Band.FM; else -> Band.DAB }
-            if (bandReply == band) bandReply = null
+            if (bandReply == band) {
+                bandReply = null
+                if (target == null) { started = null; radio(TransitionState.Idle) }
+            }
             if (seeking != null) seekReply = clock()
             val station = actualStation(band, cid)
             if (station != null) confirmed = station
@@ -184,6 +187,18 @@ class ModuleController(
         selected = true
         return send(0x82, 0x20, cid, 0, cid)
     }
+    fun switchBand(): TuneResult {
+        tick()
+        if (state != ConnectionState.Observing) return TuneResult.NotConnected
+        if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
+        if (started != null || stepStarted != null || seeking != null || target != null ||
+            lastBand?.let { clock() - it < 2000 } == true) return TuneResult.RateLimited
+        lastBand = clock()
+        started = clock()
+        bandReply = if (band == Band.FM) Band.AM else Band.FM
+        return send(0x84)
+    }
+
     fun step(direction: Direction): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
@@ -315,6 +330,7 @@ class ModuleController(
         disconnect()
         radio(TransitionState.Disconnected)
     }
+    fun suspendForExport() { returning = true; close() }
     fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
         probeNeeded = false
