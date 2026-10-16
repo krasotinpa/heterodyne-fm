@@ -18,7 +18,7 @@ import fm.heterodyne.app.StationsApplication
 /** Owns foreground playback and steering wheel events on the main event loop. */
 class PlaybackService : Service() {
     private val main = Handler(Looper.getMainLooper())
-    private val stations get() = application as StationsApplication
+    private val stations get() = (application as StationsApplication).module
 
     private var destroyed = false
     private lateinit var session: MediaSession
