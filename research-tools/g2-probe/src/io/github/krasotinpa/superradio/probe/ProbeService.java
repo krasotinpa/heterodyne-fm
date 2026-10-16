@@ -33,7 +33,8 @@ import java.util.List;
  * owns a MediaSession (steering wheel keys), holds audio focus and journals every event. No radio commands.
  */
 public class ProbeService extends Service {
-    static final String ACTION_START = "io.github.krasotinpa.superradio.probe.START", ACTION_STOP = "io.github.krasotinpa.superradio.probe.STOP";
+    static final String ACTION_START = "io.github.krasotinpa.superradio.probe.START", ACTION_STOP = "io.github.krasotinpa.superradio.probe.STOP",
+        ACTION_RECLAIM_FOCUS = "io.github.krasotinpa.superradio.probe.RECLAIM_FOCUS", ACTION_RECLAIM_NEW = "io.github.krasotinpa.superradio.probe.RECLAIM_NEW";
     static final int SECONDS = 600;
     static volatile String lastStatus = "";
     static volatile boolean running;
@@ -91,14 +92,7 @@ public class ProbeService extends Service {
         am = (AudioManager) getSystemService(AUDIO_SERVICE);
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel("probe", "Super Radio Probe", NotificationManager.IMPORTANCE_LOW));
-        session = new MediaSession(this, "probe");
-        session.setCallback(new MediaSession.Callback() {
-            @Override public boolean onMediaButtonEvent(Intent i) {
-                KeyEvent k = i.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
-                j.line("руль: " + (k == null ? "нет KeyEvent" : Journal.describeKey(k.getAction(), k.getKeyCode(), k.getRepeatCount(), k.getFlags())));
-                return true;
-            }
-        });
+        session = newSession();
         IntentFilter f = new IntentFilter(Intent.ACTION_SCREEN_OFF);
         f.addAction(Intent.ACTION_SCREEN_ON);
         registerReceiver(screen, f);
@@ -106,14 +100,43 @@ public class ProbeService extends Service {
         beat.post(pulse);   // last "пульс" before a power cut = how long the app lived
     }
 
+    MediaSession newSession() {
+        MediaSession m = new MediaSession(this, "probe");
+        m.setCallback(new MediaSession.Callback() {
+            @Override public boolean onMediaButtonEvent(Intent i) {
+                KeyEvent k = i.getParcelableExtra(Intent.EXTRA_KEY_EVENT);
+                j.line("руль: " + (k == null ? "нет KeyEvent" : Journal.describeKey(k.getAction(), k.getKeyCode(), k.getRepeatCount(), k.getFlags())));
+                return true;
+            }
+        });
+        return m;
+    }
+
+    /** #68: the two ways to take the wheel keys back after another player. Variant A is the one in ADR 0003; B recreates the session. */
+    void reclaim(boolean fresh) {
+        if (!running) { j.line("руль: сервис без теста, вернуть нечего"); return; }
+        j.line("руль: возврат, " + (fresh ? "новая MediaSession" : "фокус + setActive(true)"));
+        if (fresh) {
+            session.setActive(false);
+            session.release();
+            session = newSession();
+        }
+        j.line("фокус: запрос -> " + (am.requestAudioFocus(focus) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED ? "GRANTED" : "отказ"));
+        session.setPlaybackState(state(PlaybackState.STATE_PLAYING));
+        session.setActive(true);
+        j.line("сессия: активна, PLAYING");
+    }
+
     @Override public int onStartCommand(Intent i, int flags, int startId) {
         String action = i == null ? "null" : i.getAction();
         j.line("сервис: onStartCommand " + action);
+        if (ACTION_RECLAIM_FOCUS.equals(action)) reclaim(false);
+        if (ACTION_RECLAIM_NEW.equals(action)) reclaim(true);
         // Every start came through startForegroundService, so startForeground must follow even for STOP.
         Notification n = new Notification.Builder(this, "probe").setContentTitle("Super Radio Probe").setContentText("тест звука")
             .setSmallIcon(android.R.drawable.ic_media_play).setStyle(new Notification.MediaStyle().setMediaSession(session.getSessionToken())).build();
         if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK); else startForeground(1, n);
-        if (ACTION_STOP.equals(action)) stopTest(); else startTest();
+        if (ACTION_STOP.equals(action)) stopTest(); else if (action != null && action.contains("RECLAIM")) { } else startTest();
         return START_NOT_STICKY;
     }
 
