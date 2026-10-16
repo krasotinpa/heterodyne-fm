@@ -69,6 +69,10 @@ public class ProbeService extends Service {
     final BroadcastReceiver screen = new BroadcastReceiver() {
         @Override public void onReceive(Context c, Intent i) { j.line("экран ГУ: " + i.getAction().replace("android.intent.action.", "")); }
     };
+    final android.os.Handler beat = new android.os.Handler(android.os.Looper.getMainLooper());
+    final Runnable pulse = new Runnable() {
+        @Override public void run() { j.line("пульс, с загрузки ГУ " + android.os.SystemClock.elapsedRealtime() / 1000 + " с"); beat.postDelayed(this, 5000); }
+    };
     final AudioManager.AudioPlaybackCallback playback = new AudioManager.AudioPlaybackCallback() {
         @Override public void onPlaybackConfigChanged(List<AudioPlaybackConfiguration> configs) {
             StringBuilder s = new StringBuilder("активные плееры:");
@@ -99,6 +103,7 @@ public class ProbeService extends Service {
         f.addAction(Intent.ACTION_SCREEN_ON);
         registerReceiver(screen, f);
         am.registerAudioPlaybackCallback(playback, null);
+        beat.post(pulse);   // last "пульс" before a power cut = how long the app lived
     }
 
     @Override public int onStartCommand(Intent i, int flags, int startId) {
@@ -161,6 +166,7 @@ public class ProbeService extends Service {
     @Override public void onDestroy() {
         j.line("сервис: onDestroy, тест " + (running ? "ещё идёт" : "не идёт"));
         if (test != null) test.stop = true;
+        beat.removeCallbacks(pulse);
         unregisterReceiver(screen);
         if (am != null) am.unregisterAudioPlaybackCallback(playback);
         if (session != null) session.release();
