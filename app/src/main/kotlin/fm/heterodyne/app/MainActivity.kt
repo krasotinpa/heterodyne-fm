@@ -53,6 +53,10 @@ class MainActivity : ComponentActivity() {
                 if (current == null) {
                     BasicText("Загрузка…", style = style)
                 } else {
+                    BasicText("Диапазон: ${current.band}", style = style)
+                    current.lastStation?.let {
+                        BasicText("Последняя Станция: ${it.band} · ${it.frequencyKhz} кГц", style = style)
+                    }
                     val catalog = catalogs.first { it.region.id == current.selectedRegion }
                     LazyColumn {
                         items(catalogs, key = { it.region.id }) { option ->
@@ -65,7 +69,7 @@ class MainActivity : ComponentActivity() {
                         item { BasicText("Наборы", style = style) }
                         items(current.regions.getValue(current.selectedRegion).sets, key = { it.name }) { set ->
                             val active = current.regions.getValue(current.selectedRegion).activeName == set.name
-                            BasicText(set.name + if (active) " — Активный" else "", Modifier.padding(12.dp), style)
+                            BasicText(set.name + if (active) " — Активный" else "", Modifier.clickable { stations.selectSet(set.name) }.padding(12.dp), style)
                         }
                         item {
                             BasicText("Источник: ${catalog.source.text}",
@@ -76,7 +80,9 @@ class MainActivity : ComponentActivity() {
                         }
                         item { BasicText("Справочник", style = style) }
                         items(catalog.stations, key = { it.id }) { station ->
-                            BasicText("${station.name} · ${station.band} · ${station.frequencyKhz} кГц", Modifier.padding(12.dp), style)
+                            BasicText("${station.name} · ${station.band} · ${station.frequencyKhz} кГц", Modifier.clickable(
+                                enabled = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
+                            ) { stations.selectStation(station.band, station.frequencyKhz) }.padding(12.dp), style)
                         }
                     }
                 }

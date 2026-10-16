@@ -8,8 +8,12 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object StationsJson {
-    fun encode(state: StationsState): String = JSONObject().put("schema", 1)
+    fun encode(state: StationsState): String = JSONObject().put("schema", 2)
         .put("selectedRegion", state.selectedRegion)
+        .put("band", state.band.name)
+        .put("lastStation", state.lastStation?.let {
+            JSONObject().put("band", it.band.name).put("frequencyKhz", it.frequencyKhz)
+        } ?: JSONObject.NULL)
         .put("regions", JSONObject().apply {
             state.regions.forEach { (id, region) ->
                 put(id, JSONObject().put("activeName", region.activeName).put("sets", JSONArray().apply {
@@ -28,7 +32,10 @@ object StationsJson {
     // Invalid or incomplete documents are rejected as a whole by the repository.
     fun decode(text: String): StationsState {
         val root = JSONObject(text)
-        require(root.getInt("schema") == 1)
+        val schemaValue = root.get("schema")
+        require(schemaValue is Number && schemaValue.toDouble() == schemaValue.toInt().toDouble())
+        val schema = schemaValue.toInt()
+        require(schema == 1 || schema == 2)
         val regionsJson = root.getJSONObject("regions")
         require(regionsJson.keys().asSequence().toSet() == setOf("moskva", "yaroslavl"))
         val regions = listOf("moskva", "yaroslavl").associateWith { id ->
@@ -56,7 +63,15 @@ object StationsJson {
             }
             RegionSets.restore(restoredSets, region.getString("activeName"))
         }
-        return StationsState(root.getString("selectedRegion"), regions)
+        val lastStation = if (schema == 2 && !root.isNull("lastStation")) {
+            val station = root.getJSONObject("lastStation")
+            val frequency = station.get("frequencyKhz")
+            require(frequency is Number && frequency.toDouble() == frequency.toInt().toDouble())
+            SessionStation(Band.valueOf(station.getString("band")), frequency.toInt())
+        } else null
+        if (schema == 2) require(root.has("lastStation"))
+        return StationsState(root.getString("selectedRegion"), regions, lastStation,
+            if (schema == 2) Band.valueOf(root.getString("band")) else Band.FM)
     }
 }
 

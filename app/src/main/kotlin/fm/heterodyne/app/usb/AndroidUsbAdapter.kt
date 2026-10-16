@@ -88,6 +88,11 @@ class AndroidUsbAdapter(
         polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
+    fun userSelectionPending() { worker.execute { controller.userSelectionPending() } }
+    fun restoreStation(station: TuneTarget?) { worker.execute { controller.restoreStation(station) } }
+    fun select(band: Band, frequencyKhz: Int, completed: (TuneResult) -> Unit = {}) {
+        worker.execute { completed(controller.select(band, frequencyKhz)) }
+    }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
     fun playAudio(stopped: () -> Unit) {
         if (closing) { stopped(); return }

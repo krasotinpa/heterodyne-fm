@@ -83,7 +83,19 @@ data class RegionSets private constructor(val sets: List<StationSet>, val active
     }
 }
 
-data class StationsState(val selectedRegion: String, val regions: Map<String, RegionSets>) {
+data class SessionStation(val band: Band, val frequencyKhz: Int) {
+    init {
+        require(fm.heterodyne.app.module.isSelectableFrequency(
+            fm.heterodyne.app.module.Band.valueOf(band.name), frequencyKhz))
+    }
+}
+
+data class StationsState(
+    val selectedRegion: String,
+    val regions: Map<String, RegionSets>,
+    val lastStation: SessionStation? = null,
+    val band: Band = Band.FM,
+) {
     init {
         require(regions.keys == setOf("moskva", "yaroslavl"))
         require(selectedRegion in regions)

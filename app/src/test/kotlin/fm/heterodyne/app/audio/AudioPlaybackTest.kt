@@ -180,6 +180,27 @@ class AudioPlaybackTest {
         }
     }
 
+    @Test fun startupAndModuleReturnStaySilentUntilPlay() {
+        val calls = mutableListOf<String>()
+        var connected = false
+        val playback = AudioPlayback({ connected }, FakeSource(calls), FakeSink(calls), FakePort(calls),
+            DiagnosticLog(temporary.newFolder()))
+        playback.receive()
+        connected = true
+        repeat(20) { playback.receive() }
+        assertEquals(AudioState.Stopped, playback.snapshot.state)
+        assertTrue(calls.isEmpty())
+        assertTrue(playback.play())
+        playback.onModuleDetached()
+        calls.clear()
+        connected = false
+        playback.receive()
+        connected = true
+        repeat(20) { playback.receive() }
+        assertEquals(AudioState.Stopped, playback.snapshot.state)
+        assertTrue(calls.isEmpty())
+    }
+
     @Test fun absentModuleRefusesPlaybackWithoutResources() {
         val calls = mutableListOf<String>()
         val playback = AudioPlayback({ false }, FakeSource(calls), FakeSink(calls), FakePort(calls),

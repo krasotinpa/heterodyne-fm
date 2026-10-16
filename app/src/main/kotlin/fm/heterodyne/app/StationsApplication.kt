@@ -14,6 +14,12 @@ import fm.heterodyne.app.stations.Catalog
 import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
 import fm.heterodyne.app.stations.StationsState
+import fm.heterodyne.app.stations.Band
+import fm.heterodyne.app.stations.SessionStation
+import fm.heterodyne.app.module.TuneTarget
+import fm.heterodyne.app.module.TuneResult
+import fm.heterodyne.app.module.isSelectableFrequency
+import fm.heterodyne.app.module.Band as ModuleBand
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -49,10 +55,19 @@ class StationsApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, changed = { state ->
+        usb = fm.heterodyne.app.usb.AndroidUsbAdapter(this, stationChanged = { band, frequency ->
+            if (frequency != null && isSelectableFrequency(band, frequency)) {
+                storage.execute {
+                    val state = current.state ?: return@execute
+                    val station = SessionStation(Band.valueOf(band.name), frequency)
+                    if (save(state.copy(lastStation = station, band = station.band))) {
+                        usb.restoreStation(TuneTarget(band, frequency))
+                    }
+                }
+            }
+        }, changed = { state ->
             main.post { moduleState = state }
         }, audioChanged = { counters -> main.post { audioState = counters.state } })
-        usb.start()
         repository = StationsRepository(AtomicStationsFile(File(filesDir, "stations.json")))
         storage.execute {
             try {
@@ -65,6 +80,9 @@ class StationsApplication : Application() {
                 current = current.copy(error = "Не удалось прочитать Справочники")
             }
             publish()
+            val station = current.state?.lastStation
+            usb.restoreStation(station?.let { TuneTarget(ModuleBand.valueOf(it.band.name), it.frequencyKhz) })
+            main.post { usb.start() }
         }
     }
 
@@ -73,10 +91,42 @@ class StationsApplication : Application() {
             val state = current.state ?: return@execute
             if (id !in state.regions) return@execute
             val next = state.copy(selectedRegion = id)
-            current = if (repository.save(next)) current.copy(state = next, error = null)
-            else current.copy(error = "Не удалось сохранить Регион")
-            publish()
+            save(next)
         }
+    }
+
+    fun selectSet(name: String) {
+        storage.execute {
+            val state = current.state ?: return@execute
+            val region = state.regions.getValue(state.selectedRegion)
+            val next = region.activate(name).value ?: return@execute
+            save(state.copy(regions = state.regions + (state.selectedRegion to next)))
+        }
+    }
+
+    fun selectStation(band: Band, frequencyKhz: Int) {
+        val moduleBand = ModuleBand.valueOf(band.name)
+        if (!isSelectableFrequency(moduleBand, frequencyKhz)) return
+        // Cancel on the USB queue before storage I/O can delay the user's intent.
+        usb.userSelectionPending()
+        storage.execute {
+            val state = current.state ?: return@execute
+            val station = SessionStation(band, frequencyKhz)
+            if (!save(state.copy(lastStation = station, band = band))) return@execute
+            usb.restoreStation(TuneTarget(moduleBand, frequencyKhz))
+            usb.select(moduleBand, frequencyKhz) { result ->
+                if (result == TuneResult.Sent || result == TuneResult.RateLimited) main.post { startAudio() }
+            }
+        }
+    }
+
+    private fun save(state: StationsState): Boolean {
+        if (state == current.state && !current.recovered && current.error == null) return true
+        val saved = repository.save(state)
+        current = if (saved) current.copy(state = state, error = null)
+        else current.copy(error = "Не удалось сохранить состояние")
+        publish()
+        return saved
     }
 
     private fun publish() {
