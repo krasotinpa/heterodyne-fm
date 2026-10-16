@@ -23,6 +23,7 @@ class AndroidUsbAdapter(
     stationChanged: (Band, Int?) -> Unit = { _, _ -> },
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
+    transitionObserved: (TransitionSnapshot) -> Unit = {},
 ) {
     val frames = fm.heterodyne.app.DiagnosticFrames()
     private val export = fm.heterodyne.app.DiagnosticExport(
@@ -62,7 +63,7 @@ class AndroidUsbAdapter(
     private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = { state ->
         if (state == ConnectionState.Disconnected) frames.resetConnection()
         changed(state)
-    }) }
+    }, transitionObserved = transitionObserved) }
     private var playbackStopped: (() -> Unit)? = null
     private var audioGeneration = 0L
     @Volatile private var closing = false
@@ -119,6 +120,9 @@ class AndroidUsbAdapter(
         polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
+    fun select(band: Band, frequencyKhz: Int) { worker.execute { controller.select(band, frequencyKhz) } }
+    fun seek(direction: Direction) { worker.execute { controller.seek(direction) } }
+    fun checkConnection() { worker.execute { controller.checkConnection() } }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
     fun playAudio(stopped: () -> Unit) {
         if (closing) { stopped(); return }
