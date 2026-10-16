@@ -15,7 +15,7 @@ USB enumeration/descriptors создают стандартный USB-трафи
 | G4 | Проверка известных команд | Command catalog | Whitelist воспроизводит tune/band/seek безопасно |
 | G5 | Windows/Android prototype | Одинаковые TX/RX результаты | Confirmed tune, timeout и reconnect устойчивы |
 | G6 | Audio path | Route report и слышимый приём | Реальное радио звучит на ГУ |
-| G7 | UI/MVP | Матрица R01–R18 | Control/audio доказаны, неизвестные capabilities отключены |
+| G7 | UI/MVP | Матрица R01–R27 | Control/audio доказаны, неизвестные capabilities отключены |
 
 G2 допускается параллельно offline анализу. G6 начинают исследовать на G1/G2.
 Полноценный UI начинается после G5/G6.

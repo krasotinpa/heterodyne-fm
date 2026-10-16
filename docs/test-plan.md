@@ -39,7 +39,7 @@ getPreferredDevice не подтверждает фактический route.
 
 ## Отчёт и gate
 
-Каждая строка R01–R18 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
+Каждая строка R01–R27 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
 Запиши device/API/build/commit, steps, expected/actual, evidence и date.
 AM не проходит без реального AM evidence.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.

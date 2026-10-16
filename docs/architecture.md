@@ -1,76 +1,150 @@
-# Архитектура приложения
+# Архитектура Heterodyne FM v1
 
-Это проектное предложение. Protocol и audio backend закрепляются после исследований.
-Чистое Kotlin ядро не зависит от Android USB classes.
+Документ делит приложение на контексты по правилам DDD. Требования лежат в [requirements.md](requirements.md), термины — в [CONTEXT.md](../CONTEXT.md).
+Чистое Kotlin-ядро не зависит от классов Android USB и от Android UI.
+Сигнатуры Kotlin фиксируются перед делением реализации.
+
+## Контексты
+
+Приложение состоит из четырёх контекстов. Каждый владеет своими данными и терминами.
 
 ```text
-UI/ViewModel → RadioSession → CommandPolicy + VerifiedCodec
-                    ↑                     ↕
-                RadioState ← Decoder ← UsbTransport
-                    ↕
-             AudioController → AudioBackend → Actual route
-                    ↕
-           Presets + DiagnosticLog
+┌───────────── Приложение (UI: Режим движения, Режим стоянки) ─────────────┐
+│                                                                          │
+│   Станции ──── Станция (kHz) ───→ Управление Модулем ──→ Модуль (USB)    │
+│   Регион, Справочник, Набор        Переход, Шаг, Поиск                   │
+│        ↑                                  │ подтверждённая частота (0x22)│
+│        │                                  ↓                              │
+│   Звук ←──────── состояние Модуля ────────┘                              │
+│   Фокус, AudioTrack, MediaSession, руль                                  │
+│                                                                          │
+│   Диагностика ←── события и кадры из всех контекстов                     │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Модули
+| Контекст | Отвечает за | Главные понятия | Источник решений |
+|---|---|---|---|
+| Станции | Регион, Справочник, Набор, Активный Набор, хранение | Регион, Справочник, Станция, Набор | [#35](https://github.com/krasotinpa/super-radio-android/issues/35) |
+| Управление Модулем | USB, кадры, whitelist, Переход, Шаг, Поиск, состояния | Модуль, Кадр, Переход, Шаг, Поиск | [#37](https://github.com/krasotinpa/super-radio-android/issues/37), [command-catalog](research/command-catalog.md) |
+| Звук | приём звука, аудиофокус, фон, `MediaSession`, руль | Фокус, Поток, Сессия | [ADR 0001](adr/0001-audio-path.md), [ADR 0003](adr/0003-audio-focus-background-wheel.md) |
+| Диагностика | журнал, экспорт, режим разработчика | Журнал, Экспорт | [#39](https://github.com/krasotinpa/super-radio-android/issues/39) |
 
-| Модуль | Вход | Результат |
+### Границы между контекстами
+
+1. **Станции знают только килогерцы.** Станция хранит `band` и `frequencyKhz`. `cid` Модуля в Станциях не появляется.
+2. **Управление Модулем переводит частоту в `cid`.** Это слой перевода на границе контекста. FM: `cid = (frequencyKhz − 87 500) / 100`, cid 0–205. AM: `cid = (frequencyKhz − 522) / 9`, cid 21–58. Частота вне формулы или вне диапазона whitelist отклоняется до отправки.
+3. **Управление Модулем отдаёт одно событие наружу:** подтверждённая Станция (диапазон, частота, `0x22`). Станции, UI и Звук подписаны на него.
+4. **Станции не шлют команды.** UI читает Станции и отправляет намерения («Перейти на Станцию X», «Шаг ▶», «Поиск ▶») в Управление Модулем.
+5. **Звук не знает протокола.** Он получает от Управления Модулем только состояние связи (Модуль есть/нет) и событие «Модуль отключён».
+6. **Диагностика пассивна.** Контексты пишут в неё события, она в них не пишет.
+
+## Управление Модулем
+
+Вход — намерения пользователя и кадры. Выход — подтверждённое состояние.
+
+```text
+Намерение → CommandPolicy → VerifiedCodec → UsbTransport → Модуль
+                ↑                                             │
+          RadioSession ←── RadioState ←── Decoder ←──────────┘
+```
+
+| Часть | Вход | Результат |
 |---|---|---|
-| UsbDiscovery | devices/descriptors | Verified DeviceProfile/InterfaceMap, без TX |
-| UsbPermissionController | permission/attach/detach | PermissionState и connection lifecycle |
-| UsbTransport | map/permission/TX | RX chunks/errors, без radio semantics |
-| CandidateParser | byte chunks | Bounded candidates/offsets/unknown bytes |
-| VerifiedCodec | candidates/proven profile | Только доказанные events/commands |
-| CommandPolicy | intents/capabilities | Whitelist, parameter/range/retry policy |
-| RadioSession | events/intents/clock | Confirmed RadioState, queue/deadlines/cancel |
-| AudioBackend | proven audio profile | Start/stop/routes/focus/permissions |
-| PresetRepository | band/integer frequency/region/name | Local persistence/migrations |
-| DiagnosticLog | RX/TX/events | Bounded local log/manual export |
-| UI/ViewModel | state/capabilities | Controls и requested/confirmed/error |
+| UsbDiscovery | устройства, дескрипторы | Проверенный DeviceProfile и InterfaceMap, без TX |
+| UsbPermissionController | permission, attach, detach | PermissionState, жизненный цикл соединения |
+| UsbTransport | карта, permission, TX | RX chunks и ошибки, без смысла команд |
+| CandidateParser | байты | Ограниченные кандидаты, смещения, неизвестные байты |
+| VerifiedCodec | кандидаты, проверенный профиль | Только доказанные события и команды |
+| CommandPolicy | намерения | Whitelist, диапазоны параметров, лимиты ([R26](requirements.md#переход-и-ошибки)), «последний побеждает» |
+| RadioSession | события, намерения, часы | Подтверждённый RadioState, тайм-ауты, состояния R26 |
 
-Transport contract: open(profile), receive() chunks, send(bytes), идемпотентный close().
-FakeTransport позволяет проверять open/send/close без hardware.
-Actual Kotlin signatures фиксируются перед делением реализации.
-Negative bulkTransfer означает ошибку API, но не доказывает конкретную причину timeout.
+Контракт транспорта: `open(profile)`, `receive()` chunks, `send(bytes)`, идемпотентный `close()`.
+FakeTransport позволяет проверять open/send/close без оборудования.
+Отрицательный `bulkTransfer` означает ошибку API, но не доказывает причину тайм-аута.
 
-## State machine
+### Состояния соединения
 
 ```text
 Disconnected → DeviceFound → PermissionPending → Open → Observing
       ↑              │            │              │        │
       └──────────────┴─ denied ────┴── detach ─────┴────────┘
-
-Observing + proven capabilities → Ready → Tuning/Seeking → Ready
-Ready + proven audio            → Playing
-Pending + timeout               → Unknown/Error
-Any + detach                    → Disconnected
 ```
 
-После reconnect меняется session generation. Stale replies не меняют current state.
-Protocol correlation ID используется только после доказательства поля.
-Если correlation нет, разрешена одна outstanding command.
-Successful write подтверждает transport, не tune success.
-Буфер и очередь bounded; I/O вне UI thread. Unknown messages не обновляют frequency/RDS.
+### Состояния Перехода
 
-## Protocol и audio
+Таблица состояний (Покой, Ожидание, Нет подтверждения, Модуль не отвечает, Модуль отключён, Пауза команды, Идёт поиск) лежит в [requirements.md](requirements.md#переход-и-ошибки). Она единственная; здесь её нет.
 
-CandidateParser допускает FA55/L hypothesis для offline analysis.
-Live VerifiedCodec требует новых evidence. RX checksum автоматически не становится TX encoder.
-Profile хранит commands, interfaces, capabilities, limits и evidence.
-Frequency хранится целым числом с явной единицей; floating point не определяет wire representation.
+```text
+Покой → [команда] → Ожидание → 0x22 с целью → Покой
+                       │
+                       └─ 3 с ─→ Нет подтверждения → [Проверить связь] → Модуль не отвечает
+Любое + errno 19 → Модуль отключён → [возврат Модуля] → Покой
+```
 
-Audio backend выбирается по дескрипторам и испытаниям: UAC capture, proprietary либо внешний вход.
-Выбрано: свой изохронный приём через usbfs и `AudioTrack` — [ADR 0001](adr/0001-audio-path.md).
-UAC playback presence не доказывает радио input. Capture/output проверяются отдельно.
-Focus, mute, route loss и detach имеют явную политику.
-Если hardware mute неизвестен, останавливай proven playback path, без выдуманной mute command.
-Background playback/foreground service добавляются при подтверждённой необходимости и API requirements.
+Правила:
 
-## Dependencies
+1. После переподключения меняется поколение сессии. Устаревшие ответы не меняют состояние.
+2. Корреляционного поля в протоколе нет, поэтому в полёте одна команда. Исключение — составной Переход: BAND, затем playSelect.
+3. Успешная запись подтверждает транспорт, а не Переход. Переход подтверждает только `0x22` с целевым `cid`.
+4. Буферы и очереди ограничены. Ввод и вывод идут вне UI thread.
+5. Неизвестные кадры не обновляют частоту и RDS.
+6. Приложение ничего не шлёт само после тайм-аута или отключения.
 
-usb-serial-for-android — кандидат. Проверь descriptor map, composite pairing, open effects и force claim.
-Закрепи version/source SHA. Просмотренный master не является immutable reference.
-Compose/Views выбирается по API/toolchain/performance ГУ.
-Для presets выбери DataStore или Room по структуре. Не добавляй лишние layers.
-Базовые функции работают offline. Диагностика автоматически не отправляется.
+## Станции
+
+```text
+Справочник (assets, JSON, только чтение)
+      │ копирование записи
+      ▼
+Набор (хранится на ГУ) ── Активный Набор Региона ── Регион (выбран)
+```
+
+1. **Справочник** — неизменяемое значение: `schema`, `revision`, `source`, Станции. Один файл на Регион.
+2. **Набор** — агрегат. Правила целостности: порядок записей; пара `band` + `frequencyKhz` не повторяется; имя уникально в Регионе; запись не ссылается на Справочник по ссылке, только хранит `catalogId` как подсказку.
+3. **Регион** — корень: Регион владеет Справочником и Наборами и помнит Активный Набор.
+4. **Хранилище.** Наборы, выбранный Регион и Активный Набор лежат в JSON-файле в приватной папке приложения, формат — как в [#35](https://github.com/krasotinpa/super-radio-android/issues/35). Запись атомарная (временный файл и переименование). DataStore и Room не нужны. Это предложение; владелец подтверждает его на review.
+5. Состояние последнего сеанса (Регион, Набор, Станция, диапазон) пишется при каждом изменении ([R25](requirements.md)).
+6. Схема растёт через `schema`. Миграции — по номеру.
+
+## Звук
+
+```text
+AudioFocusController ─→ PlaybackService (FGS mediaPlayback) ─→ AudioBackend ─→ AudioTrack
+                              │
+                        MediaSession ←── кнопки руля
+```
+
+1. **AudioBackend** — свой изохронный приём через usbfs и `AudioTrack` ([ADR 0001](adr/0001-audio-path.md)). Классы `UsbIso`, `AudioTest`, `Frames` и `jni/usbiso.c` переносятся из прототипа без переписывания ([ADR 0002](adr/0002-stack-kotlin-compose-gradle.md)).
+2. **AudioFocusController** — политика [ADR 0003](adr/0003-audio-focus-background-wheel.md): постоянный `LOSS` игнорируется, `DUCK` 30 %, `TRANSIENT` — mute.
+3. **PlaybackService** живёт, пока идёт звук. Остановка звука завершает сервис; руль остановленному радио не служит.
+4. **MediaSession** активна, пока работает сервис. ⏭/⏮ вызывают переход по Активному Набору; долгое нажатие — один Шаг (повторы игнорируются). Возврат руля: по действию пользователя запрос фокуса и `setActive(true)`.
+5. UAC playback не доказывает вход радио. Захват и вывод проверяются отдельно.
+
+## Диагностика
+
+1. **DiagnosticLog** — кольцо 10 МБ в приватной папке. Серийник Модуля хэшируется на входе, в файле его нет. Одинаковые RX подряд сворачиваются.
+2. **Экспорт** — запись файла на SSD через SAF по кнопке. Модуль на это время отключают.
+3. **Режим разработчика** — флаг в настройках; включается жестом, виден только в Режиме стоянки. Кнопки команд идут через тот же `CommandPolicy`, что и обычный интерфейс. Обхода whitelist нет.
+
+## Слой приложения
+
+1. **Режим движения** и **Режим стоянки** — два экрана на Compose. Компоновка — [макет](https://claude.ai/artifact/XGneZJkT4ync5osDck8q9Q) (вариант B «Шкала»).
+2. ViewModel собирает данные Станций, подтверждённое состояние Управления Модулем и состояние Звука. Она отправляет намерения в Управление Модулем.
+3. Курсор Набора для «Станция ◀ ▶» и руля живёт в ViewModel/сервисе и идёт вперёд сразу, команда уходит после паузы ([R26](requirements.md#переход-и-ошибки)).
+
+## Список экранов
+
+| Экран | Режим | Состав |
+|---|---|---|
+| Эфир | движения | Верхняя строка, шкала, ленты Набора и Справочника, кнопки «Станция» и «Шаг», плашки состояний |
+| Меню стоянки | стоянки | Набор, Регион, Диагностика, О приложении |
+| Редактор Набора | стоянки | Две колонки (Справочник → Набор), порядок перетаскиванием, «Сохранить текущую частоту», управление Наборами |
+| Регион | стоянки | Выбор Региона (Москва, Ярославль) |
+| Диагностика | стоянки | Журнал, экспорт на SSD, режим разработчика (после жеста) |
+| О приложении | стоянки | Версия, источник данных vcfm.ru со ссылкой |
+
+## Зависимости
+
+1. usb-serial-for-android — кандидат для CDC-части. Перед использованием проверь descriptor map, composite pairing, влияние open и force claim. Закрепи версию и SHA источника.
+2. Версии Kotlin, Compose, Gradle — [ADR 0002](adr/0002-stack-kotlin-compose-gradle.md).
+3. Базовые функции работают без сети. Диагностика автоматически не отправляется.
