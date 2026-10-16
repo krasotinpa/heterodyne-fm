@@ -1,6 +1,6 @@
 # Проверка каркаса #74 — 16.10.2026
 
-Статус: **частично выполнено**. Сборка, unit-тест и lint прошли локально. Эмулятор и CI не проверены.
+Статус: **частично выполнено**. Сборка, unit-тест, lint, запуск в эмуляторе и повторная сборка прошли локально. CI не проверен.
 
 ## Входы и среда
 
@@ -24,6 +24,8 @@
 | Unit-тест `ApplicationIdentityTest` | прошёл (`testDebugUnitTest`) |
 | Python `unittest discover -s tests/research` | 58 тестов, OK, exit code 0 (запуск Codex) |
 | APK SHA-256 (`app-debug.apk`) | `1024c9f8a568b9002ee6e3f3689861a582d0b0e4c629db3f6befc3f26277996c` |
+| Вторая сборка (`clean assembleDebug`), exit code 0 | SHA-256 APK совпал с первой (R16) |
+| Эмулятор API 30 x86_64 (не Toyota ГУ) | `am start -W`: `Status: ok`, `fm.heterodyne.app/.MainActivity` в ResumedActivity, нет `AndroidRuntime:E`; экран пустой, как задумано |
 | Wrapper JAR SHA-256 | `497c8c2a7e5031f6aa847f88104aa80a93532ec32ee17bdb8d1d2f67a194a9c7` |
 
 Gradle вывел предупреждение: `Unable to strip ... libandroidx.graphics.path.so`. Сборку оно не остановило.
@@ -32,9 +34,7 @@ Gradle вывел предупреждение: `Unable to strip ... libandroidx
 
 | Область | Статус | Причина |
 |---|---|---|
-| Запуск Compose-экрана в эмуляторе | not tested | Образ API 30 x86_64 установлен, но у пользователя нет прав на `/dev/kvm`; sudo недоступен |
 | Test-first (красное падение) | not observed | Первый запуск Codex остановился из-за отсутствия JDK; тест и конфигурация созданы вместе |
-| R16: вторая сборка с тем же SHA | not tested | Выполнена одна сборка |
 | GitHub Actions `android` | not tested | Станет известно после запуска CI на PR |
 | Защита `main` | not tested | Настраивает владелец |
 | ndk-build | not tested | Только решение; нативного кода в #74 нет |
