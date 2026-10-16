@@ -21,6 +21,16 @@ class TransitionTest {
         fake.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
         controller.receive()
     }
+    // Synthetic 0x22 variants exercise session behavior; they are not hardware evidence.
+    private fun receiveAm(cid: Int) {
+        val frame = javaClass.getResourceAsStream("/module/am31.bin")!!.use { it.readBytes() }
+        frame[7] = cid.toByte()
+        frame[frame.lastIndex] = (-frame.sliceArray(5 until frame.lastIndex)
+            .sumOf { it.toInt() and 255 }).toByte()
+        controller
+        fake.enqueueReceived(frame)
+        controller.receive()
+    }
     @Test fun waitingAndTimeoutRequireTargetReply() {
         receive("fm28")
         assertEquals(TransitionState.Idle, controller.transitionState)
@@ -130,6 +140,135 @@ class TransitionTest {
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
         now = 35000
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+    }
+    @Test fun seekBannerEndsAtFifteenSecondsWithoutCancelOrRetry() {
+        receive("am31")
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+        assertEquals("идёт поиск…", controller.snapshot.banner)
+        assertEquals(TuneTarget(Band.AM, 801), controller.snapshot.confirmed)
+        now = 14999; controller.tick()
+        assertEquals("идёт поиск…", controller.snapshot.banner)
+        now = 15000; controller.tick()
+        assertEquals(TransitionState.Idle, controller.transitionState)
+        assertNull(controller.snapshot.banner)
+        now = 60000; controller.tick()
+        assertEquals(1, fake.sendCount)
+    }
+    @Test fun amStepWorksBeyondSelectRangeAndDropsPressesBeforeFiveHundredMilliseconds() {
+        receiveAm(58)
+        assertEquals(TuneResult.Sent, controller.step(Direction.Up))
+        assertEquals(0x89, fake.sentFrames.last()[6].toInt() and 255)
+        assertEquals(TuneTarget(Band.AM, 1044), controller.snapshot.confirmed)
+        now = 10; receiveAm(59)
+        assertEquals(TuneTarget(Band.AM, 1053), controller.snapshot.confirmed)
+        now = 499
+        assertEquals(TuneResult.RateLimited, controller.step(Direction.Down))
+        now = 500; controller.tick()
+        assertEquals(1, fake.sendCount)
+        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
+        assertEquals(0x88, fake.sentFrames.last()[6].toInt() and 255)
+        now = 510; receiveAm(58)
+        now = 1000
+        receiveAm(21)
+        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
+        now = 1010; receiveAm(20)
+        assertEquals(TuneTarget(Band.AM, 702), controller.snapshot.confirmed)
+        now = 1500
+        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
+        now = 1510; receiveAm(19)
+        assertEquals(TuneTarget(Band.AM, 693), controller.snapshot.confirmed)
+        now = 10000; controller.tick()
+        assertEquals(4, fake.sendCount)
+    }
+    @Test fun amSeekUpOnEmptyAirWrapsAndReturnsToStart() {
+        amSeekOnEmptyAir(Direction.Up, (41..122).toList() + (0..40).toList(), 0x87)
+    }
+    @Test fun amSeekDownOnEmptyAirWrapsAndReturnsToStart() {
+        amSeekOnEmptyAir(Direction.Down, (39 downTo 0).toList() + (122 downTo 40).toList(), 0x86)
+    }
+    private fun amSeekOnEmptyAir(direction: Direction, cids: List<Int>, opcode: Int) {
+        receiveAm(40)
+        assertEquals(TuneResult.Sent, controller.seek(direction))
+        assertEquals(opcode, fake.sentFrames.single()[6].toInt() and 255)
+        cids.forEach { cid ->
+            now += 87
+            receiveAm(cid)
+            assertEquals(TransitionState.Seeking, controller.transitionState)
+            assertEquals(TuneResult.RateLimited, controller.seek(direction))
+            if (cid == 0) assertEquals(TuneTarget(Band.AM, 522), controller.snapshot.confirmed)
+            if (cid == 122) assertEquals(TuneTarget(Band.AM, 1620), controller.snapshot.confirmed)
+        }
+        assertEquals(TuneTarget(Band.AM, 882), controller.snapshot.confirmed)
+        now += 299; controller.tick()
+        assertEquals("идёт поиск…", controller.snapshot.banner)
+        now += 1; controller.tick()
+        assertEquals(TransitionState.Idle, controller.transitionState)
+        assertNull(controller.snapshot.banner)
+        now = 14999
+        assertEquals(TuneResult.RateLimited, controller.seek(direction))
+        now = 15000; controller.tick()
+        assertEquals(1, fake.sendCount)
+        assertEquals(TuneResult.Sent, controller.seek(direction))
+        assertEquals(2, fake.sendCount)
+    }
+    @Test fun amSeekStartsAtModuleEdgesOutsideSelectRange() {
+        receiveAm(0)
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+        assertEquals(0x86, fake.sentFrames.single()[6].toInt() and 255)
+        now = 100; receiveAm(122)
+        assertEquals(TuneTarget(Band.AM, 1620), controller.snapshot.confirmed)
+        now = 15000
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+        assertEquals(0x87, fake.sentFrames.last()[6].toInt() and 255)
+    }
+    @Test fun fmSeekCannotRestartWhileRepliesContinueAfterFiveSecondPause() {
+        receive("fm205")
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+        assertEquals(0x87, fake.sentFrames.single()[6].toInt() and 255)
+        for (time in 100L..5200L step 100L) {
+            now = time; receive("fm0")
+        }
+        assertEquals(TuneTarget(Band.FM, 87500), controller.snapshot.confirmed)
+        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
+        assertEquals(1, fake.sendCount)
+        now = 5499; controller.tick()
+        assertEquals(TransitionState.Seeking, controller.transitionState)
+        now = 5500; controller.tick()
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+        assertEquals(0x86, fake.sentFrames.last()[6].toInt() and 255)
+    }
+    @Test fun seekBannerDeadlineAppliesEvenWhenStationRepliesContinue() {
+        receive("fm28")
+        controller.seek(Direction.Down)
+        for (time in 100L..14900L step 100L) {
+            now = time; receive("fm0")
+            assertEquals("идёт поиск…", controller.snapshot.banner)
+        }
+        now = 14999; controller.tick()
+        assertEquals(TransitionState.Seeking, controller.transitionState)
+        now = 15000; controller.tick()
+        assertEquals(TransitionState.Idle, controller.transitionState)
+        assertNull(controller.snapshot.banner)
+        assertEquals(1, fake.sendCount)
+    }
+    @Test fun amSeekStillBlocksCommandsAfterBannerDeadlineUntilRepliesStop() {
+        receive("am31")
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+        for (time in 100L..15100L step 100L) {
+            now = time; receiveAm(40)
+        }
+        assertNull(controller.snapshot.banner)
+        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
+        assertEquals(TuneResult.RateLimited, controller.step(Direction.Down))
+        assertEquals(TuneResult.RateLimited, controller.select(Band.FM, 90300))
+        assertEquals(TuneResult.RateLimited, controller.checkConnection())
+        assertEquals(1, fake.sendCount)
+        now = 15399; controller.tick()
+        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
+        now = 15400; controller.tick()
+        assertEquals(1, fake.sendCount)
+        assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+        assertEquals(2, fake.sendCount)
     }
     @Test fun errno19ClearsTargetAndReturnOnlyProbesOnce() {
         receive("fm28")
