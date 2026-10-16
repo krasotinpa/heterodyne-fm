@@ -36,7 +36,7 @@ class MainActivity : ComponentActivity() {
                     connected = stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                     playing = stations.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                     actions = fm.heterodyne.app.ui.EfirActions(
-                        select = stations::selectStation, station = stations::nextStation,
+                        select = stations::pickStation, station = stations::nextStation,
                         step = stations::step, seek = stations::seek, band = stations::changeBand,
                         activate = stations::activateSet, parked = { parked = true },
                         check = stations::checkConnection,
@@ -74,6 +74,9 @@ class MainActivity : ComponentActivity() {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
                 }
                 (linkError ?: snapshot.error)?.let { BasicText(it, style = style) }
+                if (playing) {
+                    BasicText("Вернуть руль", Modifier.clickable { stations.startAudio() }.padding(12.dp), style)
+                }
                 if (current == null) {
                     BasicText("Загрузка…", style = style)
                 } else {
