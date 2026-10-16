@@ -1,6 +1,12 @@
 __pycache__/
 .venv/
 
+# Android / Gradle output and machine-local SDK path
+build/
+.gradle/
+.kotlin/
+local.properties
+
 # Agent scratch space: keep the directory, ignore whatever lands in it
 .scratch/*
 !.scratch/.gitkeep

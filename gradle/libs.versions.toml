@@ -1,0 +1,22 @@
+[versions]
+agp = "9.1.1"
+kotlin = "2.4.10"
+compose-bom = "2026.06.01"
+activity-compose = "1.10.1"
+junit = "4.13.2"
+compile-sdk = "35"
+target-sdk = "30"
+min-sdk = "30"
+build-tools = "36.0.0"
+jdk = "17"
+
+[libraries]
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
+compose-foundation = { module = "androidx.compose.foundation:foundation" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+junit = { module = "junit:junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
