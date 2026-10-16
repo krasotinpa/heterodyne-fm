@@ -98,7 +98,8 @@ class ModuleTest {
         }
         assertEquals(10, fake.openCount)
         assertEquals(20, fake.closeCalls)
-        assertEquals(0, fake.sendCount)
+        // One return probe, then the persistent 10-second limiter blocks further probes.
+        assertEquals(1, fake.sendCount)
         assertTrue(states.containsAll(ConnectionState.entries))
     }
 
