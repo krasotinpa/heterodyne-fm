@@ -1,7 +1,6 @@
 package fm.heterodyne.app
 
 import android.os.Bundle
-import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -19,7 +18,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
@@ -28,21 +26,22 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
         setContent {
-            var diagnostics by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
             val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
             ) { uri -> stations.diagnostics.finishExport(uri) }
             var parked by rememberSaveable { mutableStateOf(false) }
-            BackHandler(enabled = parked) { if (diagnostics) diagnostics = false else parked = false }
-            if (!parked) {
+            val driving = stations.module.driving
+            androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
+            if (!parked || driving) {
                 fm.heterodyne.app.ui.EfirScreen(
                     stations.session.screen, stations.module.transition,
                     connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                     playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
+                    driving = driving,
                     actions = fm.heterodyne.app.ui.EfirActions(
                         select = stations.module::pickStation, station = stations.module::nextStation,
                         step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
-                        activate = stations.module::activateSet, parked = { parked = true },
+                        activate = stations.module::activateSet, parked = { if (!stations.module.driving) parked = true },
                         check = stations.module::checkConnection,
                         play = {
                             if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
@@ -53,78 +52,26 @@ class MainActivity : ComponentActivity() {
                 )
                 return@setContent
             }
-            if (diagnostics) {
-                DiagnosticsScreen(stations.diagnostics, parked, export = {
+            fm.heterodyne.app.ui.ParkingScreen(
+                stations.session.screen, driving,
+                stations.module.currentStation?.takeIf {
+                    stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing &&
+                        fm.heterodyne.app.module.isSelectableFrequency(
+                            fm.heterodyne.app.module.Band.valueOf(it.band.name), it.frequencyKhz)
+                },
+                fm.heterodyne.app.ui.ParkingActions(
+                    region = stations.module::selectRegion, activate = stations.module::activateSet,
+                    create = stations.session::createSet, rename = stations.session::renameSet,
+                    delete = stations.session::deleteSet, add = stations.session::addStation,
+                    remove = stations.session::removeStation, move = stations.session::moveStation,
+                ), back = { parked = false },
+            ) { back ->
+                DiagnosticsScreen(stations.diagnostics, parked && !driving, export = {
                     stations.diagnostics.beginExport {
                         try { exportLauncher.launch("heterodyne-diagnostic.log") }
                         catch (_: Exception) { stations.diagnostics.finishExport(null) }
                     }
-                }) { diagnostics = false }
-                return@setContent
-            }
-            val snapshot = stations.session.screen
-            val current = snapshot.state
-            val catalogs = snapshot.catalogs
-            var linkError by remember { mutableStateOf<String?>(null) }
-            val uriHandler = LocalUriHandler.current
-            val style = TextStyle(color = Color.White)
-            Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
-                fm.heterodyne.app.ui.Control("Эфир", true, { parked = false })
-                BasicText(
-                    if (stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
-                    Modifier.clickable { stations.module.retryModulePermission() }.padding(12.dp), style,
-                )
-                val playing = stations.module.audioState == fm.heterodyne.app.audio.AudioState.Starting ||
-                    stations.module.audioState == fm.heterodyne.app.audio.AudioState.Playing
-                BasicText(
-                    if (playing) "Стоп" else "Играть",
-                    Modifier.clickable(enabled = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) {
-                        if (playing) stations.module.stopAudio() else stations.module.startAudio()
-                    }.padding(12.dp), style,
-                )
-                BasicText("Диагностика", Modifier.clickable { diagnostics = true }.padding(12.dp), style)
-                BasicText("Станции", style = style)
-                if (snapshot.recovered) {
-                    BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
-                }
-                (linkError ?: snapshot.error)?.let { BasicText(it, style = style) }
-                if (playing) {
-                    BasicText("Вернуть руль", Modifier.clickable { stations.module.startAudio() }.padding(12.dp), style)
-                }
-                if (current == null) {
-                    BasicText("Загрузка…", style = style)
-                } else {
-                    BasicText("Диапазон: ${current.band}", style = style)
-                    current.lastStation?.let {
-                        BasicText("Последняя Станция: ${it.band} · ${it.frequencyKhz} кГц", style = style)
-                    }
-                    val catalog = catalogs.first { it.region.id == current.selectedRegion }
-                    LazyColumn {
-                        items(catalogs, key = { it.region.id }) { option ->
-                            BasicText(
-                                (if (option.region.id == current.selectedRegion) "● " else "○ ") + option.region.name,
-                                modifier = Modifier.clickable { stations.module.selectRegion(option.region.id) }.padding(12.dp),
-                                style = style,
-                            )
-                        }
-                        item { BasicText("Наборы", style = style) }
-                        items(current.regions.getValue(current.selectedRegion).sets, key = { it.name }) { set ->
-                            val active = current.regions.getValue(current.selectedRegion).activeName == set.name
-                            BasicText(set.name + if (active) " — Активный" else "", Modifier.padding(12.dp), style)
-                        }
-                        item {
-                            BasicText("Источник: ${catalog.source.text}",
-                                Modifier.clickable {
-                                    try { uriHandler.openUri(catalog.source.url) }
-                                    catch (_: android.content.ActivityNotFoundException) { linkError = "Нет приложения для открытия ссылки" }
-                                }.padding(12.dp), style)
-                        }
-                        item { BasicText("Справочник", style = style) }
-                        items(catalog.stations, key = { it.id }) { station ->
-                            BasicText("${station.name} · ${station.band} · ${station.frequencyKhz} кГц", Modifier.padding(12.dp), style)
-                        }
-                    }
-                }
+                }, back = back)
             }
         }
     }

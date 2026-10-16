@@ -36,7 +36,7 @@ data class Catalog(
     }
 }
 
-enum class ChangeError { DUPLICATE_NAME, INVALID_NAME, DUPLICATE_FREQUENCY, NOT_FOUND }
+enum class ChangeError { DUPLICATE_NAME, INVALID_NAME, DUPLICATE_FREQUENCY, NOT_FOUND, LAST_SET }
 data class Change<out T>(val value: T? = null, val error: ChangeError? = null)
 
 // Private construction keeps duplicate entries out of every aggregate instance.
@@ -51,6 +51,20 @@ data class StationSet private constructor(val name: String, val entries: List<St
             return Change(error = ChangeError.DUPLICATE_FREQUENCY)
         }
         return Change(StationSet(name, Collections.unmodifiableList(entries + entry.copy())))
+    }
+    fun rename(name: String): Change<StationSet> = if (name.isBlank()) Change(error = ChangeError.INVALID_NAME)
+        else Change(StationSet(name, entries))
+
+    fun remove(entry: StationEntry): Change<StationSet> {
+        val index = entries.indexOfFirst { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }
+        if (index < 0) return Change(error = ChangeError.NOT_FOUND)
+        return Change(StationSet(name, Collections.unmodifiableList(entries.filterIndexed { i, _ -> i != index })))
+    }
+    fun move(from: Int, to: Int): Change<StationSet> {
+        if (from !in entries.indices || to !in entries.indices) return Change(error = ChangeError.NOT_FOUND)
+        val reordered = entries.toMutableList()
+        reordered.add(to, reordered.removeAt(from))
+        return Change(StationSet(name, Collections.unmodifiableList(reordered)))
     }
     companion object {
         fun empty(name: String): StationSet = StationSet(name, emptyList())
@@ -76,6 +90,23 @@ data class RegionSets private constructor(val sets: List<StationSet>, val active
     fun replaceActive(set: StationSet): RegionSets {
         require(set.name == activeName)
         return RegionSets(Collections.unmodifiableList(sets.map { if (it.name == activeName) set else it }), activeName)
+    }
+    fun rename(name: String, newName: String): Change<RegionSets> = when {
+        sets.none { it.name == name } -> Change(error = ChangeError.NOT_FOUND)
+        newName.isBlank() -> Change(error = ChangeError.INVALID_NAME)
+        newName != name && sets.any { it.name == newName } -> Change(error = ChangeError.DUPLICATE_NAME)
+        else -> Change(RegionSets(Collections.unmodifiableList(sets.map {
+            if (it.name == name) it.rename(newName).value!! else it
+        }), if (activeName == name) newName else activeName))
+    }
+    fun delete(name: String): Change<RegionSets> = when {
+        sets.none { it.name == name } -> Change(error = ChangeError.NOT_FOUND)
+        sets.size == 1 -> Change(error = ChangeError.LAST_SET)
+        else -> {
+            val remaining = sets.filter { it.name != name }
+            Change(RegionSets(Collections.unmodifiableList(remaining),
+                if (activeName == name) remaining.first().name else activeName))
+        }
     }
     companion object {
         internal fun restore(sets: List<StationSet>, activeName: String) = RegionSets(Collections.unmodifiableList(sets.toList()), activeName)
