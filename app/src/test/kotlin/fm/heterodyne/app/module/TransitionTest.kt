@@ -31,6 +31,34 @@ class TransitionTest {
         fake.enqueueReceived(frame)
         controller.receive()
     }
+    @Test fun exportReturnProbesOnceAndRespectsTenSecondLimit() {
+        receive("fm28")
+        controller.suspendForExport()
+        assertEquals(ConnectionState.Disconnected, controller.state)
+        controller.found(DeviceProfile("module"))
+        controller.permissionResult(controller.requestPermission()!!, true)
+        assertEquals(1, fake.sendCount)
+        assertEquals(0x85, fake.sentFrames.single()[6].toInt() and 255)
+        controller.tick()
+        receive("fm28")
+        now = 9999
+        assertEquals(TuneResult.RateLimited, controller.checkConnection())
+        assertEquals(1, fake.sendCount)
+        now = 10000
+        assertEquals(TuneResult.Sent, controller.checkConnection())
+        assertEquals(2, fake.sendCount)
+    }
+    @Test fun diagnosticBandUsesControllerPauseAndWaitsForReply() {
+        receive("fm28")
+        assertEquals(TuneResult.Sent, controller.switchBand())
+        assertEquals(TuneResult.RateLimited, controller.switchBand())
+        assertEquals(0x84, fake.sentFrames.last()[6].toInt() and 255)
+        receive("am31")
+        now = 1999
+        assertEquals(TuneResult.RateLimited, controller.switchBand())
+        now = 2000
+        assertEquals(TuneResult.Sent, controller.switchBand())
+    }
     @Test fun waitingAndTimeoutRequireTargetReply() {
         receive("fm28")
         assertEquals(TransitionState.Idle, controller.transitionState)

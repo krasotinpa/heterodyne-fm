@@ -28,8 +28,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
         setContent {
+            var diagnostics by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+            val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
+            ) { uri -> stations.finishExport(uri) }
             var parked by rememberSaveable { mutableStateOf(false) }
-            BackHandler(enabled = parked) { parked = false }
+            BackHandler(enabled = parked) { if (diagnostics) diagnostics = false else parked = false }
             if (!parked) {
                 fm.heterodyne.app.ui.EfirScreen(
                     stations.screen, stations.transition,
@@ -47,6 +51,15 @@ class MainActivity : ComponentActivity() {
                         permission = stations::retryModulePermission,
                     ),
                 )
+                return@setContent
+            }
+            if (diagnostics) {
+                DiagnosticsScreen(stations, parked, export = {
+                    stations.beginExport {
+                        try { exportLauncher.launch("heterodyne-diagnostic.log") }
+                        catch (_: Exception) { stations.finishExport(null) }
+                    }
+                }) { diagnostics = false }
                 return@setContent
             }
             val snapshot = stations.screen
@@ -69,6 +82,7 @@ class MainActivity : ComponentActivity() {
                         if (playing) stations.stopAudio() else stations.startAudio()
                     }.padding(12.dp), style,
                 )
+                BasicText("Диагностика", Modifier.clickable { diagnostics = true }.padding(12.dp), style)
                 BasicText("Станции", style = style)
                 if (snapshot.recovered) {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
@@ -109,5 +123,58 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+@androidx.compose.runtime.Composable
+private fun DiagnosticsScreen(app: StationsApplication, parked: Boolean, export: () -> Unit, back: () -> Unit) {
+    var enabled by remember { mutableStateOf(app.developerMode.enabled) }
+    var journal by remember { mutableStateOf("Загрузка…") }
+    var frames by remember { mutableStateOf(emptyList<String>()) }
+    var byte7 by remember { mutableStateOf<Int?>(null) }
+    var counters by remember { mutableStateOf(app.audioCounters) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        while (true) {
+            app.readJournal { journal = it }
+            frames = app.diagnosticFrames.snapshot()
+            byte7 = app.diagnosticFrames.byte7
+            counters = app.audioCounters
+            kotlinx.coroutines.delay(1000)
+        }
+    }
+    val style = TextStyle(color = Color.White)
+    LazyColumn(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+        item { BasicText("Назад", Modifier.clickable { back() }.padding(12.dp), style) }
+        item { BasicText("Диагностика · Режим стоянки", style = style) }
+        item {
+            BasicText("Версия ${BuildConfig.VERSION_NAME}", Modifier.clickable {
+                app.developerMode.tap(parked)
+                enabled = app.developerMode.enabled
+            }.padding(12.dp), style)
+        }
+        item { BasicText("Для экспорта отключите Модуль и подключите SSD к общему USB-разъёму. После экспорта верните Модуль.", style = style) }
+        item {
+            BasicText(if (app.exportBusy) "Экспорт… Модуль отключён" else "Экспорт Журнала на SSD",
+                Modifier.clickable(enabled = parked && !app.exportBusy) {
+                    export()
+                }.padding(12.dp), style)
+        }
+        item { app.diagnosticMessage?.let { BasicText(it, style = style) } }
+        if (enabled && parked) {
+            item { BasicText("Выключить Режим разработчика", Modifier.clickable {
+                app.developerMode.disable(); enabled = false
+            }.padding(12.dp), style) }
+            item { BasicText("Звук: байты ${counters.bytes}, ошибки ${counters.badPackets}, выравнивания ${counters.realignments}, underrun ${counters.underruns}", style = style) }
+            item { BasicText("Байт +7 (0x24): ${byte7 ?: "—"}", style = style) }
+            items(fm.heterodyne.app.usb.DiagnosticCommand.entries) { command ->
+                BasicText(command.label, Modifier.clickable(enabled = !app.exportBusy) {
+                    app.diagnosticCommand(command)
+                }.padding(12.dp), style)
+            }
+            item { BasicText("Живой поток кадров (последние 100 записей USB)", style = style) }
+            items(frames) { BasicText(it, style = style) }
+        }
+        item { BasicText("Журнал (последние 32 КБ; экспорт содержит весь Журнал)", style = style) }
+        item { BasicText(journal, style = style) }
     }
 }
