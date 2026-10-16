@@ -35,6 +35,34 @@ class TuneTest {
             now += 1000
         }
     }
+    @Test fun amSelectUsesWhitelistCidAndWaitsForConfirmedFrequency() {
+        receive(fixture("am31"))
+        listOf(711 to "FA 55 01 00 07 80 82 20 15 00 15 B4",
+            882 to "FA 55 02 00 07 80 82 20 28 00 28 8E",
+            1044 to "FA 55 03 00 07 80 82 20 3A 00 3A 6A").forEach { (khz, expected) ->
+            val before = stations.toList()
+            assertEquals(TuneResult.Sent, controller.select(Band.AM, khz))
+            assertArrayEquals(hex(expected), fake.sentFrames.last())
+            assertEquals(before, stations)
+            assertEquals(TuneTarget(Band.AM, khz), controller.target)
+            // Synthetic RX tests the confirmation contract, not hardware acceptance.
+            val cid = when (khz) { 711 -> 21; 882 -> 40; else -> 58 }
+            receive(altered(fixture("am31"), 7, cid))
+            assertEquals(Band.AM to khz, stations.last())
+            assertEquals(TuneTarget(Band.AM, khz), controller.snapshot.confirmed)
+            assertEquals(TransitionState.Idle, controller.transitionState)
+            now += 1000
+        }
+    }
+    @Test fun amSelectRejectsFrequenciesOutsideWhitelistAndOffGridBeforeTx() {
+        receive(fixture("am31"))
+        listOf(Int.MIN_VALUE, 522, 702, 710, 712, 1043, 1045, 1053, 1620, Int.MAX_VALUE).forEach {
+            assertEquals(TuneResult.InvalidFrequency, controller.select(Band.AM, it))
+        }
+        assertEquals(0, fake.sendCount)
+        assertNull(controller.target)
+        assertEquals(TuneTarget(Band.AM, 801), controller.snapshot.confirmed)
+    }
     @Test fun rejectsInvalidFrequenciesUnknownBandAndCommandsDuringPause() {
         assertEquals(TuneResult.BandNotFM, controller.tune(97700))
         receive(fixture("fm28"))

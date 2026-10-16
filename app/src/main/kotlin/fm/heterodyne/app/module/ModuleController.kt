@@ -12,6 +12,7 @@ data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget
         TransitionState.Unconfirmed -> "Нет ответа от Модуля"
         TransitionState.Unresponsive -> "Модуль не отвечает, переподключите USB"
         TransitionState.Disconnected -> "Модуль отключён"
+        TransitionState.Seeking -> "идёт поиск…"
         else -> null
     }
 }
@@ -75,9 +76,13 @@ class ModuleController(
         val now = clock()
         val seekStart = seeking
         if (seekStart != null) {
-            // A quiet 300 ms after the last 0x22 ends the series; 15 s is the hard bound.
-            if (now - seekStart >= 15000 || seekReply?.let { now - it >= 300 } == true) {
+            // End a reply series after 300 ms of silence. With no replies, expire at 15 s.
+            val expired = now - seekStart >= 15000
+            if (seekReply?.let { now - it >= 300 } == true || (expired && seekReply == null)) {
                 clearAction(); radio(TransitionState.Idle)
+            } else if (expired) {
+                // Bound the banner, but keep commands blocked while 0x22 replies continue.
+                radio(TransitionState.Idle)
             }
             return
         }
