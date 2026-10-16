@@ -1,4 +1,4 @@
-# Правила агента Super Radio Android
+# Правила агента Heterodyne FM
 
 ## Начало
 
@@ -83,7 +83,7 @@ raw/                   новые captures до проверки; не комм�
 
 ### Issue tracker
 
-Задачи ведутся в GitHub Issues `krasotinpa/super-radio-android`. См. `docs/agents/issue-tracker.md`.
+Задачи ведутся в GitHub Issues `krasotinpa/heterodyne-fm`. См. `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 

@@ -1,4 +1,4 @@
-# Super Radio Android
+# Heterodyne FM
 
 Собственное Android-приложение для USB-радиомодуля на штатном головном устройстве Toyota Highlander.
 

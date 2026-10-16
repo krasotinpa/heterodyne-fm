@@ -1,4 +1,4 @@
-# Super Radio Android для Toyota Highlander
+# Heterodyne FM для Toyota Highlander
 
 Пакет передачи задачи coding-агенту. Дата: 14 октября 2026 года.
 Цель — собственный Android APK для USB AM/FM-приёмника Super Radio на штатном ГУ китайского Toyota Highlander 2026 2.0T.
