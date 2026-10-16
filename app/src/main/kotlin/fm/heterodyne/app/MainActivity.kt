@@ -33,6 +33,10 @@ class MainActivity : ComponentActivity() {
             val uriHandler = LocalUriHandler.current
             val style = TextStyle(color = Color.White)
             Column(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+                BasicText(
+                    if (stations.moduleState == fm.heterodyne.app.module.ConnectionState.Observing) "Модуль подключён" else "Модуль отключён",
+                    Modifier.clickable { stations.retryModulePermission() }.padding(12.dp), style,
+                )
                 BasicText("Станции", style = style)
                 if (snapshot.recovered) {
                     BasicText("Данные восстановлены: использованы значения по умолчанию", style = style)
