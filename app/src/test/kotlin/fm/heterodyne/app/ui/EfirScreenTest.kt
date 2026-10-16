@@ -21,6 +21,14 @@ import org.robolectric.annotation.Config
 class EfirScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun drivingDisablesParking() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(), TransitionSnapshot(TransitionState.Disconnected, null, null),
+                false, EfirActions(), driving = true)
+        }
+        compose.onNodeWithText("Стоянка").assertIsNotEnabled()
+    }
+
     @Test fun catalogSelectionRequestsStationWithoutChangingConfirmedFrequency() {
         val selected = mutableListOf<StationEntry>()
         val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),

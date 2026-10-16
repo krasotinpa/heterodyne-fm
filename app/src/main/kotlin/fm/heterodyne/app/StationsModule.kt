@@ -22,6 +22,12 @@ class StationsModule(
     private val session: StationsSession,
     private val startPlayback: () -> Unit,
 ) {
+    var driving by mutableStateOf(false)
+        private set
+
+    // Источник не измерен, см. #89. Единственная точка установки сигнала.
+    fun updateDriving(value: Boolean) { driving = value }
+
     var moduleState by mutableStateOf(ConnectionState.Disconnected)
         private set
     var audioState by mutableStateOf(AudioState.Stopped)

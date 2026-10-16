@@ -60,6 +60,7 @@ fun EfirScreen(
     connected: Boolean,
     actions: EfirActions,
     playing: Boolean = false,
+    driving: Boolean = false,
 ) {
     val state = screen.state
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
@@ -81,7 +82,7 @@ fun EfirScreen(
                 Control("FM / AM", connected && confirmed != null, actions.band)
                 Control("Поиск ◀" + if (transition.state == TransitionState.CommandPause) " · пауза" else "", connected, { actions.seek(Direction.Down) })
                 Control("Поиск ▶" + if (transition.state == TransitionState.CommandPause) " · пауза" else "", connected, { actions.seek(Direction.Up) })
-                Control("Стоянка", true, actions.parked)
+                Control("Стоянка", !driving, actions.parked)
             }
             BandScale(catalog?.stations.orEmpty(), entries, transition)
             val banner = transition.banner ?: when (transition.state) {
