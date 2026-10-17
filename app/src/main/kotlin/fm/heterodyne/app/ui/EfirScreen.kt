@@ -1,7 +1,6 @@
 package fm.heterodyne.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -16,11 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import fm.heterodyne.app.StationsScreenState
 import fm.heterodyne.app.module.Direction
 import fm.heterodyne.app.module.TransitionSnapshot
@@ -42,10 +38,10 @@ data class EfirActions(
     val permission: () -> Unit = {},
 )
 
-private val Background = Color(0xff121417)
-private val Panel = Color(0xff1e2228)
-private val Accent = Color(0xfff2a33a)
-private val Muted = Color(0xffa7adb7)
+private val Background: Color @Composable get() = LocalAppearanceColors.current["bg"]
+private val Panel: Color @Composable get() = LocalAppearanceColors.current["surface2"]
+private val Accent: Color @Composable get() = LocalAppearanceColors.current["accentText"]
+private val Muted: Color @Composable get() = LocalAppearanceColors.current["muted"]
 
 fun frequencyText(target: TuneTarget): String = if (target.band == fm.heterodyne.app.module.Band.FM)
     "${target.frequencyKhz / 1000},${target.frequencyKhz % 1000 / 100}" else "${target.frequencyKhz}"
@@ -75,7 +71,7 @@ fun EfirScreen(
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f).alpha(if (faded) .45f else 1f)) {
-                    BasicText(confirmed?.let(::frequencyText) ?: "—", style = TextStyle(Color.White, 56.sp, fontFamily = FontFamily.Monospace))
+                    BasicText(confirmed?.let(::frequencyText) ?: "—", style = designTextStyle("freq", LocalAppearanceColors.current["text"]))
                     Label(name?.takeIf { it.isNotBlank() } ?: "Частота вне Подборки", 22)
                     Label("${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}", 18, Muted)
                 }
@@ -151,16 +147,26 @@ private fun StationRibbon(title: String, entries: List<StationEntry>, transition
 
 @Composable
 internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, selected: Boolean = false) {
-    Box(modifier.defaultMinSize(minWidth = 48.dp, minHeight = 56.dp)
-        .background(if (selected) Color(0xff2a2213) else Panel, RoundedCornerShape(12.dp))
-        .border(1.dp, if (selected) Accent else Color(0xff3a3f47), RoundedCornerShape(12.dp))
+    val colors = LocalAppearanceColors.current
+    val tokens = controlColorTokens(enabled, selected)
+    val shape = RoundedCornerShape(DesignTokens.number("radius.m").dp)
+    Box(modifier.defaultMinSize(minWidth = DesignTokens.number("size.touch.min").dp,
+        minHeight = DesignTokens.number("size.segment.height").dp)
+        .background(colors[tokens.background], shape)
         .semantics { this.selected = selected }
-        .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(12.dp), contentAlignment = Alignment.Center) {
-        Label(text, 18, if (enabled) Color.White else Muted)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+        .padding(DesignTokens.number("space.section").dp), contentAlignment = Alignment.Center) {
+        BasicText(text, style = designTextStyle("body", colors[tokens.foreground]), maxLines = 3, overflow = TextOverflow.Ellipsis)
     }
 }
 
 @Composable
-internal fun Label(text: String, size: Int, color: Color = Color.White, modifier: Modifier = Modifier) {
-    BasicText(text, modifier, TextStyle(color, size.sp), maxLines = 3, overflow = TextOverflow.Ellipsis)
+internal fun Label(text: String, size: Int, color: Color = LocalAppearanceColors.current["text"], modifier: Modifier = Modifier) {
+    val token = when (size) {
+        24 -> "heading"
+        22 -> "title"
+        18 -> "cardTitle"
+        else -> "body"
+    }
+    BasicText(text, modifier, designTextStyle(token, color), maxLines = 3, overflow = TextOverflow.Ellipsis)
 }

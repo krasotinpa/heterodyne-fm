@@ -7,14 +7,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -41,7 +38,8 @@ fun BandScale(
         visible.indices.minByOrNull { abs(visible[it].frequencyKhz - target.frequencyKhz) }
     })
     val measurer = rememberTextMeasurer()
-    val style = TextStyle(color = Color(0xffa7adb7), fontSize = 15.sp, fontFamily = FontFamily.Monospace)
+    val colors = LocalAppearanceColors.current
+    val style = designTextStyle("label", colors["muted"])
     val layouts = visible.map { measurer.measure(scaleLabelText(it.name), style) }
     // Reserve enough width for the actual font, including fallback glyphs and font scaling.
     val charWidth = layouts.indices.maxOfOrNull {
@@ -57,10 +55,10 @@ fun BandScale(
             chooseLabels(visible, band, width, charWidth, with(density) { 8.dp.toPx() }, priority)
         Canvas(Modifier.fillMaxSize()) {
             val baseline = 10.dp.toPx()
-            drawLine(Color(0xffa7adb7), Offset(0f, baseline), Offset(size.width, baseline))
+            drawLine(colors["mark"], Offset(0f, baseline), Offset(size.width, baseline))
             if (band != null) visible.forEach {
                 val x = bandFraction(band, it.frequencyKhz) * size.width
-                drawLine(Color(0xffa7adb7), Offset(x, 4.dp.toPx()), Offset(x, 18.dp.toPx()))
+                drawLine(colors["mark"], Offset(x, 4.dp.toPx()), Offset(x, 18.dp.toPx()))
             }
             labels.forEach {
                 drawText(layouts[it.index], topLeft = Offset(it.left, 24.dp.toPx() + it.row * lineHeight))
@@ -70,7 +68,7 @@ fun BandScale(
             val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
             Box(Modifier.offset { IntOffset((bandFraction(confirmed.band, confirmed.frequencyKhz) * width).roundToInt() - with(density) { 1.dp.roundToPx() }, 0) }
                 .width(2.dp).height(22.dp).alpha(if (faded) .45f else 1f)
-                .background(Color(0xfff2a33a)).testTag("band-scale-marker")
+                .background(colors["accent"]).testTag("band-scale-marker")
                 .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
         }
     }
