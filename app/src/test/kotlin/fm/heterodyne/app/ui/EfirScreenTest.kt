@@ -49,7 +49,7 @@ class EfirScreenTest {
     private val initial = StationsState.defaults().let { state ->
         val region = state.regions.getValue("moskva")
         val populated = region.replaceActive(region.active.add(first).value!!)
-        state.copy(regions = state.regions + ("moskva" to populated.createSet("Дорога").value!!))
+        state.copy(regions = state.regions + ("moskva" to populated.createSelection("Дорога").value!!))
     }
 
     @Test fun driverControlsDispatchBothDirectionsAndOpenParking() {
@@ -59,15 +59,15 @@ class EfirScreenTest {
                 TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true,
                 EfirActions(station = { events.add("station:$it") }, step = { events.add("step:$it") },
                     seek = { events.add("seek:$it") }, band = { events.add("band") },
-                    parked = { events.add("parked") }, activate = { events.add("set:$it") },
+                    parked = { events.add("parked") }, activate = { events.add("selection:$it") },
                     play = { events.add("play") }))
         }
         listOf("Станция ◀", "Станция ▶", "Шаг ◀", "Шаг ▶", "Поиск ◀", "Поиск ▶",
-            "FM / AM", "Набор: Дорога", "Играть", "Стоянка").forEach {
+            "FM / AM", "Подборка: Дорога", "Играть", "Стоянка").forEach {
             compose.onNodeWithText(it).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
         }
         assertEquals(listOf("station:Down", "station:Up", "step:Down", "step:Up", "seek:Down", "seek:Up",
-            "band", "set:Дорога", "play", "parked"), events)
+            "band", "selection:Дорога", "play", "parked"), events)
         compose.onNodeWithText("Сохранить текущую частоту").assertDoesNotExist()
         compose.onNodeWithText("Отменить поиск").assertDoesNotExist()
     }
@@ -82,7 +82,7 @@ class EfirScreenTest {
             compose.onNodeWithText(it).assertIsNotEnabled()
         }
         compose.onNodeWithText("Справочная", substring = true).assertIsNotEnabled()
-        compose.onNodeWithText("Набор: Дорога").assertIsEnabled()
+        compose.onNodeWithText("Подборка: Дорога").assertIsEnabled()
         compose.onNodeWithText("Стоянка").assertIsEnabled()
     }
 

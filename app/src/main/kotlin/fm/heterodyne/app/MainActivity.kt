@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                     actions = fm.heterodyne.app.ui.EfirActions(
                         select = stations.module::pickStation, station = stations.module::nextStation,
                         step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
-                        activate = stations.module::activateSet, parked = { if (!stations.module.driving) parked = true },
+                        activate = stations.module::activateSelection, parked = { if (!stations.module.driving) parked = true },
                         check = stations.module::checkConnection,
                         play = {
                             if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
@@ -60,9 +60,9 @@ class MainActivity : ComponentActivity() {
                             fm.heterodyne.app.module.Band.valueOf(it.band.name), it.frequencyKhz)
                 },
                 fm.heterodyne.app.ui.ParkingActions(
-                    region = stations.module::selectRegion, activate = stations.module::activateSet,
-                    create = stations.session::createSet, rename = stations.session::renameSet,
-                    delete = stations.session::deleteSet, add = stations.session::addStation,
+                    region = stations.module::selectRegion, activate = stations.module::activateSelection,
+                    create = stations.session::createSelection, rename = stations.session::renameSelection,
+                    delete = stations.session::deleteSelection, add = stations.session::addStation,
                     remove = stations.session::removeStation, move = stations.session::moveStation,
                 ), back = { parked = false },
             ) { back ->

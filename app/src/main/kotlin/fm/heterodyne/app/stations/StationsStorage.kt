@@ -17,9 +17,9 @@ object StationsJson {
         .put("regions", JSONObject().apply {
             state.regions.forEach { (id, region) ->
                 put(id, JSONObject().put("activeName", region.activeName).put("sets", JSONArray().apply {
-                    region.sets.forEach { set ->
-                        put(JSONObject().put("name", set.name).put("entries", JSONArray().apply {
-                            set.entries.forEach { entry ->
+                    region.selections.forEach { selection ->
+                        put(JSONObject().put("name", selection.name).put("entries", JSONArray().apply {
+                            selection.entries.forEach { entry ->
                                 put(JSONObject().put("band", entry.band.name).put("frequencyKhz", entry.frequencyKhz)
                                     .put("name", entry.name).put("catalogId", entry.catalogId))
                             }
@@ -40,15 +40,15 @@ object StationsJson {
         require(regionsJson.keys().asSequence().toSet() == setOf("moskva", "yaroslavl"))
         val regions = listOf("moskva", "yaroslavl").associateWith { id ->
             val region = regionsJson.getJSONObject(id)
-            val sets = region.getJSONArray("sets")
-            require(sets.length() > 0)
+            val selections = region.getJSONArray("sets")
+            require(selections.length() > 0)
             val names = mutableSetOf<String>()
-            val restoredSets = (0 until sets.length()).map { index ->
-                val set = sets.getJSONObject(index)
-                val name = set.getString("name")
+            val restoredSelections = (0 until selections.length()).map { index ->
+                val selection = selections.getJSONObject(index)
+                val name = selection.getString("name")
                 require(name.isNotBlank() && names.add(name))
-                var populated = StationSet.empty(name)
-                val entries = set.getJSONArray("entries")
+                var populated = StationSelection.empty(name)
+                val entries = selection.getJSONArray("entries")
                 for (entryIndex in 0 until entries.length()) {
                     val entry = entries.getJSONObject(entryIndex)
                     val frequency = entry.get("frequencyKhz")
@@ -61,7 +61,7 @@ object StationsJson {
                 }
                 populated
             }
-            RegionSets.restore(restoredSets, region.getString("activeName"))
+            RegionSelections.restore(restoredSelections, region.getString("activeName"))
         }
         val lastStation = if (schema == 2 && !root.isNull("lastStation")) {
             val station = root.getJSONObject("lastStation")

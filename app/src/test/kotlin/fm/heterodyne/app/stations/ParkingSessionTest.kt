@@ -18,15 +18,15 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class ParkingSessionTest {
-    @Test fun selectedRegionAndItsSetsSurviveSessionRestart() {
+    @Test fun selectedRegionAndItsSelectionsSurviveSessionRestart() {
         val context = RuntimeEnvironment.getApplication()
         File(context.filesDir, "stations.json").delete()
         val handler = Handler(Looper.getMainLooper())
         val session = StationsSession(context, handler)
         load(session)
         session.selectRegion("yaroslavl")
-        session.createSet("yaroslavl", "Поездка")
-        session.activateSet("Поездка")
+        session.createSelection("yaroslavl", "Поездка")
+        session.activateSelection("Поездка")
         session.addStation("yaroslavl", "Поездка", StationEntry(Band.FM, 90300))
         // load is queued after all mutations on the same storage queue.
         load(session)
@@ -42,7 +42,7 @@ class ParkingSessionTest {
     @Test fun delayedEditFromOldRegionDoesNotChangeNewRegion() {
         val context = RuntimeEnvironment.getApplication()
         val entry = StationEntry(Band.FM, 90300)
-        val populated = RegionSets.defaults().let { it.replaceActive(it.active.add(entry).value!!) }
+        val populated = RegionSelections.defaults().let { it.replaceActive(it.active.add(entry).value!!) }
         val initial = StationsState("moskva", mapOf("moskva" to populated, "yaroslavl" to populated))
         assertTrue(StationsRepository(AtomicStationsFile(File(context.filesDir, "stations.json"))).save(initial))
         val queued = java.util.ArrayDeque<Runnable>()
@@ -64,7 +64,7 @@ class ParkingSessionTest {
         val first = StationEntry(Band.FM, 90300)
         val second = StationEntry(Band.FM, 91000)
         val third = StationEntry(Band.FM, 92000)
-        val region = RegionSets.defaults().let {
+        val region = RegionSelections.defaults().let {
             it.replaceActive(it.active.add(first).value!!.add(second).value!!.add(third).value!!)
         }
         val initial = StationsState.defaults().copy(regions = StationsState.defaults().regions + ("moskva" to region))
