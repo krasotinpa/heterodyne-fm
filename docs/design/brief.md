@@ -1,7 +1,7 @@
 # Бриф для Claude Design: внешний вид Heterodyne FM
 
 Тикет: [#118](https://github.com/krasotinpa/super-radio-android/issues/118). Требования: [requirements.md](../requirements.md), строки R17, R18, R21–R23.
-Бриф пишет владелец продукта. Claude Design разрабатывает внешний вид. Реализацию в Compose делает Codex по результату ([#119](https://github.com/krasotinpa/super-radio-android/issues/119)).
+Бриф пишет владелец продукта. Claude Design разрабатывает внешний вид. Дизайн принят в [#119](https://github.com/krasotinpa/super-radio-android/issues/119). Реализацию в Compose делает Codex по тикетам [#131](https://github.com/krasotinpa/super-radio-android/issues/131), [#132](https://github.com/krasotinpa/super-radio-android/issues/132), [#133](https://github.com/krasotinpa/super-radio-android/issues/133), [#134](https://github.com/krasotinpa/super-radio-android/issues/134).
 
 ## Итог
 
@@ -157,7 +157,7 @@
 4. Нет элементов для неподтверждённых полей (R18).
 5. Нет элементов, которые меняют поведение R24 и R26.
 6. Вёрстка работает при размере окна 1100 dp ±15 %.
-7. Владелец принимает прототип. После приёмки открывается тикет [#119](https://github.com/krasotinpa/super-radio-android/issues/119) на реализацию.
+7. Владелец принимает прототип. После приёмки реализация идёт по тикетам [#131](https://github.com/krasotinpa/super-radio-android/issues/131)–[#134](https://github.com/krasotinpa/super-radio-android/issues/134).
 
 ## Входные материалы
 
