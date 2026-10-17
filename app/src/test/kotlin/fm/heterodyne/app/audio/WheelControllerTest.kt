@@ -81,7 +81,7 @@ class WheelControllerTest {
         assertTrue(selected.isEmpty())
     }
 
-    @Test fun emptySetStillStepsOnceOnLongPress() {
+    @Test fun emptySelectionStillStepsOnceOnLongPress() {
         val wheel = wheel()
         wheel.update(emptyList(), null)
         wheel.longPress(Direction.Down)
@@ -89,7 +89,7 @@ class WheelControllerTest {
         assertEquals(listOf(Direction.Down), steps)
     }
 
-    @Test fun emptySetAndCloseDiscardCommands() {
+    @Test fun emptySelectionAndCloseDiscardCommands() {
         val wheel = wheel()
         wheel.next()
         wheel.update(emptyList(), null)

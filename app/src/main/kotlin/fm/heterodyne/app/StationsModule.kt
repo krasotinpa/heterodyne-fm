@@ -118,6 +118,6 @@ class StationsModule(
     fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
     fun stopAudio() { usb.stopAudio() }
 
-    fun activateSet(name: String) { cursor = null; session.activateSet(name) }
+    fun activateSelection(name: String) { cursor = null; session.activateSelection(name) }
     fun selectRegion(id: String) { cursor = null; session.selectRegion(id) }
 }

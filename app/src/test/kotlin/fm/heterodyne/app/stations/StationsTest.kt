@@ -27,16 +27,16 @@ class StationsTest {
     }
 }
 
-class StationSetsTest {
+class StationSelectionsTest {
     @Test fun defaultsAndRegionInvariants() {
         val state = StationsState.defaults()
         assertEquals("moskva", state.selectedRegion)
         val region = state.regions.getValue("moskva")
         assertEquals("Основной", region.active.name)
-        val added = region.createSet("Дорога").value!!
-        assertEquals(listOf("Основной", "Дорога"), added.sets.map { it.name })
-        assertEquals(ChangeError.DUPLICATE_NAME, added.createSet("Дорога").error)
-        assertEquals(ChangeError.INVALID_NAME, added.createSet("  ").error)
+        val added = region.createSelection("Дорога").value!!
+        assertEquals(listOf("Основной", "Дорога"), added.selections.map { it.name })
+        assertEquals(ChangeError.DUPLICATE_NAME, added.createSelection("Дорога").error)
+        assertEquals(ChangeError.INVALID_NAME, added.createSelection("  ").error)
         assertEquals("Дорога", added.activate("Дорога").value!!.active.name)
         assertEquals(ChangeError.NOT_FOUND, added.activate("Нет").error)
         assertEquals("Основной", state.regions.getValue("yaroslavl").active.name)
@@ -44,7 +44,7 @@ class StationSetsTest {
 
     @Test fun entriesAreIndependentOrderedCopiesAndRejectDuplicatePairs() {
         val station = Catalog.parse(File("src/main/assets/catalogs/moskva.json").readText()).stations.first()
-        val first = StationSet.empty("Основной").add(station.copyEntry()).value!!
+        val first = StationSelection.empty("Основной").add(station.copyEntry()).value!!
         assertNotSame(station, first.entries.first())
         assertEquals(station.id, first.entries.first().catalogId)
         val renamed = station.copy(name = "Новое имя")
@@ -60,9 +60,9 @@ class StationSetsTest {
 }
 
 class StationsStorageTest {
-    @Test fun roundTripPreservesRegionsActiveSetAndEntries() {
+    @Test fun roundTripPreservesRegionsActiveSelectionAndEntries() {
         val initial = StationsState.defaults()
-        val region = initial.regions.getValue("yaroslavl").createSet("Дорога").value!!.activate("Дорога").value!!
+        val region = initial.regions.getValue("yaroslavl").createSelection("Дорога").value!!.activate("Дорога").value!!
         val populated = region.replaceActive(region.active.add(StationEntry(Band.AM, 855)).value!!)
         val state = initial.copy(selectedRegion = "yaroslavl", regions = initial.regions + ("yaroslavl" to populated))
         assertEquals(state, StationsJson.decode(StationsJson.encode(state)))
@@ -86,21 +86,21 @@ class StationsStorageTest {
         assertEquals(StationsState.defaults(), unreadable.load().state)
     }
 
-    @Test fun duplicateEntriesAndMissingActiveSetRejectEntireDocument() {
+    @Test fun duplicateEntriesAndMissingActiveSelectionRejectEntireDocument() {
         val state = StationsState.defaults()
         for (case in listOf("duplicate", "active", "region", "entries")) {
             val root = JSONObject(StationsJson.encode(state))
             val regions = root.getJSONObject("regions")
             val region = regions.getJSONObject("moskva")
-            val set = region.getJSONArray("sets").getJSONObject(0)
+            val selection = region.getJSONArray("sets").getJSONObject(0)
             when (case) {
                 "duplicate" -> {
                     val entry = JSONObject().put("band", "FM").put("frequencyKhz", 87500)
-                    set.getJSONArray("entries").put(entry).put(entry)
+                    selection.getJSONArray("entries").put(entry).put(entry)
                 }
                 "active" -> region.put("activeName", "Нет")
                 "region" -> regions.remove("yaroslavl")
-                "entries" -> set.remove("entries")
+                "entries" -> selection.remove("entries")
             }
             val repository = StationsRepository(object : StationsFile {
                 override fun read() = root.toString()

@@ -64,8 +64,8 @@ fun EfirScreen(
 ) {
     val state = screen.state
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
-    val sets = state?.regions?.get(state.selectedRegion)
-    val entries = sets?.active?.entries.orEmpty()
+    val selections = state?.regions?.get(state.selectedRegion)
+    val entries = selections?.active?.entries.orEmpty()
     val confirmed = transition.confirmed
     val name = entries.firstOrNull { it.matches(confirmed) }?.name
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
@@ -76,7 +76,7 @@ fun EfirScreen(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Column(Modifier.weight(1f).alpha(if (faded) .45f else 1f)) {
                     BasicText(confirmed?.let(::frequencyText) ?: "—", style = TextStyle(Color.White, 56.sp, fontFamily = FontFamily.Monospace))
-                    Label(name?.takeIf { it.isNotBlank() } ?: "Частота вне Набора", 22)
+                    Label(name?.takeIf { it.isNotBlank() } ?: "Частота вне Подборки", 22)
                     Label("${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}", 18, Muted)
                 }
                 Control("FM / AM", connected && confirmed != null, actions.band)
@@ -102,11 +102,11 @@ fun EfirScreen(
             if (screen.recovered) Label("Данные восстановлены: использованы значения по умолчанию", 18, Accent)
             if (state == null) Label("Загрузка…", 22)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(sets?.sets.orEmpty(), key = { it.name }) { set ->
-                    Control("Набор: ${set.name}", true, { actions.activate(set.name) }, selected = set.name == sets?.activeName)
+                items(selections?.selections.orEmpty(), key = { it.name }) { selection ->
+                    Control("Подборка: ${selection.name}", true, { actions.activate(selection.name) }, selected = selection.name == selections?.activeName)
                 }
             }
-            StationRibbon("Набор", entries, transition, connected, actions.select, Modifier.weight(1f))
+            StationRibbon("Подборка", entries, transition, connected, actions.select, Modifier.weight(1f))
             StationRibbon("Справочник", catalog?.stations.orEmpty().map { it.copyEntry() }, transition, connected, actions.select, Modifier.weight(1f))
             Control(if (playing) "Стоп" else "Играть", connected, actions.play)
         }

@@ -37,7 +37,7 @@ class StationsSession(
         private set
     val activeEntries get() = screen.state?.let { it.regions.getValue(it.selectedRegion).active.entries }.orEmpty()
 
-    fun activateSet(name: String) {
+    fun activateSelection(name: String) {
         storage.execute {
             val state = current.state ?: return@execute
             val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
@@ -45,28 +45,28 @@ class StationsSession(
         }
     }
 
-    fun createSet(regionId: String, name: String) = changeRegion(regionId) { it.createSet(name) }
-    fun renameSet(regionId: String, name: String, newName: String) = changeRegion(regionId) { it.rename(name, newName) }
-    fun deleteSet(regionId: String, name: String) = changeRegion(regionId) { it.delete(name) }
-    fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSet(regionId, name) { it.add(entry) }
-    fun removeStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSet(regionId, name) { it.remove(entry) }
-    fun moveStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry, to: Int) = changeSet(regionId, name) { set ->
-        val from = set.entries.indexOfFirst { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }
-        set.move(from, to)
+    fun createSelection(regionId: String, name: String) = changeRegion(regionId) { it.createSelection(name) }
+    fun renameSelection(regionId: String, name: String, newName: String) = changeRegion(regionId) { it.rename(name, newName) }
+    fun deleteSelection(regionId: String, name: String) = changeRegion(regionId) { it.delete(name) }
+    fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.add(entry) }
+    fun removeStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.remove(entry) }
+    fun moveStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry, to: Int) = changeSelection(regionId, name) { selection ->
+        val from = selection.entries.indexOfFirst { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }
+        selection.move(from, to)
     }
 
-    private fun changeSet(regionId: String, name: String, change: (fm.heterodyne.app.stations.StationSet) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.StationSet>) =
+    private fun changeSelection(regionId: String, name: String, change: (fm.heterodyne.app.stations.StationSelection) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.StationSelection>) =
         changeRegion(regionId) { region ->
-            val set = region.sets.firstOrNull { it.name == name }
-            val result = set?.let(change)
+            val selection = region.selections.firstOrNull { it.name == name }
+            val result = selection?.let(change)
             fm.heterodyne.app.stations.Change(result?.value?.let { updated ->
-                fm.heterodyne.app.stations.RegionSets.restore(region.sets.map {
+                fm.heterodyne.app.stations.RegionSelections.restore(region.selections.map {
                     if (it.name == name) updated else it
                 }, region.activeName)
-            }, result?.error ?: if (set == null) fm.heterodyne.app.stations.ChangeError.NOT_FOUND else null)
+            }, result?.error ?: if (selection == null) fm.heterodyne.app.stations.ChangeError.NOT_FOUND else null)
         }
 
-    private fun changeRegion(regionId: String, change: (fm.heterodyne.app.stations.RegionSets) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSets>) {
+    private fun changeRegion(regionId: String, change: (fm.heterodyne.app.stations.RegionSelections) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSelections>) {
         storage.execute {
             val state = current.state ?: return@execute
             if (regionId != state.selectedRegion) return@execute
@@ -75,11 +75,11 @@ class StationsSession(
             if (region != null) save(state.copy(regions = state.regions + (regionId to region)))
             else {
                 val message = when (result.error) {
-                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME -> "Введите имя Набора"
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> "Набор с таким именем уже есть"
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY -> "Частота уже есть в Наборе"
-                    fm.heterodyne.app.stations.ChangeError.LAST_SET -> "Нельзя удалить последний Набор"
-                    else -> "Набор или Станция не найдены"
+                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME -> "Введите имя Подборки"
+                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> "Подборка с таким именем уже есть"
+                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY -> "Частота уже есть в Подборке"
+                    fm.heterodyne.app.stations.ChangeError.LAST_SELECTION -> "Нельзя удалить последнюю Подборку"
+                    else -> "Подборка или Станция не найдены"
                 }
                 current = current.copy(error = message)
                 publish()

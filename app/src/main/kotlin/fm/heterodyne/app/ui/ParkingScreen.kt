@@ -63,66 +63,66 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
         screen.error?.let { Label(it, 18) }
         if (screen.recovered) Label("Данные восстановлены: использованы значения по умолчанию", 18)
         when (page) {
-            "Меню стоянки" -> listOf("Набор", "Регион", "Диагностика", "О приложении").forEach { destination ->
+            "Меню стоянки" -> listOf("Подборка", "Регион", "Диагностика", "О приложении").forEach { destination ->
                 Control(destination, true, { page = destination })
             }
             "Регион" -> screen.catalogs.forEach { option ->
                 Control(option.region.name, true, { actions.region(option.region.id) },
                     selected = option.region.id == state?.selectedRegion)
             }
-            "Набор" -> if (state != null) {
+            "Подборка" -> if (state != null) {
                 val region = state.regions.getValue(state.selectedRegion)
                 var editing by rememberSaveable(state.selectedRegion) { mutableStateOf(region.activeName) }
                 var renamedTo by rememberSaveable(state.selectedRegion) { mutableStateOf<String?>(null) }
-                val set = region.sets.firstOrNull { it.name == editing }
-                    ?: region.sets.firstOrNull { it.name == renamedTo } ?: region.active
-                var name by rememberSaveable(state.selectedRegion, set.name) { mutableStateOf(set.name) }
+                val selection = region.selections.firstOrNull { it.name == editing }
+                    ?: region.selections.firstOrNull { it.name == renamedTo } ?: region.active
+                var name by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(selection.name) }
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(region.sets, key = { it.name }) { option ->
-                        Control(option.name, true, { editing = option.name; renamedTo = null }, selected = set.name == option.name)
+                    items(region.selections, key = { it.name }) { option ->
+                        Control(option.name, true, { editing = option.name; renamedTo = null }, selected = selection.name == option.name)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BasicTextField(name, { name = it }, Modifier.weight(1f).heightIn(min = 56.dp)
                         .background(Color(0xff1e2228)).padding(12.dp), textStyle = TextStyle(color = Color.White), singleLine = true)
                     Control("Создать", true, { actions.create(state.selectedRegion, name) })
-                    Control("Переименовать", true, { editing = set.name; renamedTo = name; actions.rename(state.selectedRegion, set.name, name) })
-                    Control("Удалить Набор", region.sets.size > 1, { renamedTo = null; actions.delete(state.selectedRegion, set.name) })
-                    Control("Сделать активным", set.name != region.activeName, { actions.activate(set.name) })
+                    Control("Переименовать", true, { editing = selection.name; renamedTo = name; actions.rename(state.selectedRegion, selection.name, name) })
+                    Control("Удалить Подборку", region.selections.size > 1, { renamedTo = null; actions.delete(state.selectedRegion, selection.name) })
+                    Control("Сделать активной", selection.name != region.activeName, { actions.activate(selection.name) })
                 }
                 Control("Сохранить текущую частоту", confirmed != null, { confirmed?.let { actions.add(state.selectedRegion, region.activeName, it) } })
-                Label("Активный Набор: ${region.activeName}. Для порядка удерживайте Станцию и перетащите её.", 18)
+                Label("Активная Подборка: ${region.activeName}. Для порядка удерживайте Станцию и перетащите её.", 18)
                 Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     Column(Modifier.weight(1f)) {
                         Label("Справочник →", 22)
                         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             items(catalog?.stations.orEmpty(), key = { it.id }) { station ->
                                 Control("${station.name} · ${station.frequencyKhz} кГц →", true,
-                                    { actions.add(state.selectedRegion, set.name, station.copyEntry()) }, Modifier.fillMaxWidth())
+                                    { actions.add(state.selectedRegion, selection.name, station.copyEntry()) }, Modifier.fillMaxWidth())
                             }
                         }
                     }
                     Column(Modifier.weight(1f)) {
-                        Label("Набор: ${set.name}", 22)
+                        Label("Подборка: ${selection.name}", 22)
                         val rowHeight = with(LocalDensity.current) { 72.dp.toPx() }
                         LazyColumn {
-                            itemsIndexed(set.entries, key = { _, entry -> "${entry.band}:${entry.frequencyKhz}" }) { index, entry ->
+                            itemsIndexed(selection.entries, key = { _, entry -> "${entry.band}:${entry.frequencyKhz}" }) { index, entry ->
                                 var distance by remember { mutableFloatStateOf(0f) }
                                 Row(Modifier.fillMaxWidth().height(72.dp).testTag("station:${entry.frequencyKhz}")
-                                    .pointerInput(set, index) {
+                                    .pointerInput(selection, index) {
                                         detectDragGesturesAfterLongPress(
                                             onDragStart = { distance = 0f },
                                             onDragCancel = { distance = 0f },
                                             onDragEnd = {
-                                                val to = dragTargetIndex(index, distance, rowHeight, set.entries.size)
-                                                if (to != index) actions.move(state.selectedRegion, set.name, entry, to)
+                                                val to = dragTargetIndex(index, distance, rowHeight, selection.entries.size)
+                                                if (to != index) actions.move(state.selectedRegion, selection.name, entry, to)
                                                 distance = 0f
                                             },
                                             onDrag = { change, amount -> change.consume(); distance += amount.y },
                                         )
                                     }, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Label("${entry.name ?: "Без имени"} · ${entry.frequencyKhz} кГц", 18, modifier = Modifier.weight(1f))
-                                    Control("Удалить Станцию", true, { actions.remove(state.selectedRegion, set.name, entry) })
+                                    Control("Удалить Станцию", true, { actions.remove(state.selectedRegion, selection.name, entry) })
                                 }
                             }
                         }
