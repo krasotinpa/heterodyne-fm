@@ -26,7 +26,7 @@
 |---|---|---|---|
 | Станции | Регион, Справочник, Набор, Активный Набор, хранение | Регион, Справочник, Станция, Набор | [#35](https://github.com/krasotinpa/super-radio-android/issues/35) |
 | Управление Модулем | USB, кадры, whitelist, Переход, Шаг, Поиск, состояния | Модуль, Кадр, Переход, Шаг, Поиск | [#37](https://github.com/krasotinpa/super-radio-android/issues/37), [command-catalog](research/command-catalog.md) |
-| Звук | приём звука, аудиофокус, фон, `MediaSession`, руль | Фокус, Поток, Сессия | [ADR 0001](adr/0001-audio-path.md), [ADR 0003](adr/0003-audio-focus-background-wheel.md) |
+| Звук | приём звука, аудиофокус, фон, `MediaSession`, руль | Фокус, Поток, Сессия | [ADR 0001](adr/0001-audio-path.md), [ADR 0003](adr/0003-audio-focus-background-wheel.md), [ADR 0004](adr/0004-threads-and-priorities.md) |
 | Диагностика | журнал, экспорт, режим разработчика | Журнал, Экспорт | [#39](https://github.com/krasotinpa/super-radio-android/issues/39) |
 
 ### Границы между контекстами
