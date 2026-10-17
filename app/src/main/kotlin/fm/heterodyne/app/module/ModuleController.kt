@@ -1,6 +1,6 @@
 package fm.heterodyne.app.module
 
-import fm.heterodyne.app.DiagnosticLog
+import fm.heterodyne.app.Journal
 
 enum class Band { AM, FM, DAB }
 fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) {
@@ -31,11 +31,12 @@ enum class ConnectionState { Disconnected, DeviceFound, PermissionPending, Open,
 /** Single owner: the Android adapter serializes all calls on its worker. No radio TX queue exists. */
 class ModuleController(
     private val transport: UsbTransport,
-    private val log: DiagnosticLog,
+    private val log: Journal,
     private val stationChanged: (Band, Int?) -> Unit = { _, _ -> },
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     private val transitionObserved: (TransitionSnapshot) -> Unit = {},
     private val transitionChanged: (TransitionState) -> Unit = {},
+    private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
     private val changed: (ConnectionState) -> Unit = {},
 ) {
     private var band: Band? = null
@@ -260,6 +261,7 @@ class ModuleController(
         val frame = byteArrayOf(0xfa.toByte(), 0x55, sequence.toByte(), 0, (body.size + 1).toByte()) +
             body + (-body.sumOf { it.toInt() and 255 }).toByte()
         return try {
+            observeFrame("TX", frame)
             safeLog { log.tx(frame) }; transport.send(frame); TuneResult.Sent
         } catch (failure: Exception) { error((failure as? TransportFailure)?.errno); TuneResult.TransportError }
     }
@@ -270,6 +272,7 @@ class ModuleController(
         try {
             val chunk = transport.receive()
             if (chunk.isNotEmpty()) {
+                observeFrame("RX", chunk)
                 safeLog { log.rx(chunk) }
                 decoder.accept(chunk)
                 tick()
@@ -283,6 +286,10 @@ class ModuleController(
     private var pending: Long? = null
     val pendingCount get() = if (pending == null) 0 else 1
     val deviceId get() = profile?.deviceId
+
+    private fun observeFrame(direction: String, bytes: ByteArray) {
+        try { frameObserved(direction, bytes.copyOf()) } catch (_: Exception) { /* Passive observer. */ }
+    }
 
     private fun safeLog(event: String) = safeLog { log.event(event) }
     private fun safeLog(write: () -> Unit) {

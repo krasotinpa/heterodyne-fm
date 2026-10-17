@@ -15,6 +15,31 @@ class ModuleTest {
         UsbInterfaceDescription(3, 10, endpoints = listOf(UsbEndpointDescription(3, 2, 64), UsbEndpointDescription(0x83, 2, 64))),
     ))
 
+    @Test fun liveFramesAreObservedBeforeJournalDrainsAndCannotRestoreDetachedState() {
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val resume = java.util.concurrent.CountDownLatch(1)
+        val disk = DiagnosticLog(temporary.newFolder())
+        val journal = fm.heterodyne.app.AsyncDiagnosticLog({ entered.countDown(); resume.await(); disk })
+        val frames = fm.heterodyne.app.DiagnosticFrames()
+        val fake = FakeTransport()
+        val controller = ModuleController(fake, journal, frameObserved = { direction, bytes ->
+            frames.accept(direction, bytes, 0)
+        }, changed = { if (it == ConnectionState.Disconnected) frames.resetConnection() })
+        try {
+            assertTrue(entered.await(1, java.util.concurrent.TimeUnit.SECONDS))
+            controller.found(UsbDiscovery.find(device)!!)
+            controller.permissionResult(controller.requestPermission()!!, true)
+            fake.enqueueReceived(byteArrayOf(-6, 85, 1, 0, 4, 0x24, 0, -56, 20))
+            controller.receive()
+            assertEquals(200, frames.byte7)
+            controller.detach(UsbDiscovery.find(device)!!.deviceId)
+            assertNull(frames.byte7)
+            resume.countDown()
+            journal.readTail(32768)
+            assertNull(frames.byte7)
+        } finally { resume.countDown(); journal.close() }
+    }
+
     @Test fun discoveryRequiresIdentityAndVerifiedDescriptors() {
         assertNull(UsbDiscovery.find(device.copy(vendorId = 1)))
         assertNull(UsbDiscovery.find(device.copy(productId = 1)))

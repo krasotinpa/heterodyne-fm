@@ -15,13 +15,35 @@ class AudioPlaybackTest {
             DiagnosticLog(temporary.newFolder()))
         assertTrue(playback.play())
         assertEquals(AudioState.Starting, playback.snapshot.state)
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         assertEquals(AudioState.Playing, playback.snapshot.state)
         calls.clear()
         playback.stop()
         playback.stop()
         assertEquals(listOf("discard/reap", "alt0", "release IF1", "sink release"), calls)
         assertEquals(AudioState.Stopped, playback.snapshot.state)
+    }
+
+    @Test fun minimumBufferTracksDepletionBeforeTheNextWrite() {
+        val calls = mutableListOf<String>()
+        val sink = FakeSink(calls)
+        sink.buffered = 24000
+        val source = FakeSource(calls)
+        val playback = AudioPlayback({ true }, source, sink, FakePort(calls),
+            DiagnosticLog(temporary.newFolder()))
+        playback.play()
+        repeat(40) { playback.receive() }
+        assertEquals(24000L, playback.snapshot.minBufferedFrames)
+        sink.buffered = 320
+        playback.receive()
+        sink.buffered = 1200
+        playback.receive()
+        assertEquals(320L, playback.snapshot.minBufferedFrames)
+        source.empty = true
+        sink.buffered = 0
+        playback.receive()
+        assertEquals(0L, playback.snapshot.minBufferedFrames)
+        playback.stop()
     }
 
     @Test fun doublePlayKeepsOneSession() {
@@ -53,7 +75,7 @@ class AudioPlaybackTest {
         val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls, "alt0"),
             DiagnosticLog(temporary.newFolder()))
         playback.play()
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         assertEquals(AudioState.Playing, playback.snapshot.state)
         calls.clear()
         playback.onModuleDetached()
@@ -68,7 +90,7 @@ class AudioPlaybackTest {
         val playback = AudioPlayback({ true }, source, FakeSink(calls), FakePort(calls),
             DiagnosticLog(temporary.newFolder()))
         playback.play()
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         source.failure = "read"
         calls.clear()
         playback.receive()
@@ -84,10 +106,10 @@ class AudioPlaybackTest {
         val sink = FakeSink(calls)
         val playback = AudioPlayback({ true }, source, sink, FakePort(calls), DiagnosticLog(temporary.newFolder()))
         playback.play()
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         val before = playback.snapshot
         assertEquals(AudioState.Playing, before.state)
-        assertEquals(49920L, before.bytes)
+        assertEquals(99840L, before.bytes)
         assertEquals(0, before.realignments)
         val written = sink.written
         source.bad = 1
@@ -142,7 +164,7 @@ class AudioPlaybackTest {
             val playback = AudioPlayback({ true }, source, FakeSink(calls), FakePort(calls),
                 DiagnosticLog(temporary.newFolder()))
             playback.play()
-            repeat(20) { playback.receive() }
+            repeat(40) { playback.receive() }
             source.readError = errno
             calls.clear()
             playback.receive()
@@ -157,7 +179,7 @@ class AudioPlaybackTest {
     }
 
     @Test fun repeatedEmptyReadsLeaveCountersUnchangedAndAllowStop() {
-        for (readsBeforeIdle in listOf(0, 20)) {
+        for (readsBeforeIdle in listOf(0, 40)) {
             val calls = mutableListOf<String>()
             val source = FakeSource(calls)
             val sink = FakeSink(calls)
@@ -169,8 +191,8 @@ class AudioPlaybackTest {
             val writes = sink.writeCalls
             source.empty = true
             source.bad = 1
-            repeat(20) { playback.receive() }
-            assertEquals(before, playback.snapshot)
+            repeat(40) { playback.receive() }
+            assertEquals(before.copy(maxReadGapMs = playback.snapshot.maxReadGapMs), playback.snapshot)
             assertEquals(writes, sink.writeCalls)
             calls.clear()
             playback.stop()
@@ -187,7 +209,7 @@ class AudioPlaybackTest {
             DiagnosticLog(temporary.newFolder()))
         playback.receive()
         connected = true
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         assertEquals(AudioState.Stopped, playback.snapshot.state)
         assertTrue(calls.isEmpty())
         assertTrue(playback.play())
@@ -196,7 +218,7 @@ class AudioPlaybackTest {
         connected = false
         playback.receive()
         connected = true
-        repeat(20) { playback.receive() }
+        repeat(40) { playback.receive() }
         assertEquals(AudioState.Stopped, playback.snapshot.state)
         assertTrue(calls.isEmpty())
     }
@@ -224,6 +246,8 @@ private class FakeSource(private val calls: MutableList<String>, var failure: St
 private class FakeSink(private val calls: MutableList<String>, private val failure: String? = null) : AudioSink {
     override fun setVolume(volume: Float) {}
     override fun open() { calls.add("sink open"); check(failure != "sink open") }
+    var buffered = 0L
+    override fun bufferedFrames() = buffered
     var written = 0
     var writeCalls = 0
     override fun write(bytes: ByteArray, offset: Int, length: Int) { writeCalls++; written += length }
