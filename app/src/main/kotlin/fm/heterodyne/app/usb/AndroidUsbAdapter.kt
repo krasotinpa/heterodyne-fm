@@ -12,6 +12,7 @@ import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
 import fm.heterodyne.app.DiagnosticLog
+import fm.heterodyne.app.AsyncDiagnosticLog
 import fm.heterodyne.app.audio.*
 import fm.heterodyne.app.module.*
 import java.util.concurrent.Executors
@@ -25,10 +26,13 @@ class AndroidUsbAdapter(
     private val audioChanged: (AudioCounters) -> Unit = {},
     transitionObserved: (TransitionSnapshot) -> Unit = {},
 ) {
+    private val main = android.os.Handler(android.os.Looper.getMainLooper())
     val frames = fm.heterodyne.app.DiagnosticFrames()
     private val export = fm.heterodyne.app.DiagnosticExport(
         { controller.suspendForExport(); frames.resetConnection() }, { retry() })
-    fun readJournal(done: (String) -> Unit) { worker.execute {
+    // Journal reads wait for the Journal thread; keep them off the Module thread so commands and detach never queue behind disk IO.
+    private val journalReader = Executors.newSingleThreadExecutor { task -> Thread(task, "JournalReader").apply { isDaemon = true } }
+    fun readJournal(done: (String) -> Unit) { journalReader.execute {
         done(try { log.readTail(32768) } catch (_: Exception) { "Не удалось прочитать Журнал" })
     } }
     fun beginExport(done: (Boolean) -> Unit) { worker.execute {
@@ -52,32 +56,38 @@ class AndroidUsbAdapter(
         done(result)
     } }
     private val manager = context.getSystemService(UsbManager::class.java)
-    private val worker = Executors.newSingleThreadScheduledExecutor()
+    private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Module") }
     private val log by lazy {
-        DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics")).also {
-            it.frameListener = frames::accept
-            it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
-        }
+        AsyncDiagnosticLog(create = {
+            DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics")).also {
+                it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
+            }
+        }, priority = { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) })
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
-    private val controller: ModuleController by lazy { ModuleController(transport, log, stationChanged = stationChanged, changed = { state ->
+    private val controller: ModuleController by lazy { ModuleController(transport, log,
+        frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency -> main.post { stationChanged(band, frequency) } }, changed = { state ->
         if (state == ConnectionState.Disconnected) frames.resetConnection()
-        changed(state)
-    }, transitionObserved = transitionObserved) }
+        main.post { changed(state) }
+    }, transitionObserved = { snapshot -> main.post { transitionObserved(snapshot) } }) }
     private var playbackStopped: (() -> Unit)? = null
-    private var audioGeneration = 0L
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
     private val focus by lazy { AudioFocusController(AndroidAudioFocusManager(
         context.getSystemService(android.media.AudioManager::class.java)), sink) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ controller.state == ConnectionState.Observing },
-            UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus) { counters ->
-            audioChanged(counters)
+            UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus,
+            threadFactory = { task -> Thread({
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
+                task.run()
+            }, "Audio") }, onMain = { task -> main.post { task() } }) { counters ->
+            main.post { audioChanged(counters) }
             if (counters.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
     }
-    val audioCounters get() = audio.snapshot
+    val audioCounters get() = audio.snapshot.copy(lostLogRecords = log.lostRecords,
+        logWriteFailures = log.writeFailures)
     private val permissionAction = "${context.packageName}.USB_PERMISSION"
     private val instance = java.util.UUID.randomUUID().toString()
     private var started = false
@@ -90,8 +100,7 @@ class AndroidUsbAdapter(
                     when (intent.action) {
                         UsbManager.ACTION_USB_DEVICE_ATTACHED -> discover()
                         UsbManager.ACTION_USB_DEVICE_DETACHED -> device?.let {
-                            if (controller.deviceId == it.deviceName) audio.onModuleDetached()
-                            controller.detach(it.deviceName)
+                            moduleGone(it.deviceName)
                             discover()
                         }
                         permissionAction -> {
@@ -117,7 +126,11 @@ class AndroidUsbAdapter(
         if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         else context.registerReceiver(receiver, filter)
         started = true
-        polling = worker.scheduleWithFixedDelay({ controller.receive() }, 0, 10, TimeUnit.MILLISECONDS)
+        polling = worker.scheduleWithFixedDelay({
+            audio.receive()
+            if (audio.moduleDetached) controller.deviceId?.let { moduleGone(it) }
+            controller.receive()
+        }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
     fun restoreStation(station: TuneTarget?) { worker.execute { controller.restoreStation(station) } }
@@ -130,10 +143,7 @@ class AndroidUsbAdapter(
         worker.execute {
             if (closing || export.active) { stopped(); return@execute }
             playbackStopped = stopped
-            if (audio.play()) {
-                val generation = ++audioGeneration
-                worker.execute { receiveAudio(generation) }
-            } else if (audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
+            if (!audio.play() && audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
     }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
@@ -141,20 +151,19 @@ class AndroidUsbAdapter(
     }
     fun stepStation(direction: Direction) { if (!closing) worker.execute { controller.step(direction) } }
     fun reclaimAudioFocus(completed: () -> Unit) {
-        if (!closing) worker.execute { focus.reclaim(); completed() }
+        if (!closing) main.post { focus.reclaim(); completed() }
     }
     fun stopAudio() { if (!closing) worker.execute { audio.stop() } }
     private fun finishPlayback() {
         val stopped = playbackStopped ?: return
         playbackStopped = null
-        stopped()
+        main.post { stopped() }
     }
-    private fun receiveAudio(generation: Long) {
-        if (closing || generation != audioGeneration) return
-        audio.receive()
-        if (!closing && audio.snapshot.state in listOf(AudioState.Starting, AudioState.Playing)) {
-            worker.execute { receiveAudio(generation) }
-        }
+    private fun moduleGone(deviceId: String) {
+        if (controller.deviceId != deviceId) return
+        audio.onModuleDetached()
+        controller.detach(deviceId)
+        audio.acknowledgeDetach()
     }
     private fun discover() {
         if (export.active) return
@@ -176,7 +185,7 @@ class AndroidUsbAdapter(
         started = false
         polling?.cancel(false)
         closing = true
-        worker.execute { try { controller.close() } finally { worker.shutdown() } }
+        worker.execute { try { controller.close() } finally { log.close(); worker.shutdown() } }
     }
 }
 
@@ -204,13 +213,13 @@ private fun UsbDevice.description() = UsbDescription(deviceName, vendorId, produ
  */
 private class AndroidUsbTransport(
     private val manager: UsbManager,
-    private val beforeClose: () -> Unit,
+    private val beforeClose: () -> Boolean,
 ) : UsbTransport, UsbAudioPort {
     private var connection: UsbDeviceConnection? = null
     private var device: UsbDevice? = null
     private var audioInterface: UsbInterface? = null
     private var audioAlt0: UsbInterface? = null
-    val fileDescriptor get() = checkNotNull(connection).fileDescriptor
+    var fileDescriptor = -1; private set
     private val claimed = mutableListOf<UsbInterface>()
     private var output: android.hardware.usb.UsbEndpoint? = null
     private var input: android.hardware.usb.UsbEndpoint? = null
@@ -220,6 +229,7 @@ private class AndroidUsbTransport(
         check(manager.hasPermission(device))
         check(UsbDiscovery.find(device.description()) != null)
         connection = checkNotNull(manager.openDevice(device))
+        fileDescriptor = checkNotNull(connection).fileDescriptor
         this.device = device
         try {
             for (number in listOf(profile.controlInterface, profile.dataInterface)) {
@@ -237,7 +247,7 @@ private class AndroidUsbTransport(
     }
     override fun receive(): ByteArray {
         val bytes = ByteArray(64)
-        val count = checkNotNull(connection).bulkTransfer(checkNotNull(input), bytes, bytes.size, 250)
+        val count = checkNotNull(connection).bulkTransfer(checkNotNull(input), bytes, bytes.size, 20)
         // Android returns -1 for both an idle read timeout and other IO failures.
         // Detach is handled by the broadcast; timeout escalation belongs to the session ticket.
         return if (count > 0) bytes.copyOf(count) else byteArrayOf()
@@ -269,15 +279,14 @@ private class AndroidUsbTransport(
     }
     override fun close() {
         val opened = connection ?: return
-        try { beforeClose() }
-        finally {
-            connection = null
-            device = null
-            input = null
-            output = null
-            try { claimed.forEach { opened.releaseInterface(it) } }
-            finally { claimed.clear(); opened.close() }
-        }
+        check(beforeClose()) { "Audio thread still owns the descriptor" }
+        connection = null
+        fileDescriptor = -1
+        device = null
+        input = null
+        output = null
+        try { claimed.forEach { opened.releaseInterface(it) } }
+        finally { claimed.clear(); opened.close() }
     }
 }
 

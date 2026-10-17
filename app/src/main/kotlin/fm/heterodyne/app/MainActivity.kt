@@ -116,6 +116,8 @@ private fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, export:
                 app.developerMode.disable(); enabled = false
             }.padding(12.dp), style) }
             item { BasicText("Звук: байты ${counters.bytes}, ошибки ${counters.badPackets}, выравнивания ${counters.realignments}, underrun ${counters.underruns}", style = style) }
+            item { BasicText("Звук: максимальная пауза ${counters.maxReadGapMs} мс, минимальный запас ${counters.minBufferedFrames} кадров", style = style) }
+            item { BasicText("Журнал: потеряно ${counters.lostLogRecords}, сбоев записи ${counters.logWriteFailures}", style = style) }
             item { BasicText("Байт +7 (0x24): ${byte7 ?: "—"}", style = style) }
             items(fm.heterodyne.app.usb.DiagnosticCommand.entries) { command ->
                 BasicText(command.label, Modifier.clickable(enabled = !app.exportBusy) {
