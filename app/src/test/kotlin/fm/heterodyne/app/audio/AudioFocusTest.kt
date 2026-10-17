@@ -43,7 +43,7 @@ class AudioFocusTest {
         val audio = playback()
         assertTrue(audio.play())
         manager.signal(AudioFocusChange.Loss)
-        repeat(20) { audio.receive() }
+        repeat(40) { audio.receive() }
         assertEquals(1f, sink.level)
         assertEquals(AudioState.Playing, audio.snapshot.state)
         assertTrue(sink.written > 0)
@@ -72,7 +72,7 @@ class AudioFocusTest {
     @Test fun transientMutesWhileWritesContinueAndGainRestoresSound() {
         val audio = playback()
         audio.play()
-        repeat(20) { audio.receive() }
+        repeat(40) { audio.receive() }
         val before = sink.written
         manager.signal(AudioFocusChange.Transient)
         assertEquals(0f, sink.level)
@@ -91,7 +91,7 @@ class AudioFocusTest {
         }
         audio.play()
         assertEquals(1, manager.requests)
-        repeat(20) { audio.receive() }
+        repeat(40) { audio.receive() }
         assertEquals(1f, sink.level)
         assertTrue(sink.played)
     }
@@ -111,7 +111,7 @@ class AudioFocusTest {
         manager.granted = false
         val audio = playback()
         assertTrue(audio.play())
-        repeat(20) { audio.receive() }
+        repeat(40) { audio.receive() }
         assertEquals(AudioState.Playing, audio.snapshot.state)
         assertEquals(1f, sink.level)
         audio.stop()

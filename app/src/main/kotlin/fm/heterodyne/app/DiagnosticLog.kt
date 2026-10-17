@@ -8,6 +8,12 @@ import java.nio.file.StandardCopyOption.ATOMIC_MOVE
 import java.nio.file.StandardCopyOption.REPLACE_EXISTING
 import java.security.MessageDigest
 
+interface Journal {
+    fun tx(frame: ByteArray)
+    fun rx(frame: ByteArray)
+    fun event(text: String)
+}
+
 /**
  * Persistent UTF-8 journal. Give one instance exclusive ownership of a private directory.
  * Times are epoch milliseconds. No Android APIs, user name or head-unit name are collected.
@@ -22,7 +28,7 @@ class DiagnosticLog(
     private val hash: (ByteArray) -> ByteArray = {
         MessageDigest.getInstance("SHA-256").digest(it)
     },
-) {
+) : Journal {
     var frameListener: ((String, ByteArray, Long) -> Unit)? = null
 
     @Synchronized
@@ -98,14 +104,14 @@ class DiagnosticLog(
     }
 
     @Synchronized
-    fun tx(frame: ByteArray) {
+    override fun tx(frame: ByteArray) {
         notifyFrame("TX", frame)
         lastRx = null
         write("${clock()} TX ${frame.hex()}\n")
     }
 
     @Synchronized
-    fun rx(frame: ByteArray) {
+    override fun rx(frame: ByteArray) {
         notifyFrame("RX", frame)
         val hex = frame.hex()
         val now = clock()
@@ -118,7 +124,7 @@ class DiagnosticLog(
 
     /** Callers supply diagnostic text only, without user or head-unit identifiers. */
     @Synchronized
-    fun event(text: String) {
+    override fun event(text: String) {
         lastRx = null
         val escaped = text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n")
         write("${clock()} EVENT $escaped\n")
