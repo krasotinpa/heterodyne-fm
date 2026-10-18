@@ -38,10 +38,10 @@ class ParkingScreenTest {
                     ParkingActions(region = { selected.add(it) }), {}, {})
             }
         }
-        listOf("Подборка", "Регион", "Диагностика", "О приложении").forEach {
+        listOf("Подборка", "Настройки", "Диагностика", "О приложении").forEach {
             compose.onNodeWithText(it).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
-        compose.onNodeWithText("Регион").performClick()
+        compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Москва").assertIsSelected()
         compose.onNodeWithText("Ярославль").performClick()
         assertEquals(listOf("yaroslavl"), selected)
@@ -50,6 +50,30 @@ class ParkingScreenTest {
         compose.onNodeWithText("Версия ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         compose.onNodeWithText("Источник: vcfm.ru").performClick()
         compose.onNodeWithText("Нет приложения для открытия ссылки").assertIsDisplayed()
+    }
+
+    @Test fun settingsSelectThemeAndPaletteWithoutReopeningScreen() {
+        val theme = mutableStateOf(ThemeChoice.Auto)
+        val palette = mutableStateOf(Palette.Coral)
+        compose.setContent {
+            HeterodyneTheme(theme.value, palette.value) {
+                ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                    ParkingActions(), {}, theme = theme.value, palette = palette.value,
+                    selectTheme = { theme.value = it }, selectPalette = { palette.value = it }, diagnostics = {})
+            }
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Регион").assertIsDisplayed()
+        compose.onNodeWithText("Авто").assertIsSelected()
+        compose.onNodeWithText("Коралл").assertIsSelected()
+        compose.onNodeWithText("Светлая").performClick()
+        compose.onNodeWithText("Слива").performClick()
+        compose.onNodeWithText("Светлая").assertIsSelected()
+        compose.onNodeWithText("Слива").assertIsSelected()
+        compose.runOnIdle {
+            assertEquals(ThemeChoice.Light, theme.value)
+            assertEquals(Palette.Plum, palette.value)
+        }
     }
 
     @Test fun rejectedRenameKeepsSelectedSelection() {

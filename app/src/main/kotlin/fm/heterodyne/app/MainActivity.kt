@@ -5,7 +5,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,8 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 
 class MainActivity : ComponentActivity() {
@@ -26,52 +23,59 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
         setContent {
-            val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
-            ) { uri -> stations.diagnostics.finishExport(uri) }
-            var parked by rememberSaveable { mutableStateOf(false) }
-            val driving = stations.module.driving
-            androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
-            if (!parked || driving) {
-                fm.heterodyne.app.ui.EfirScreen(
-                    stations.session.screen, stations.module.transition,
-                    connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
-                    playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
-                    driving = driving,
-                    actions = fm.heterodyne.app.ui.EfirActions(
-                        select = stations.module::pickStation, station = stations.module::nextStation,
-                        step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
-                        activate = stations.module::activateSelection, parked = { if (!stations.module.driving) parked = true },
-                        check = stations.module::checkConnection,
-                        play = {
-                            if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
-                                stations.module.stopAudio() else stations.module.startAudio()
-                        },
-                        permission = stations.module::retryModulePermission,
-                    ),
-                )
-                return@setContent
+            val appearance = remember {
+                fm.heterodyne.app.ui.AppearancePreferences(getSharedPreferences("appearance", MODE_PRIVATE))
             }
-            fm.heterodyne.app.ui.ParkingScreen(
-                stations.session.screen, driving,
-                stations.module.currentStation?.takeIf {
-                    stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing &&
-                        fm.heterodyne.app.module.isSelectableFrequency(
-                            fm.heterodyne.app.module.Band.valueOf(it.band.name), it.frequencyKhz)
-                },
-                fm.heterodyne.app.ui.ParkingActions(
-                    region = stations.module::selectRegion, activate = stations.module::activateSelection,
-                    create = stations.session::createSelection, rename = stations.session::renameSelection,
-                    delete = stations.session::deleteSelection, add = stations.session::addStation,
-                    remove = stations.session::removeStation, move = stations.session::moveStation,
-                ), back = { parked = false },
-            ) { back ->
-                DiagnosticsScreen(stations.diagnostics, parked && !driving, export = {
-                    stations.diagnostics.beginExport {
-                        try { exportLauncher.launch("heterodyne-diagnostic.log") }
-                        catch (_: Exception) { stations.diagnostics.finishExport(null) }
-                    }
-                }, back = back)
+            fm.heterodyne.app.ui.HeterodyneTheme(appearance.theme, appearance.palette) {
+                val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
+                ) { uri -> stations.diagnostics.finishExport(uri) }
+                var parked by rememberSaveable { mutableStateOf(false) }
+                val driving = stations.module.driving
+                androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
+                if (!parked || driving) {
+                    fm.heterodyne.app.ui.EfirScreen(
+                        stations.session.screen, stations.module.transition,
+                        connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
+                        playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
+                        driving = driving,
+                        actions = fm.heterodyne.app.ui.EfirActions(
+                            select = stations.module::pickStation, station = stations.module::nextStation,
+                            step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
+                            activate = stations.module::activateSelection, parked = { if (!stations.module.driving) parked = true },
+                            check = stations.module::checkConnection,
+                            play = {
+                                if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
+                                    stations.module.stopAudio() else stations.module.startAudio()
+                            },
+                            permission = stations.module::retryModulePermission,
+                        ),
+                    )
+                    return@HeterodyneTheme
+                }
+                fm.heterodyne.app.ui.ParkingScreen(
+                    stations.session.screen, driving,
+                    stations.module.currentStation?.takeIf {
+                        stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing &&
+                            fm.heterodyne.app.module.isSelectableFrequency(
+                                fm.heterodyne.app.module.Band.valueOf(it.band.name), it.frequencyKhz)
+                    },
+                    fm.heterodyne.app.ui.ParkingActions(
+                        region = stations.module::selectRegion, activate = stations.module::activateSelection,
+                        create = stations.session::createSelection, rename = stations.session::renameSelection,
+                        delete = stations.session::deleteSelection, add = stations.session::addStation,
+                        remove = stations.session::removeStation, move = stations.session::moveStation,
+                    ), back = { parked = false },
+                    theme = appearance.theme, palette = appearance.palette,
+                    selectTheme = appearance::selectTheme, selectPalette = appearance::selectPalette,
+                ) { back ->
+                    DiagnosticsScreen(stations.diagnostics, parked && !driving, export = {
+                        stations.diagnostics.beginExport {
+                            try { exportLauncher.launch("heterodyne-diagnostic.log") }
+                            catch (_: Exception) { stations.diagnostics.finishExport(null) }
+                        }
+                    }, back = back)
+                }
             }
         }
     }
@@ -93,8 +97,10 @@ private fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, export:
             kotlinx.coroutines.delay(1000)
         }
     }
-    val style = TextStyle(color = Color.White)
-    LazyColumn(Modifier.fillMaxSize().background(Color.Black).padding(16.dp)) {
+    val colors = fm.heterodyne.app.ui.LocalAppearanceColors.current
+    val style = fm.heterodyne.app.ui.designTextStyle("body", colors["text"])
+    val monoStyle = fm.heterodyne.app.ui.designTextStyle("mono", colors["text"])
+    LazyColumn(Modifier.fillMaxSize().background(colors["bg"]).padding(16.dp)) {
         item { BasicText("Назад", Modifier.clickable { back() }.padding(12.dp), style) }
         item { BasicText("Диагностика · Режим стоянки", style = style) }
         item {
@@ -125,9 +131,9 @@ private fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, export:
                 }.padding(12.dp), style)
             }
             item { BasicText("Живой поток кадров (последние 100 записей USB)", style = style) }
-            items(frames) { BasicText(it, style = style) }
+            items(frames) { BasicText(it, style = monoStyle) }
         }
         item { BasicText("Журнал (последние 32 КБ; экспорт содержит весь Журнал)", style = style) }
-        item { BasicText(journal, style = style) }
+        item { BasicText(journal, style = monoStyle) }
     }
 }

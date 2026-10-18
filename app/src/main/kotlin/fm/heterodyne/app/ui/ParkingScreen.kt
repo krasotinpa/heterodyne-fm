@@ -2,6 +2,8 @@ package fm.heterodyne.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,12 +14,10 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import fm.heterodyne.app.BuildConfig
 import fm.heterodyne.app.StationsScreenState
@@ -43,6 +43,14 @@ fun dragTargetIndex(from: Int, distance: Float, rowHeight: Float, count: Int): I
 @Composable
 fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: StationEntry?,
                   actions: ParkingActions, back: () -> Unit,
+                  diagnostics: @Composable (() -> Unit) -> Unit) =
+    ParkingScreen(screen, driving, confirmed, actions, back, ThemeChoice.Auto, Palette.Coral, {}, {}, diagnostics)
+
+@Composable
+fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: StationEntry?,
+                  actions: ParkingActions, back: () -> Unit,
+                  theme: ThemeChoice, palette: Palette,
+                  selectTheme: (ThemeChoice) -> Unit, selectPalette: (Palette) -> Unit,
                   diagnostics: @Composable (() -> Unit) -> Unit) {
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
     LaunchedEffect(driving) {
@@ -52,9 +60,10 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
     val goBack = { if (page == "Меню стоянки") back() else page = "Меню стоянки" }
     BackHandler { goBack() }
     if (page == "Диагностика") { diagnostics(goBack); return }
+    val colors = LocalAppearanceColors.current
     val state = screen.state
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
-    Column(Modifier.fillMaxSize().background(Color(0xff121417)).padding(16.dp),
+    Column(Modifier.fillMaxSize().background(colors["bg"]).padding(DesignTokens.number("space.window").dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Control(if (page == "Меню стоянки") "Эфир" else "Назад", true, goBack)
@@ -63,12 +72,30 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
         screen.error?.let { Label(it, 18) }
         if (screen.recovered) Label("Данные восстановлены: использованы значения по умолчанию", 18)
         when (page) {
-            "Меню стоянки" -> listOf("Подборка", "Регион", "Диагностика", "О приложении").forEach { destination ->
+            "Меню стоянки" -> listOf("Подборка", "Настройки", "Диагностика", "О приложении").forEach { destination ->
                 Control(destination, true, { page = destination })
             }
-            "Регион" -> screen.catalogs.forEach { option ->
-                Control(option.region.name, true, { actions.region(option.region.id) },
-                    selected = option.region.id == state?.selectedRegion)
+            "Настройки" -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.section").dp)) {
+                Label("Регион", 24)
+                Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                    screen.catalogs.forEach { option ->
+                        Control(option.region.name, true, { actions.region(option.region.id) },
+                            selected = option.region.id == state?.selectedRegion)
+                    }
+                }
+                Label("Тема", 24)
+                Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                    ThemeChoice.entries.forEach { option ->
+                        Control(option.title, true, { selectTheme(option) }, selected = option == theme)
+                    }
+                }
+                Label("Палитра", 24)
+                Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                    Palette.entries.forEach { option ->
+                        Control(option.title, true, { selectPalette(option) }, selected = option == palette)
+                    }
+                }
             }
             "Подборка" -> if (state != null) {
                 val region = state.regions.getValue(state.selectedRegion)
@@ -84,7 +111,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BasicTextField(name, { name = it }, Modifier.weight(1f).heightIn(min = 56.dp)
-                        .background(Color(0xff1e2228)).padding(12.dp), textStyle = TextStyle(color = Color.White), singleLine = true)
+                        .background(colors["surface2"]).padding(12.dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
                     Control("Создать", true, { actions.create(state.selectedRegion, name) })
                     Control("Переименовать", true, { editing = selection.name; renamedTo = name; actions.rename(state.selectedRegion, selection.name, name) })
                     Control("Удалить Подборку", region.selections.size > 1, { renamedTo = null; actions.delete(state.selectedRegion, selection.name) })
