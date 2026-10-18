@@ -37,7 +37,8 @@ class BandScaleTest {
         compose.runOnIdle { snapshot.value = snapshot.value.copy(state = TransitionState.Waiting, target = TuneTarget(Band.FM, 108000)) }
         assertEquals(middle, marker(), .1f)
         compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = TuneTarget(Band.FM, 108000)) }
-        assertEquals(scale.right, marker(), 1f)
+        val density = compose.density
+        assertEquals(scale.right - with(density) { tokenDp("size.scale.inset").toPx() }, marker(), 1f)
         compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = null) }
         compose.onNodeWithTag("band-scale-marker").assertDoesNotExist()
     }
