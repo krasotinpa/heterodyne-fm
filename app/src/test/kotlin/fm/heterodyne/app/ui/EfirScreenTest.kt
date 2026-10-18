@@ -42,6 +42,17 @@ class EfirScreenTest {
         compose.onNodeWithTag("spectrum-reserved").assertHeightIsEqualTo(56.dp)
     }
 
+    @Test fun seekingWithEmptySelectionShowsSearchInsteadOfEmptySelectionReason() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Seeking, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions())
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("идёт поиск…").assertIsDisplayed()
+        compose.onNodeWithText("Станция ◀").assertIsNotEnabled()
+        compose.onNodeWithText("Поиск", substring = false).assertIsDisplayed()
+    }
+
     @Test fun nonEmptyActiveSelectionDoesNotShowEmptySelectionLabel() {
         val state = StationsState.defaults().let { state ->
             val region = state.regions.getValue("moskva")
@@ -127,6 +138,47 @@ class EfirScreenTest {
         compose.onAllNodesWithText("87,5").onFirst().assertIsDisplayed()
     }
 
+    @Test fun statusLineShowsHighestReasonThenRegionWithoutDuplicatingBottomText() {
+        val connection = mutableStateOf(ConnectionState.Disconnected)
+        val screen = mutableStateOf(StationsState.defaults())
+        compose.setContent {
+            EfirScreen(StationsScreenState(screen.value, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                connection.value == ConnectionState.Observing, EfirActions(), connectionState = connection.value)
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Приёмник отключён").assertIsDisplayed()
+        compose.onAllNodesWithText("Приёмник отключён").assertCountEquals(1)
+        // Table: command buttons and both types of plate share the visible receiver reason.
+        listOf("Старт", "Станция ◀", "Станция ▶", "Шаг ◀", "Шаг ▶").forEach {
+            compose.onNodeWithText(it).assertIsNotEnabled()
+        }
+        listOf("Поиск ◀", "Поиск ▶", "FM / AM").forEach {
+            compose.onNodeWithContentDescription(it).assertIsNotEnabled()
+        }
+        compose.onNodeWithText("Справочная", substring = true).assertIsNotEnabled()
+        compose.onNodeWithText("Подключить приёмник").assertIsEnabled()
+        listOf(
+            ConnectionState.PermissionPending to "Нужно разрешение USB",
+            ConnectionState.DeviceFound to "Подключение идёт",
+            ConnectionState.Open to "Подключение идёт",
+        ).forEach { (state, text) ->
+            compose.runOnIdle { connection.value = state }
+            compose.onNodeWithTag("efir-status").assertTextEquals(text).assertIsDisplayed()
+            compose.onAllNodesWithText(text).assertCountEquals(1)
+            compose.onNodeWithText("Старт").assertIsNotEnabled()
+        }
+        compose.runOnIdle { connection.value = ConnectionState.Observing }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Подборка пуста")
+        compose.onNodeWithText("Станция ◀").assertIsNotEnabled()
+        compose.onNodeWithText("Станция ▶").assertIsNotEnabled()
+        listOf("Старт", "Шаг ◀", "Шаг ▶").forEach { compose.onNodeWithText(it).assertIsEnabled() }
+        compose.onNodeWithText("Справочная", substring = true).assertIsEnabled()
+        compose.runOnIdle { screen.value = initial }
+        compose.onNodeWithTag("efir-status").assertTextEquals("FM · Москва")
+        compose.runOnIdle { connection.value = ConnectionState.Disconnected }
+        compose.onNodeWithText("1 · Первая", substring = true).assertIsNotEnabled()
+    }
+
     private val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),
         listOf(CatalogStation("b", "Справочная", StationBand.FM, 90300)))
     private val first = StationEntry(StationBand.FM, 87500, "Первая")
@@ -194,8 +246,8 @@ class EfirScreenTest {
         compose.onAllNodesWithText("87,5").onFirst().assertIsDisplayed()
         listOf(
             TransitionState.Unconfirmed to "Нет ответа от приёмника",
-            TransitionState.Unresponsive to "Приёмник не отвечает, переподключите USB",
-            TransitionState.CommandPause to "Пауза команды: Шаг / Поиск",
+            TransitionState.Unresponsive to "Модуль не отвечает, переподключите USB",
+            TransitionState.CommandPause to "FM · Москва",
             TransitionState.Seeking to "идёт поиск…",
         ).forEach { (state, banner) ->
             compose.runOnIdle { snapshot.value = snapshot.value.copy(state = state, target = null) }

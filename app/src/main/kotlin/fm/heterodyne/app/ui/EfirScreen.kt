@@ -84,11 +84,14 @@ fun EfirScreen(
     actions: EfirActions,
     playing: Boolean = false,
     driving: Boolean = false,
+    connectionState: fm.heterodyne.app.module.ConnectionState = if (connected)
+        fm.heterodyne.app.module.ConnectionState.Observing else fm.heterodyne.app.module.ConnectionState.Disconnected,
 ) {
     val state = screen.state
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
     val selections = state?.regions?.get(state.selectedRegion)
     val entries = selections?.active?.entries.orEmpty()
+    val reason = disabledReason(connectionState, transition.state, transition.confirmed?.band, entries)
     val confirmed = transition.confirmed
     val name = entries.firstOrNull { it.matches(confirmed) }?.name
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
@@ -108,13 +111,20 @@ fun EfirScreen(
                   Column(Modifier.weight(1f).clipToBounds()) {
                     BasicText(name?.takeIf { it.isNotBlank() } ?: "Частота вне Подборки",
                         style = designTextStyle("title", LocalAppearanceColors.current["text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val banner = when (transition.state) {
+                    val status = reason?.takeUnless {
+                        it == DisabledReason.EmptySelection && transition.state == TransitionState.Seeking
+                    }?.text ?: when (transition.state) {
                         TransitionState.Waiting -> "ожидание"
-                        TransitionState.CommandPause -> "Пауза команды: Шаг / Поиск"
-                        else -> null
+                        TransitionState.Seeking -> "идёт поиск…"
+                        else -> "${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
                     }
-                    BasicText(receiverText(banner ?: "${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"),
-                        style = designTextStyle("body", if (banner == null) Muted else Accent), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    BasicText(status, Modifier.testTag("efir-status"),
+                        style = designTextStyle("body", when {
+                            reason == DisabledReason.EmptySelection -> Accent
+                            reason != null -> LocalAppearanceColors.current["danger"]
+                            transition.state == TransitionState.Waiting || transition.state == TransitionState.Seeking -> Accent
+                            else -> Muted
+                        }), maxLines = 1)
                   }
                   Spacer(Modifier.height(tokenDp("size.rds.height")).testTag("rds-reserved"))
                 }
@@ -182,11 +192,8 @@ fun EfirScreen(
         Column(Modifier.align(Alignment.BottomCenter)
             .padding(horizontal = tokenDp("space.window") + tokenDp("size.sideColumn.width") + tokenDp("space.section"),
                 vertical = tokenDp("space.window")), verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-            transition.banner?.let { banner ->
-                Row(Modifier.fillMaxWidth().background(LocalAppearanceColors.current["dangerBg"], RoundedCornerShape(tokenDp("radius.m")))
-                    .padding(tokenDp("space.section")), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
-                    Label(receiverText(banner), 22, LocalAppearanceColors.current["danger"], Modifier.weight(1f))
+            if (transition.state == TransitionState.Unconfirmed || !connected) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
                     if (transition.state == TransitionState.Unconfirmed) Control("Проверить связь", connected, actions.check)
                     if (!connected) Control("Подключить приёмник", true, actions.permission)
                 }

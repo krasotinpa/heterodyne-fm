@@ -27,6 +27,7 @@ class MainActivity : ComponentActivity() {
                     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
                         fm.heterodyne.app.ui.EfirScreen(
                             stations.session.screen, stations.module.transition,
+                            connectionState = stations.module.moduleState,
                             connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
