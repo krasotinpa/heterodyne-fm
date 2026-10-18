@@ -94,6 +94,7 @@ fun EfirScreen(
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
     val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
     BoxWithConstraints(Modifier.fillMaxSize().background(Background)) {
+        val windowWidth = maxWidth.value
         val compact = maxHeight.value < DesignTokens.number("breakpoint.compactHeight")
         val gap = tokenDp("space.section")
         val plateHeight = tokenDp(if (compact) "size.plate.heightCompact" else "size.plate.height")
@@ -133,7 +134,11 @@ fun EfirScreen(
                 Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"), verticalArrangement = Arrangement.spacedBy(gap)) {
                     Box(Modifier.fillMaxWidth().height(tokenDp(if (compact) "size.spectrum.heightCompact" else "size.spectrum.height"))
                         .testTag("spectrum-reserved"))
-                    BandScale(catalog?.stations.orEmpty(), entries, transition)
+                    BandScale(catalog?.stations.orEmpty(), entries, transition,
+                        loupeEnabled = connected && transition.state == TransitionState.Idle && transition.target == null &&
+                            transition.banner == null && screen.error == null,
+                        windowWidth = windowWidth, select = actions.select,
+                        playing = playing, play = actions.play)
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         var choosing by remember(state?.selectedRegion, selections?.activeName) { mutableStateOf(false) }
                         Box {
