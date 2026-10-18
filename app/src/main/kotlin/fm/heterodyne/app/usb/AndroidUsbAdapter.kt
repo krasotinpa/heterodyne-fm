@@ -28,21 +28,20 @@ class AndroidUsbAdapter(
 ) {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     val frames = fm.heterodyne.app.DiagnosticFrames()
-    private val export = fm.heterodyne.app.DiagnosticExport(
-        { controller.suspendForExport(); frames.resetConnection() }, { retry() })
     // Journal reads wait for the Journal thread; keep them off the Module thread so commands and detach never queue behind disk IO.
     private val journalReader = Executors.newSingleThreadExecutor { task -> Thread(task, "JournalReader").apply { isDaemon = true } }
     fun readJournal(done: (String) -> Unit) { journalReader.execute {
         done(try { log.readTail(32768) } catch (_: Exception) { "Не удалось прочитать Журнал" })
     } }
-    fun beginExport(done: (Boolean) -> Unit) { worker.execute {
-        try { export.begin(); done(true) } catch (_: Exception) { done(false) }
-    } }
-    fun finishExport(output: (() -> java.io.OutputStream)? = null, done: (String?) -> Unit) {
-        worker.execute { done(export.finish(output?.let { open -> { open().use { log.copyTo(it) } } })) }
+    fun exportJournal(store: fm.heterodyne.app.DownloadStore,
+                      done: (Result<fm.heterodyne.app.JournalExportResult>) -> Unit) {
+        // Snapshot inside the read barrier (ring is capped at 10 MB); slow storage then never stalls the Journal thread.
+        journalReader.execute { done(runCatching {
+            val snapshot = java.io.ByteArrayOutputStream().also(log::copyTo).toByteArray()
+            fm.heterodyne.app.JournalExport(store).save { it.write(snapshot) }
+        }) }
     }
     fun diagnosticCommand(command: DiagnosticCommand, done: (TuneResult) -> Unit) { worker.execute {
-        if (export.active) { done(TuneResult.NotConnected); return@execute }
         val result = when (command) {
             DiagnosticCommand.RequestAllInfo -> controller.checkConnection()
             DiagnosticCommand.TuneUp -> controller.step(Direction.Down)
@@ -104,7 +103,6 @@ class AndroidUsbAdapter(
                             discover()
                         }
                         permissionAction -> {
-                            if (export.active) return@execute
                             val uri = intent.data
                             if (uri?.authority != instance) return@execute
                             val token = uri.lastPathSegment?.toLongOrNull() ?: return@execute
@@ -141,7 +139,7 @@ class AndroidUsbAdapter(
     fun playAudio(stopped: () -> Unit) {
         if (closing) { stopped(); return }
         worker.execute {
-            if (closing || export.active) { stopped(); return@execute }
+            if (closing) { stopped(); return@execute }
             playbackStopped = stopped
             if (!audio.play() && audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
@@ -166,7 +164,6 @@ class AndroidUsbAdapter(
         audio.acknowledgeDetach()
     }
     private fun discover() {
-        if (export.active) return
         val device = manager.deviceList.values.firstOrNull { UsbDiscovery.find(it.description()) != null } ?: return
         if (controller.deviceId != null && controller.deviceId != device.deviceName) return
         controller.found(UsbDiscovery.find(device.description())!!)

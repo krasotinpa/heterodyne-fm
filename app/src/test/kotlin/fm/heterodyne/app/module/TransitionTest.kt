@@ -31,9 +31,9 @@ class TransitionTest {
         fake.enqueueReceived(frame)
         controller.receive()
     }
-    @Test fun exportReturnProbesOnceAndRespectsTenSecondLimit() {
+    @Test fun detachReturnProbesOnceAndRespectsTenSecondLimit() {
         receive("fm28")
-        controller.suspendForExport()
+        controller.detach("module")
         assertEquals(ConnectionState.Disconnected, controller.state)
         controller.found(DeviceProfile("module"))
         controller.permissionResult(controller.requestPermission()!!, true)

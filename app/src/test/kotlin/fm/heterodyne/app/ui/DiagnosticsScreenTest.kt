@@ -17,7 +17,7 @@ import org.robolectric.annotation.Config
 class DiagnosticsScreenTest {
     @get:Rule val compose = createComposeRule()
 
-    @Test fun parkedSwitchChangesModeAndExportExplainsSharedUsb() {
+    @Test fun parkedSwitchChangesModeAndExportExplainsDownloads() {
         val enabled = mutableStateOf(false)
         var exports = 0
         compose.setContent {
@@ -27,12 +27,12 @@ class DiagnosticsScreenTest {
         compose.onNodeWithTag("diagnostics-version").assertIsDisplayed()
         compose.onNodeWithText("Связь с приёмником").assertIsDisplayed()
         compose.onNodeWithText("Приёмник подключён").assertIsDisplayed()
-        compose.onNodeWithText("1. Отключите Модуль от USB.").assertIsDisplayed()
-        compose.onNodeWithText("2. Подключите SSD к общему USB-разъёму.").assertIsDisplayed()
-        compose.onNodeWithText("3. После экспорта верните Модуль.").assertIsDisplayed()
+        compose.onNodeWithText("Журнал сохраняется в Download внутренней памяти.").assertIsDisplayed()
+        compose.onNodeWithText("Скопируйте файл на SSD файловым менеджером.").assertIsDisplayed()
+        compose.onNodeWithText("1. Отключите Модуль от USB.").assertDoesNotExist()
         compose.onNodeWithTag("developer-switch").assertIsOff()
             .assertHeightIsAtLeast(48.dp).performClick().assertIsOn()
-        compose.onNodeWithText("Экспорт Журнала на SSD").performClick()
+        compose.onNodeWithText("Экспорт Журнала").performClick()
         assertEquals(1, exports)
         compose.onNodeWithTag("developer-switch").performClick().assertIsOff()
     }
@@ -43,8 +43,25 @@ class DiagnosticsScreenTest {
             DiagnosticsContent(false, false, false, false, null, { changes++ }, { changes++ })
         }
         compose.onNodeWithTag("developer-switch").assertIsNotEnabled().performClick()
-        compose.onNodeWithText("Экспорт Журнала на SSD").assertIsNotEnabled().performClick()
+        compose.onNodeWithText("Экспорт Журнала").assertIsNotEnabled().performClick()
         assertEquals(0, changes)
+    }
+
+    @Test fun busyExportDisablesButtonAndShowsSavedPathAndSize() {
+        val busy = mutableStateOf(true)
+        val message = mutableStateOf<String?>(null)
+        var exports = 0
+        compose.setContent {
+            DiagnosticsContent(true, true, false, busy.value, message.value, {}, { exports++ })
+        }
+        compose.onNodeWithText("Экспорт…").assertIsNotEnabled().performClick()
+        assertEquals(0, exports)
+        compose.runOnIdle {
+            busy.value = false
+            message.value = "Журнал сохранён: Download/heterodyne-diagnostic-123.log, 13 байт"
+        }
+        compose.onNodeWithText("Экспорт Журнала").assertIsEnabled()
+        compose.onNodeWithText("Журнал сохранён: Download/heterodyne-diagnostic-123.log, 13 байт").assertIsDisplayed()
     }
 
     @Test fun badgeOnlyAppearsWhileEnabled() {

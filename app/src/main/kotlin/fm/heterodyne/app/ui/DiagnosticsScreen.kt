@@ -43,10 +43,9 @@ internal fun DiagnosticsContent(parked: Boolean, connected: Boolean, developerEn
             }
         }
         ParkingCard(Modifier.fillMaxWidth()) {
-            Label("1. Отключите Модуль от USB.", 16)
-            Label("2. Подключите SSD к общему USB-разъёму.", 16)
-            Label("3. После экспорта верните Модуль.", 16)
-            Control(if (exportBusy) "Экспорт… Модуль отключён" else "Экспорт Журнала на SSD",
+            Label("Журнал сохраняется в Download внутренней памяти.", 16)
+            Label("Скопируйте файл на SSD файловым менеджером.", 16)
+            Control(if (exportBusy) "Экспорт…" else "Экспорт Журнала",
                 parked && !exportBusy, export)
             message?.let { Label(it, 16) }
         }
