@@ -38,14 +38,17 @@ class ParkingScreenTest {
                     ParkingActions(region = { selected.add(it) }), {}, {})
             }
         }
-        listOf("Подборка", "Настройки", "Диагностика", "О приложении").forEach {
+        compose.onNodeWithTag("parking-menu").assertWidthIsEqualTo(236.dp)
+        compose.onNodeWithText("← Эфир").assertHeightIsEqualTo(56.dp)
+        compose.onNodeWithText("Приёмник: не подключён").assertIsDisplayed()
+        compose.onNodeWithText("Режим разработчика").assertDoesNotExist()
+        listOf("Подборки", "Настройки", "Диагностика", "О приложении").forEach {
             compose.onNodeWithText(it).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
         compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Москва").assertIsSelected()
         compose.onNodeWithText("Ярославль").performClick()
         assertEquals(listOf("yaroslavl"), selected)
-        compose.onNodeWithText("Назад").performClick()
         compose.onNodeWithText("О приложении").performClick()
         compose.onNodeWithText("Версия ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         compose.onNodeWithText("Источник: vcfm.ru").performClick()
@@ -85,13 +88,37 @@ class ParkingScreenTest {
             ParkingScreen(StationsScreenState(state), false, null,
                 ParkingActions(delete = { regionId, name -> deleted.add(regionId to name) }), {}, {})
         }
-        compose.onNodeWithText("Подборка").performClick()
+        compose.onNodeWithText("Подборки").performClick()
         compose.onNodeWithText("Дорога").performClick()
         compose.onNode(hasSetTextAction()).performTextReplacement("Основной")
         compose.onNodeWithText("Переименовать").performClick()
         compose.onNodeWithText("Дорога").assertIsSelected()
         compose.onNodeWithText("Удалить Подборку").performClick()
         assertEquals(listOf("moskva" to "Дорога"), deleted)
+    }
+
+    @Test fun developerMenuTracksSwitchAndKeepsSidebarOnEveryPage() {
+        val developer = mutableStateOf(false)
+        val connected = mutableStateOf(false)
+        var closed = 0
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), { closed++ }, ThemeChoice.Auto, Palette.Coral, {}, {},
+                connected = connected.value, developerEnabled = developer.value,
+                developerTools = { Label("Инструменты", 18) }, diagnostics = { Label("Проверка", 18) })
+        }
+        compose.onNodeWithText("Режим разработчика").assertDoesNotExist()
+        compose.runOnIdle { developer.value = true; connected.value = true }
+        compose.onNodeWithText("Приёмник: подключён").assertIsDisplayed()
+        compose.onNodeWithText("Режим разработчика").performClick()
+        compose.onNodeWithText("Инструменты").assertIsDisplayed()
+        compose.onNodeWithText("← Эфир").assertIsDisplayed()
+        compose.runOnIdle { developer.value = false }
+        compose.onNodeWithText("Инструменты").assertDoesNotExist()
+        compose.onNodeWithText("Режим разработчика").assertDoesNotExist()
+        compose.onNodeWithText("Проверка").assertIsDisplayed()
+        compose.onNodeWithText("← Эфир").performClick()
+        assertEquals(1, closed)
     }
 
     @Test fun dragTargetClampsBothEdges() {
@@ -119,15 +146,20 @@ class ParkingScreenTest {
                     move = { regionId, name, entry, to -> moved.add(Triple(regionId, name, entry) to to) },
                 ), {}, {})
         }
-        compose.onNodeWithText("Подборка").performClick()
-        compose.onNodeWithText("Справочная", substring = true).assertHeightIsAtLeast(48.dp).performClick()
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("+").assertWidthIsEqualTo(48.dp).assertHeightIsEqualTo(48.dp).performClick()
         assertEquals(listOf(Triple("moskva", "Основной", catalog.stations.single().copyEntry())), added)
+        compose.onNodeWithTag("station:90300").assertHeightIsEqualTo(56.dp)
+        compose.onAllNodesWithText("×")[0].assertWidthIsEqualTo(48.dp).assertHeightIsEqualTo(48.dp)
         compose.onNodeWithTag("station:90300").performTouchInput {
             down(center)
             advanceEventTime(1000)
             moveBy(Offset(0f, 80.dp.toPx()), delayMillis = 100)
-            up()
         }
+        val targetBounds = compose.onNodeWithTag("station:91000").fetchSemanticsNode().boundsInRoot
+        val insertionBounds = compose.onNodeWithTag("insertion-after:1").fetchSemanticsNode().boundsInRoot
+        assertEquals(targetBounds.bottom, insertionBounds.bottom, 1f)
+        compose.onNodeWithTag("station:90300").performTouchInput { up() }
         assertEquals(listOf(Triple("moskva", "Основной", first) to 1), moved)
     }
 
@@ -138,12 +170,12 @@ class ParkingScreenTest {
             ParkingScreen(StationsScreenState(StationsState.defaults()), driving.value, null,
                 ParkingActions(), { closed++ }, {})
         }
-        compose.onNodeWithText("Подборка").performClick()
+        compose.onNodeWithText("Подборки").performClick()
         compose.onNodeWithText("Сохранить текущую частоту").assertIsNotEnabled()
         compose.runOnIdle { driving.value = true }
         compose.onNodeWithText("Сохранить текущую частоту").assertDoesNotExist()
         compose.runOnIdle { assertEquals(1, closed) }
         compose.runOnIdle { driving.value = false }
-        compose.onNodeWithText("Подборка").assertIsDisplayed()
+        compose.onNodeWithText("Подборки").assertIsDisplayed()
     }
 }
