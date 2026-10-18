@@ -3,25 +3,22 @@ package fm.heterodyne.app.ui
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.drawText
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.module.TransitionState
 import fm.heterodyne.app.stations.CatalogStation
 import fm.heterodyne.app.stations.StationEntry
-import kotlin.math.abs
 import kotlin.math.roundToInt
 
 @Composable
@@ -31,45 +28,49 @@ fun BandScale(
 ) {
     val confirmed = transition.confirmed
     val band = confirmed?.band
-    val visible = stations.filter { it.band.name == band?.name }
-    val priority = visible.indices.filter { index -> entries.any {
-        it.band == visible[index].band && it.frequencyKhz == visible[index].frequencyKhz
-    } } + listOfNotNull(confirmed?.let { target ->
-        visible.indices.minByOrNull { abs(visible[it].frequencyKhz - target.frequencyKhz) }
-    })
-    val measurer = rememberTextMeasurer()
     val colors = LocalAppearanceColors.current
-    val style = designTextStyle("label", colors["muted"])
-    val layouts = visible.map { measurer.measure(scaleLabelText(it.name), style) }
-    // Reserve enough width for the actual font, including fallback glyphs and font scaling.
-    val charWidth = layouts.indices.maxOfOrNull {
-        layouts[it].size.width.toFloat() / scaleLabelText(visible[it].name).length.coerceAtLeast(1)
-    } ?: 1f
     val density = LocalDensity.current
-    val lineHeight = layouts.maxOfOrNull { it.size.height } ?: with(density) { 20.sp.roundToPx() }
-    val height = with(density) { (lineHeight * 2).toDp() + 26.dp }
-    BoxWithConstraints(modifier.fillMaxWidth().height(height).testTag("band-scale")
+    Box(modifier.fillMaxWidth().height(tokenDp("size.scale.height")).testTag("band-scale")
+        .background(colors["surface"], RoundedCornerShape(tokenDp("radius.l")))
         .semantics { contentDescription = "Шкала диапазона ${band?.name ?: "—"}" }) {
-        val width = constraints.maxWidth.toFloat()
-        val labels = if (band == null || band == Band.DAB) emptyList() else
-            chooseLabels(visible, band, width, charWidth, with(density) { 8.dp.toPx() }, priority)
-        Canvas(Modifier.fillMaxSize()) {
-            val baseline = 10.dp.toPx()
-            drawLine(colors["mark"], Offset(0f, baseline), Offset(size.width, baseline))
-            if (band != null) visible.forEach {
-                val x = bandFraction(band, it.frequencyKhz) * size.width
-                drawLine(colors["mark"], Offset(x, 4.dp.toPx()), Offset(x, 18.dp.toPx()))
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = tokenDp("size.scale.inset"))) {
+            val width = constraints.maxWidth.toFloat()
+            Canvas(Modifier.fillMaxSize()) {
+                val baseline = size.height / 2
+                drawLine(colors["edge"], Offset(0f, baseline), Offset(size.width, baseline), tokenDp("line.tick").toPx())
+                if (band != null && band != Band.DAB) {
+                    val ticks = if (band == Band.FM) 41 else 61
+                    repeat(ticks + 1) { index ->
+                        val x = index * size.width / ticks
+                        val height = tokenDp(if (index % 5 == 0) "size.scale.tickMajor" else "size.scale.tickMinor").toPx()
+                        drawLine(colors["edge"], Offset(x, baseline - height / 2), Offset(x, baseline + height / 2), tokenDp("size.scale.tickWidth").toPx())
+                    }
+                    stations.filter { it.band.name == band.name }.forEach { station ->
+                        val preset = entries.any { it.band == station.band && it.frequencyKhz == station.frequencyKhz }
+                        val prefix = if (preset) "size.scale.markPreset" else "size.scale.markStation"
+                        val x = bandFraction(band, station.frequencyKhz) * size.width
+                        val height = tokenDp("$prefix.1").toPx()
+                        drawLine(colors[if (preset) "accent" else "mark"], Offset(x, baseline - height / 2),
+                            Offset(x, baseline + height / 2), tokenDp("$prefix.0").toPx())
+                    }
+                }
             }
-            labels.forEach {
-                drawText(layouts[it.index], topLeft = Offset(it.left, 24.dp.toPx() + it.row * lineHeight))
+            if (confirmed != null && band != Band.DAB) {
+                val labels = scaleFrequencyLabels(confirmed.band, confirmed.frequencyKhz)
+                val fraction = bandFraction(confirmed.band, confirmed.frequencyKhz)
+                val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
+                val sliderWidth = with(density) { tokenDp("size.scale.slider").toPx() }
+                Box(Modifier.offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
+                    .width(tokenDp("size.scale.slider")).fillMaxHeight()
+                    .background(colors[if (faded) "disabledText" else "accent"]).testTag("band-scale-marker")
+                    .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
+                BasicText(labels.first(), Modifier.align(Alignment.BottomStart), designTextStyle("label", colors["muted"]))
+                BasicText(labels.last(), Modifier.align(Alignment.BottomEnd), designTextStyle("label", colors["muted"]))
+                // Keep the frequency inside the scale at both ends of the band.
+                Box(Modifier.fillMaxWidth().align(Alignment.TopStart), contentAlignment = androidx.compose.ui.BiasAlignment(fraction * 2 - 1, -1f)) {
+                    BasicText(labels[1], style = designTextStyle("label", colors[if (faded) "disabledText" else "accentText"]))
+                }
             }
-        }
-        if (confirmed != null && band != Band.DAB) {
-            val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
-            Box(Modifier.offset { IntOffset((bandFraction(confirmed.band, confirmed.frequencyKhz) * width).roundToInt() - with(density) { 1.dp.roundToPx() }, 0) }
-                .width(2.dp).height(22.dp).alpha(if (faded) .45f else 1f)
-                .background(colors["accent"]).testTag("band-scale-marker")
-                .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
         }
     }
 }
