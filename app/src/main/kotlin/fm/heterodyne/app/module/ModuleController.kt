@@ -351,7 +351,6 @@ class ModuleController(
         disconnect()
         radio(TransitionState.Disconnected)
     }
-    fun suspendForExport() { returning = true; close() }
     fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
         probeNeeded = false

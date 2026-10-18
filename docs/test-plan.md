@@ -13,6 +13,7 @@
 | Seek | No station, boundaries, cancel, max duration | Safe stop, no endless TX |
 | Presets | 12/band, delete/restart, wrong region, corrupt storage | Persistence/validation |
 | RDS | Partial/stale/invalid text, station change | No stale display |
+| Экспорт Журнала | Fake DownloadStore: запись, повторный экспорт, ошибка | Путь Download, точный размер в байтах, уникальные имена; ошибка не сообщает успех |
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
 
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
@@ -58,3 +59,18 @@ Hardware blocked не превращается в passed.
 ## Приёмка MVP на ГУ
 
 Пошаговый план, подготовка и форма результатов лежат в [docs/acceptance/](acceptance/test-plan.md).
+
+## Диагностика
+
+1. Проверь экспорт в Download внутренней памяти на API 30 без разрешений на хранилище и без SAF.
+2. Проверь путь и размер файла на экране; повторный экспорт создаёт файл с уникальным именем.
+3. Проверь ошибку записи и защиту `exportBusy` от повторного нажатия.
+4. Проверь, что Модуль и звук продолжают работать во время экспорта.
+5. Проверь хэш серийника в файле; исходный серийник отсутствует (`DiagnosticLogTest`).
+6. Скопируй файл на SSD файловым менеджером после экспорта.
+
+```text
+Журнал → MediaStore → Download → Путь и размер → Файловый менеджер → SSD
+```
+
+Проверку звука и фактической папки Download выполняет владелец на ГУ.

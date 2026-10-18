@@ -20,9 +20,6 @@ class MainActivity : ComponentActivity() {
                 fm.heterodyne.app.ui.AppearancePreferences(getSharedPreferences("appearance", MODE_PRIVATE))
             }
             fm.heterodyne.app.ui.HeterodyneTheme(appearance.theme, appearance.palette) {
-                val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.CreateDocument("text/plain"),
-                ) { uri -> stations.diagnostics.finishExport(uri) }
                 var parked by rememberSaveable { mutableStateOf(false) }
                 val driving = stations.module.driving
                 androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
@@ -70,12 +67,7 @@ class MainActivity : ComponentActivity() {
                     developerTools = { fm.heterodyne.app.ui.DeveloperToolsScreen(stations.diagnostics, parked && !driving) },
                 ) { _ ->
                     fm.heterodyne.app.ui.DiagnosticsScreen(stations.diagnostics, parked && !driving,
-                        connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing, export = {
-                        stations.diagnostics.beginExport {
-                            try { exportLauncher.launch("heterodyne-diagnostic.log") }
-                            catch (_: Exception) { stations.diagnostics.finishExport(null) }
-                        }
-                    })
+                        connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing, export = stations.diagnostics::exportJournal)
                 }
             }
         }

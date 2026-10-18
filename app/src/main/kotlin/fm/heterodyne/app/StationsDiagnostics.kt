@@ -26,22 +26,16 @@ class StationsDiagnostics(
         private set
     val diagnosticFrames get() = usb.frames
     fun readJournal(done: (String) -> Unit) { usb.readJournal { text -> main.post { done(text) } } }
-    fun beginExport(ready: () -> Unit) {
+    fun exportJournal() {
         if (exportBusy) return
         exportBusy = true
-        usb.beginExport { success -> main.post {
-            if (success) ready() else {
-                exportBusy = false
-                diagnosticMessage = "Не удалось отключить Модуль"
-            }
-        } }
-    }
-    fun finishExport(uri: android.net.Uri?) {
-        usb.finishExport(uri?.let { target -> {
-            context.contentResolver.openOutputStream(target, "wt") ?: throw java.io.IOException()
-        } }) { error -> main.post {
+        diagnosticMessage = null
+        usb.exportJournal(MediaStoreDownloads(context.contentResolver)) { result -> main.post {
             exportBusy = false
-            diagnosticMessage = error ?: if (uri == null) "Экспорт отменён" else "Журнал сохранён"
+            diagnosticMessage = result.fold(
+                { "Журнал сохранён: ${it.path}, ${it.sizeBytes} байт" },
+                { "Не удалось записать Журнал" },
+            )
         } }
     }
     fun diagnosticCommand(command: fm.heterodyne.app.usb.DiagnosticCommand) {
