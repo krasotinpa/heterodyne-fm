@@ -30,11 +30,28 @@ class EfirScreenTest {
             EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
                 TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true, EfirActions())
         }
-        compose.onNodeWithText("Подборка пуста").assertIsDisplayed()
+        compose.onAllNodesWithText("Подборка пуста — добавьте станции в режиме стоянки").assertCountEquals(1)
+        compose.onNodeWithText("Подборка пуста — добавьте станции в режиме стоянки")
+            .assertIsDisplayed().assertHasNoClickAction()
+        compose.onNodeWithText("Подборка пуста — добавьте станции в режиме стоянки")
+            .onParent().onChildren().assertCountEquals(1)
         compose.onNodeWithText("Станция ◀").assertIsNotEnabled()
+        compose.onNodeWithText("Станция ▶").assertIsNotEnabled()
         compose.onNodeWithText("Справочная", substring = true).assertIsEnabled()
         compose.onNodeWithTag("rds-reserved").assertHeightIsEqualTo(22.dp)
         compose.onNodeWithTag("spectrum-reserved").assertHeightIsEqualTo(56.dp)
+    }
+
+    @Test fun nonEmptyActiveSelectionDoesNotShowEmptySelectionLabel() {
+        val state = StationsState.defaults().let { state ->
+            val region = state.regions.getValue("moskva")
+            state.copy(regions = state.regions + ("moskva" to region.replaceActive(region.active.add(first).value!!)))
+        }
+        compose.setContent {
+            EfirScreen(StationsScreenState(state, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true, EfirActions())
+        }
+        compose.onNodeWithText("Подборка пуста — добавьте станции в режиме стоянки").assertDoesNotExist()
     }
 
     @Test fun referenceLayoutAndCompactBreakpointKeepGridScrollable() {
