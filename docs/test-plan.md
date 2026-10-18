@@ -58,7 +58,7 @@ Hardware blocked не превращается в passed.
 
 ## Приёмка MVP на ГУ
 
-Пошаговый план, подготовка и форма результатов лежат в [docs/acceptance/](acceptance/test-plan.md).
+Пошаговый план, подготовка, повторный прогон и форма результатов лежат в [docs/acceptance/](acceptance/test-plan.md). Итоги первого прогона — [report-run1.md](acceptance/report-run1.md).
 
 ## Диагностика
 
