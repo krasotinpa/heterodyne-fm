@@ -5,7 +5,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -25,14 +29,60 @@ import kotlin.math.roundToInt
 fun BandScale(
     stations: List<CatalogStation>, entries: List<StationEntry>, transition: TransitionSnapshot,
     modifier: Modifier = Modifier,
+    loupeEnabled: Boolean = false,
+    windowWidth: Float = 1100f,
+    select: (StationEntry) -> Unit = {},
+    playing: Boolean = false,
+    play: () -> Unit = {},
 ) {
     val confirmed = transition.confirmed
     val band = confirmed?.band
     val colors = LocalAppearanceColors.current
     val density = LocalDensity.current
-    Box(modifier.fillMaxWidth().height(tokenDp("size.scale.height")).testTag("band-scale")
+    val enabled = loupeEnabled && band == Band.FM && stations.any { it.band.name == "FM" }
+    val currentSelect by rememberUpdatedState(select)
+    val currentPlaying by rememberUpdatedState(playing)
+    val currentPlay by rememberUpdatedState(play)
+    var preview by remember(enabled, stations, transition) { mutableStateOf<CatalogStation?>(null) }
+    var cancelled by remember(enabled, stations, transition) { mutableStateOf(false) }
+    val inset = with(density) { tokenDp("size.scale.inset").toPx() }
+    Box(modifier.zIndex(1f).fillMaxWidth().height(tokenDp("size.scale.height")).testTag("band-scale")
         .background(colors["surface"], RoundedCornerShape(tokenDp("radius.l")))
+        .pointerInput(enabled, stations, transition, inset) {
+            if (enabled) awaitEachGesture {
+                val down = awaitFirstDown()
+                fun update(x: Float, y: Float) {
+                    preview = nearestLoupeStation(stations, (x - inset) / (size.width - 2 * inset).coerceAtLeast(1f))
+                    cancelled = isLoupeCancelled(y, size.height.toFloat())
+                }
+                update(down.position.x, down.position.y)
+                down.consume()
+                try {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (change.isConsumed) break
+                        update(change.position.x, change.position.y)
+                        change.consume()
+                        if (!change.pressed) {
+                            val selection = loupeRelease(preview, cancelled, transition.confirmed)
+                            if (selection != null) currentSelect(selection)
+                            else if (!cancelled && !currentPlaying && preview?.let {
+                                it.band.name == confirmed?.band?.name && it.frequencyKhz == confirmed.frequencyKhz
+                            } == true) currentPlay()
+                            break
+                        }
+                    }
+                } finally { preview = null; cancelled = false }
+            }
+        }
         .semantics { contentDescription = "Шкала диапазона ${band?.name ?: "—"}" }) {
+        preview?.let { station ->
+            val count = DesignTokens.number(if (windowWidth < DesignTokens.number("breakpoint.narrowLoupeWidth"))
+                "size.loupe.stationsNarrow" else "size.loupe.stations").toInt()
+            Loupe(stations, entries, station, cancelled, count, Modifier.fillMaxWidth().offset(y = -(
+                tokenDp("size.loupe.height") + tokenDp("size.loupe.gapToScale"))))
+        }
         BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = tokenDp("size.scale.inset"))) {
             val width = constraints.maxWidth.toFloat()
             Canvas(Modifier.fillMaxSize()) {
