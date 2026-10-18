@@ -158,8 +158,7 @@ fun EfirScreen(
                         if (entries.isEmpty()) Column(Modifier.weight(1f).fillMaxHeight()
                             .border(tokenDp("line.edge"), LocalAppearanceColors.current["edge"], RoundedCornerShape(tokenDp("radius.m")))
                             .padding(horizontal = tokenDp("space.section")), verticalArrangement = Arrangement.Center) {
-                            BasicText("Подборка пуста", style = designTextStyle("plate", Muted))
-                            BasicText("Станции добавляют на стоянке", style = designTextStyle("label", Muted))
+                            BasicText("Подборка пуста — добавьте станции в режиме стоянки", style = designTextStyle("plate", Muted))
                         } else StationRibbon(entries, transition, connected, actions.select, Modifier.weight(1f), plateHeight,
                             "${state?.selectedRegion}:${selections?.activeName}")
                     }
