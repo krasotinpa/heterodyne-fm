@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import fm.heterodyne.app.stations.AtomicStationsFile
 import fm.heterodyne.app.stations.Catalog
+import fm.heterodyne.app.stations.initialSelections
 import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
 import fm.heterodyne.app.stations.StationsState
@@ -95,6 +96,7 @@ class StationsSession(
                 }
                 val loaded = repository.load()
                 current = StationsScreenState(loaded.state, catalogs, loaded.status == LoadStatus.RECOVERED)
+                if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded, catalogs))
             } catch (_: Exception) {
                 current = current.copy(error = "Не удалось прочитать Справочники")
             }
