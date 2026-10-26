@@ -15,6 +15,7 @@ API, USB host и audio route требуют измерений. VID/PID не у�
 Агент создаёт feature-ветки, делает их push и открывает PR в `main` без отдельного запроса.
 Прямой push в `main` и merge запрещены; merge выполняет пользователь.
 Whitelist radio TX пуст, кроме команд из `docs/research/command-catalog.md`, внесённых решением владельца.
+Исключение — автозапуск последней Станции (R25, [ADR 0005](docs/adr/0005-autostart-last-station.md)): playSelect/BAND, один раз на запуск, при `lastPlayed`, с аудиофокусом, без автоповтора.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
 Open/claim/line coding/DTR/RTS документируй отдельно от radio commands.
 Используй проверенный interface mapping. Не force claim всех interfaces.
