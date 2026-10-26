@@ -126,6 +126,7 @@ data class StationsState(
     val regions: Map<String, RegionSelections>,
     val lastStation: SessionStation? = null,
     val band: Band = Band.FM,
+    val lastPlayed: Boolean = false,
 ) {
     init {
         require(regions.keys == setOf("moskva", "yaroslavl"))
