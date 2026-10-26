@@ -18,6 +18,8 @@ interface Journal {
  * Persistent UTF-8 journal. Give one instance exclusive ownership of a private directory.
  * Times are epoch milliseconds. No Android APIs, user name or head-unit name are collected.
  * Records larger than the entire budget are dropped. IO errors propagate to the caller.
+ * Rotation drops oldest whole records to leave about 10% of the budget free,
+ * unless the new record needs that space. The newest record always fits within the budget.
  * Writes are synchronous; power-loss durability is not guaranteed.
  */
 class DiagnosticLog(
@@ -153,8 +155,9 @@ class DiagnosticLog(
             if (retainedLength + bytes.size > maxBytes) {
                 val old = ByteArray(retainedLength.toInt())
                 output.readFully(old)
+                val targetBytes = maxOf(maxBytes - maxBytes / 10, bytes.size.toLong())
                 var start = 0
-                while (old.size - start + bytes.size > maxBytes) {
+                while (old.size - start + bytes.size > targetBytes) {
                     while (start < old.size && old[start++] != '\n'.code.toByte()) { /* skip record */ }
                 }
                 FileOutputStream(temporary).use { replacement ->
