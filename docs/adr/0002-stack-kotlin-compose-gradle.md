@@ -108,4 +108,4 @@ Security-исправления выходят в bug fix релизах каж�
 | 26.10.2026 | 2.4.21 | Последний bug fix релиз линии 2.4 (08.10.2026); замена «последней LTS», которой у Kotlin нет | эта запись |
 
 Источник находки: аудит зависимостей 26.10.2026 (OSV). Он проверил 146 пакетов `releaseRuntimeClasspath` и `debugUnitTestRuntimeClasspath`.
-Вторая находка осталась без изменений: BouncyCastle `bcprov-jdk18on` 1.81 приходит только через Robolectric 4.16.1 в unit-тестах и не попадает в APK. Четыре advisory (CVE-2025-14813, CVE-2026-8763, CVE-2026-13506, CVE-2026-0636) закрыты в 1.85. Решение: обновить вместе с Robolectric.
+Вторая находка: BouncyCastle `bcprov-jdk18on` 1.81 приходил только через Robolectric 4.16.1 в unit-тестах и не попадал в APK. Четыре advisory (CVE-2025-14813, CVE-2026-8763, CVE-2026-13506, CVE-2026-0636) закрыты в 1.85. Решение: ключ `bouncycastle` в `gradle/libs.versions.toml` и `testImplementation(libs.bouncycastle)` в `app/build.gradle.kts` поднимают `bcprov` до 1.86 только в тестах. Когда Robolectric сам перейдёт на `bcprov` не ниже 1.86, строку и ключ можно удалить. OSV не показывает уязвимостей для 1.85, 1.85.2 и 1.86.

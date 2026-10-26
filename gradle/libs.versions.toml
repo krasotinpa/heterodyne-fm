@@ -5,6 +5,7 @@ compose-bom = "2026.06.01"
 activity-compose = "1.10.1"
 junit = "4.13.2"
 json = "20240303"
+bouncycastle = "1.86"
 robolectric = "4.16.1"
 compile-sdk = "35"
 target-sdk = "30"
@@ -23,6 +24,8 @@ junit = { module = "junit:junit", version.ref = "junit" }
 json = { module = "org.json:json", version.ref = "json" }
 
 robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectric" }
+# Robolectric 4.16.1 тянет bcprov 1.81 с CVE; поднимаем только в unit-тестах (см. ADR 0002)
+bouncycastle = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 compose-ui-test = { module = "androidx.compose.ui:ui-test-junit4" }
 compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 
