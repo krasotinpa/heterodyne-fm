@@ -10,6 +10,27 @@ import org.junit.rules.TemporaryFolder
 class AsyncDiagnosticLogTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test(timeout = 5000) fun fullQueueWithoutRxDropsNewTxAndRxWithoutEvictingQueuedRecords() {
+        val entered = CountDownLatch(1)
+        val resume = CountDownLatch(1)
+        val disk = DiagnosticLog(temporary.newFolder(), clock = { 0L })
+        val log = AsyncDiagnosticLog({ entered.countDown(); resume.await(); disk }, capacity = 2)
+        try {
+            assertTrue(entered.await(1, TimeUnit.SECONDS))
+            log.tx(byteArrayOf(1))
+            log.event("queued")
+            log.tx(byteArrayOf(2))
+            assertEquals(1L, log.lostRecords)
+            log.rx(byteArrayOf(3))
+            assertEquals(2L, log.lostRecords)
+            resume.countDown()
+            assertEquals("0 EVENT потеряно 2\n0 TX 01\n0 EVENT queued\n", log.readTail(32768))
+        } finally {
+            resume.countDown()
+            log.close()
+        }
+    }
+
     @Test fun overflowEvictsOnlyRxAndPreservesTxAndEventsWithoutBlocking() {
         val entered = CountDownLatch(1)
         val resume = CountDownLatch(1)
