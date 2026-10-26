@@ -73,7 +73,7 @@ class AndroidUsbAdapter(
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
     private val focus by lazy { AudioFocusController(AndroidAudioFocusManager(
-        context.getSystemService(android.media.AudioManager::class.java)), sink) }
+        context.getSystemService(android.media.AudioManager::class.java)), sink, log) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ controller.state == ConnectionState.Observing },
             UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus,
