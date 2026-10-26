@@ -1,6 +1,7 @@
 package fm.heterodyne.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,6 +19,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.module.TransitionState
@@ -85,6 +87,11 @@ fun BandScale(
         }
         BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = tokenDp("size.scale.inset"))) {
             val width = constraints.maxWidth.toFloat()
+            val visiblePreview = preview?.takeUnless { cancelled }
+            val frequencies = (stations.filter { it.band.name == band?.name }.map { it.frequencyKhz } +
+                listOfNotNull(confirmed?.frequencyKhz, visiblePreview?.frequencyKhz)).distinct()
+            fun markWidth(frequency: Int, preferred: Float, highlighted: Boolean): Float =
+                scaleMarkWidth(band ?: Band.FM, frequency, frequencies, width, preferred, highlighted)
             Canvas(Modifier.fillMaxSize()) {
                 val baseline = size.height / 2
                 drawLine(colors["edge"], Offset(0f, baseline), Offset(size.width, baseline), tokenDp("line.tick").toPx())
@@ -96,12 +103,13 @@ fun BandScale(
                         drawLine(colors["edge"], Offset(x, baseline - height / 2), Offset(x, baseline + height / 2), tokenDp("size.scale.tickWidth").toPx())
                     }
                     stations.filter { it.band.name == band.name }.forEach { station ->
+                        if (station.frequencyKhz == confirmed?.frequencyKhz) return@forEach
                         val preset = entries.any { it.band == station.band && it.frequencyKhz == station.frequencyKhz }
                         val prefix = if (preset) "size.scale.markPreset" else "size.scale.markStation"
                         val x = bandFraction(band, station.frequencyKhz) * size.width
                         val height = tokenDp("$prefix.1").toPx()
                         drawLine(colors[if (preset) "accent" else "mark"], Offset(x, baseline - height / 2),
-                            Offset(x, baseline + height / 2), tokenDp("$prefix.0").toPx())
+                            Offset(x, baseline + height / 2), markWidth(station.frequencyKhz, tokenDp("$prefix.0").toPx(), false))
                     }
                 }
             }
@@ -109,9 +117,30 @@ fun BandScale(
                 val labels = scaleFrequencyLabels(confirmed.band, confirmed.frequencyKhz)
                 val fraction = bandFraction(confirmed.band, confirmed.frequencyKhz)
                 val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
-                val sliderWidth = with(density) { tokenDp("size.scale.slider").toPx() }
+                val stripeWidth = markWidth(confirmed.frequencyKhz,
+                    with(density) { tokenDp("size.scale.confirmed.0").toPx() }, true)
+                Box(Modifier.align(Alignment.CenterStart)
+                    .offset { IntOffset((fraction * width - stripeWidth / 2).roundToInt(), 0) }
+                    .width(with(density) { stripeWidth.toDp() }).height(tokenDp("size.scale.confirmed.1"))
+                    .background(colors[if (faded) "disabledText" else "accent"])
+                    .testTag("band-scale-confirmed-stripe")
+                    .semantics { contentDescription = "Подтверждённая Станция ${frequencyText(confirmed)}" })
+                visiblePreview?.let { station ->
+                    val targetWidth = markWidth(station.frequencyKhz,
+                        with(density) { tokenDp("size.scale.preview.0").toPx() }, true)
+                    val targetFraction = bandFraction(confirmed.band, station.frequencyKhz)
+                    // Open outline differs from the solid confirmed stripe even at the same frequency.
+                    Box(Modifier.align(Alignment.CenterStart)
+                        .offset { IntOffset((targetFraction * width - targetWidth / 2).roundToInt(), 0) }
+                        .width(with(density) { targetWidth.toDp() }).height(tokenDp("size.scale.preview.1"))
+                        .border(with(density) { minOf(1.dp.toPx(), targetWidth / 4).toDp() }, colors["accentText"])
+                        .testTag("band-scale-preview-target")
+                        .semantics { contentDescription = "Цель Лупы ${frequencyText(fm.heterodyne.app.module.TuneTarget(confirmed.band, station.frequencyKhz))}" })
+                }
+                // Draw the slider last so its full-height stem remains visible.
+                val sliderWidth = minOf(with(density) { tokenDp("size.scale.slider").toPx() }, stripeWidth / 2)
                 Box(Modifier.offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
-                    .width(tokenDp("size.scale.slider")).fillMaxHeight()
+                    .width(with(density) { sliderWidth.toDp() }).fillMaxHeight()
                     .background(colors[if (faded) "disabledText" else "accent"]).testTag("band-scale-marker")
                     .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
                 BasicText(labels.first(), Modifier.align(Alignment.BottomStart), designTextStyle("label", colors["muted"]))
