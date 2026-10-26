@@ -1,5 +1,6 @@
 package fm.heterodyne.app.audio
 
+import fm.heterodyne.app.Journal
 import fm.heterodyne.app.DiagnosticLog
 import org.junit.Assert.*
 import org.junit.Rule
@@ -10,6 +11,12 @@ class AudioFocusTest {
     @get:Rule val temporary = TemporaryFolder()
     private val manager = FocusManagerFake()
     private val sink = FocusSinkFake()
+    private val events = mutableListOf<String>()
+    private val journal = object : Journal {
+        override fun tx(frame: ByteArray) {}
+        override fun rx(frame: ByteArray) {}
+        override fun event(text: String) { events.add(text) }
+    }
     private fun playback() = AudioPlayback({ true }, object : AudioSource {
         override fun open() {}
         override fun read(out: ByteArray): Int { out.fill(0); return out.size }
@@ -20,10 +27,53 @@ class AudioFocusTest {
         override fun alt1() {}
         override fun alt0() {}
         override fun release() {}
-    }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink))
+    }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink, journal))
+
+    @Test fun journalRecordsFocusSignalsAndActionsInOrder() {
+        val focus = AudioFocusController(manager, sink, journal)
+        focus.start()
+        manager.signal(AudioFocusChange.Duck)
+        manager.signal(AudioFocusChange.Transient)
+        manager.signal(AudioFocusChange.Gain)
+        manager.signal(AudioFocusChange.Loss)
+        focus.stop()
+        assertEquals(listOf(
+            "focus volume=1.0", "focus request", "focus request granted",
+            "focus DUCK", "focus volume=0.3",
+            "focus TRANSIENT", "focus mute",
+            "focus GAIN", "focus volume=1.0",
+            "focus LOSS", "focus volume=1.0", "focus abandon",
+        ), events)
+    }
+
+    @Test fun journalRecordsDeniedRequestAndReclaimButSkipsStaleSignals() {
+        val focus = AudioFocusController(manager, sink, journal)
+        focus.reclaim()
+        focus.stop()
+        assertTrue(events.isEmpty())
+        manager.granted = false
+        focus.start()
+        assertEquals(listOf("focus volume=1.0", "focus request", "focus request denied"), events)
+        val old = manager.listener
+        events.clear()
+        manager.granted = true
+        focus.reclaim()
+        assertEquals(listOf("focus reclaim", "focus abandon", "focus volume=1.0",
+            "focus request", "focus request granted"), events)
+        events.clear()
+        // Stale signals are deliberately omitted from the journal and cannot change sound.
+        old(AudioFocusChange.Transient)
+        assertTrue(events.isEmpty())
+        assertEquals(1f, sink.level)
+        focus.stop()
+        events.clear()
+        manager.signal(AudioFocusChange.Duck)
+        focus.stop()
+        assertTrue(events.isEmpty())
+    }
 
     @Test fun reclaimRequestsFocusAgainOnlyWhileStarted() {
-        val focus = AudioFocusController(manager, sink)
+        val focus = AudioFocusController(manager, sink, journal)
         focus.reclaim()
         assertEquals(0, manager.requests)
         focus.start()
