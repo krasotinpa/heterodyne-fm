@@ -53,6 +53,18 @@ class EfirScreenTest {
         compose.onNodeWithText("Поиск", substring = false).assertIsDisplayed()
     }
 
+    @Test fun expiredSeekShowsIncompleteAndKeepsCommandsAvailable() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.SeekIncomplete, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions())
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Поиск не завершён").assertIsDisplayed()
+        compose.onNodeWithText("идёт поиск…").assertDoesNotExist()
+        compose.onNodeWithText("Шаг ◀").assertIsEnabled()
+        compose.onNodeWithText("Справочная", substring = true).assertIsEnabled()
+    }
+
     @Test fun nonEmptyActiveSelectionDoesNotShowEmptySelectionLabel() {
         val state = StationsState.defaults().let { state ->
             val region = state.regions.getValue("moskva")

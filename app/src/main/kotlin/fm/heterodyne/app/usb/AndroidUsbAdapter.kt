@@ -65,6 +65,8 @@ class AndroidUsbAdapter(
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
     private val controller: ModuleController by lazy { ModuleController(transport, log,
+        seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
+            context.getSharedPreferences("seek", Context.MODE_PRIVATE)).toLong() * 1000 },
         frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency -> main.post { stationChanged(band, frequency) } }, changed = { state ->
         if (state == ConnectionState.Disconnected) frames.resetConnection()
         main.post { changed(state) }

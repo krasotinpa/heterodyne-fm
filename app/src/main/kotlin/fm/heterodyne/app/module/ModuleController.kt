@@ -11,7 +11,7 @@ fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) 
 
 enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, RateLimited, TransportError }
 
-enum class TransitionState { Idle, Waiting, Unconfirmed, Unresponsive, Disconnected, CommandPause, Seeking }
+enum class TransitionState { Idle, Waiting, Unconfirmed, Unresponsive, Disconnected, CommandPause, Seeking, SeekIncomplete }
 data class TuneTarget(val band: Band, val frequencyKhz: Int)
 data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget?, val confirmed: TuneTarget?) {
     val banner: String? get() = when (state) {
@@ -19,6 +19,7 @@ data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget
         TransitionState.Unresponsive -> "Модуль не отвечает, переподключите USB"
         TransitionState.Disconnected -> "Модуль отключён"
         TransitionState.Seeking -> "идёт поиск…"
+        TransitionState.SeekIncomplete -> "Поиск не завершён"
         else -> null
     }
 }
@@ -37,6 +38,7 @@ class ModuleController(
     private val transitionObserved: (TransitionSnapshot) -> Unit = {},
     private val transitionChanged: (TransitionState) -> Unit = {},
     private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
+    private val seekLimitMillis: () -> Long = { 20000L },
     private val changed: (ConnectionState) -> Unit = {},
 ) {
     private var band: Band? = null
@@ -59,6 +61,7 @@ class ModuleController(
     private var seekPause = 0L
     private var seeking: Long? = null
     private var seekReply: Long? = null
+    private var activeSeekLimit = 20000L
     private var lastCheck: Long? = null
     private val restart = SessionRestart()
     fun restoreStation(station: TuneTarget?) { restart.restore(station) }
@@ -86,13 +89,10 @@ class ModuleController(
         val now = clock()
         val seekStart = seeking
         if (seekStart != null) {
-            // End a reply series after 300 ms of silence. With no replies, expire at 15 s.
-            val expired = now - seekStart >= 15000
-            if (seekReply?.let { now - it >= 300 } == true || (expired && seekReply == null)) {
+            if (now - seekStart >= activeSeekLimit) {
+                clearAction(); radio(TransitionState.SeekIncomplete)
+            } else if (seekReply?.let { now - it >= 300 } == true) {
                 clearAction(); radio(TransitionState.Idle)
-            } else if (expired) {
-                // Bound the banner, but keep commands blocked while 0x22 replies continue.
-                radio(TransitionState.Idle)
             }
             return
         }
@@ -134,7 +134,8 @@ class ModuleController(
             if (selected && goal != null && goal.band == band && goal.frequencyKhz == actual) {
                 clearAction(); radio(TransitionState.Idle)
             } else if (goal == null && seeking == null) {
-                started = null; radio(TransitionState.Idle)
+                started = null
+                if (transitionState != TransitionState.SeekIncomplete) radio(TransitionState.Idle)
             }
             publish()
             when (band) {
@@ -232,6 +233,7 @@ class ModuleController(
         }
         stepStarted = null
         lastSeek = clock(); seekPause = if (band == Band.FM) 5000 else 15000
+        activeSeekLimit = seekLimitMillis()
         seeking = clock(); seekReply = null
         radio(TransitionState.Seeking)
         return send(if (direction == Direction.Up) 0x87 else 0x86)
