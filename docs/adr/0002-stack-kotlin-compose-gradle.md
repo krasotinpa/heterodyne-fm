@@ -26,7 +26,7 @@
    | JDK | 17 (`jvmToolchain(17)`) |
    | Gradle | 9.5.1, `distributionSha256Sum` `bafc141b619ad6350fd975fc903156dd5c151998cc8b058e8c1044ab5f7b031f` |
    | Android Gradle Plugin | 9.1.1 |
-   | Kotlin | 2.4.10, Compose compiler plugin той же версии |
+   | Kotlin | 2.4.21, Compose compiler plugin той же версии (история и правило выбора: раздел «Версии Kotlin») |
    | Compose BOM | 2026.06.01 |
    | `compileSdk` / `targetSdk` | 35 / 30 |
    | `minSdk` | 30; решение для каркаса #74 приведено ниже |
@@ -74,7 +74,7 @@
    Версия NDK из таблицы относится к будущему переносу; ABI остаётся `arm64-v8a`.
 4. **Kotlin в AGP 9:** приложение использует встроенную поддержку Kotlin.
    Плагин `org.jetbrains.kotlin.android` не применяется; отключения built-in Kotlin и нового DSL нет.
-   Корневой `buildscript` явно задаёт `kotlin-gradle-plugin:2.4.10` из каталога версий.
+   Корневой `buildscript` явно задаёт `kotlin-gradle-plugin:2.4.21` из каталога версий.
    Compose compiler plugin использует ту же версию.
    Этот способ повышения KGP описан в [AGP 9 release notes](https://developer.android.com/build/releases/agp-9-0-0-release-notes#runtime-dependency-kotlin).
    Совместное применение built-in Kotlin и старого плагина противоречит [инструкции миграции](https://developer.android.com/build/migrate-to-built-in-kotlin).
@@ -92,3 +92,20 @@
    Она проверяет требования публикации Google Play, а этот проект устанавливается на ГУ вручную с принятым `targetSdk 30`.
    Остальные ошибки lint продолжают останавливать сборку.
    Основание: [описание проверки Android Lint](https://googlesamples.github.io/android-custom-lint-rules/checks/ExpiredTargetSdkVersion.md.html).
+
+## Версии Kotlin: история и правило выбора
+
+У Kotlin нет метки LTS. JetBrains поддерживает каждую линию 2.x 18 месяцев: языковой релиз `2.x.0`, tooling-релиз `2.x.20` и bug fix релизы входят в одну линию. Для линии 2.4 поддержка длится до 03.12.2027 ([kotlinlang.org/docs/releases](https://kotlinlang.org/docs/releases.html)).
+Security-исправления выходят в bug fix релизах каждой поддерживаемой линии.
+
+**Правило.** Проект берёт последний bug fix релиз поддерживаемой линии и поднимает его при каждом security advisory на Kotlin Gradle plugin. Версия задаётся одним ключом `kotlin` в `gradle/libs.versions.toml`; Compose compiler plugin использует тот же ключ.
+Проверка после смены версии: `./gradlew test lint assembleDebug` с кодом 0 и версия `kotlin-stdlib` в `./gradlew :app:dependencies`.
+
+| Дата | Версия | Причина | Где |
+|---|---|---|---|
+| 16.10.2026 | 2.4.10 | Исходная связка каркаса #74 | [отчёт #74](../validation/74-android-scaffold.md) |
+| 26.10.2026 | 2.4.20 | CVE-2026-53914 ([GHSA-r937-wjx7-w2jp](https://github.com/advisories/GHSA-r937-wjx7-w2jp), Moderate): небезопасная десериализация метаданных build cache в Kotlin Gradle plugin до 2.4.20 даёт выполнение кода. Эксплуатация требует подложенного кэша. | PR #166 |
+| 26.10.2026 | 2.4.21 | Последний bug fix релиз линии 2.4 (08.10.2026); замена «последней LTS», которой у Kotlin нет | эта запись |
+
+Источник находки: аудит зависимостей 26.10.2026 (OSV). Он проверил 146 пакетов `releaseRuntimeClasspath` и `debugUnitTestRuntimeClasspath`.
+Вторая находка осталась без изменений: BouncyCastle `bcprov-jdk18on` 1.81 приходит только через Robolectric 4.16.1 в unit-тестах и не попадает в APK. Четыре advisory (CVE-2025-14813, CVE-2026-8763, CVE-2026-13506, CVE-2026-0636) закрыты в 1.85. Решение: обновить вместе с Robolectric.
