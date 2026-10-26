@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
     <application
         android:name=".StationsApplication"
@@ -10,13 +13,16 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <uses-library android:name="android.car" android:required="false" />
         <service
             android:name=".audio.PlaybackService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- Handle uiMode in place so each night-bit change reaches onConfigurationChanged. -->
         <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape"
+            android:configChanges="uiMode"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
