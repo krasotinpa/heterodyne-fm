@@ -32,7 +32,7 @@ AM-станции в регионе нет. Слышимость AM помече
 
 ```text
 Windows-путь:  \\wsl$\Ubuntu\home\user\sources\super-radio-android\raw\acceptance\run2\
-Файлы:         heterodyne-fm-<версия>-debug.apk
+Файлы:         heterodyne-fm-<versionName>-debug.apk
                SHA256SUMS.txt
 ```
 
@@ -40,9 +40,21 @@ Windows-путь:  \\wsl$\Ubuntu\home\user\sources\super-radio-android\raw\accep
 2. Скопируй оба файла в **корень SSD**.
 3. Безопасно извлеки SSD.
 
+Gradle создаёт `app/build/outputs/apk/debug/app-debug.apk`. При подготовке агент копирует его под именем `heterodyne-fm-<versionName>-debug.apk`.
+Например: `heterodyne-fm-0.1.0+11a88f6-debug.apk`. Gradle сам файл не переименовывает.
+
+`versionName` имеет формат `0.1.0+<SHA>[-dirty]`; SHA содержит первые семь символов коммита.
+Суффикс `-dirty` означает изменения отслеживаемых файлов, включая staged-изменения. Неотслеживаемые файлы не учитываются; новые исходники добавляют в Git до сборки.
+Без Git-контекста или при ошибке Git версия равна `0.1.0+unknown`; сборка выводит предупреждение с причиной.
+Для вычисления версии нужны Python 3.12 и Git. Каждый вызов Git ограничен пятью секундами.
+
+Новый коммит меняет версию, BuildConfig и манифест. Это нужно для идентификации установленного APK.
+Метка `-dirty` не сохраняет изменения и не гарантирует воспроизводимость сборки. Для приёмки используй чистый checkout конкретного коммита.
+Полную версию и SHA-256 конкретного APK запиши в отчёт. Сам APK сохрани для повторной установки.
+
 Контрольную сумму APK агент пишет в `SHA256SUMS.txt` и в шапку отчёта.
 
-Если хочешь проверить SSD: в PowerShell выполни `Get-FileHash E:\heterodyne-fm-<версия>-debug.apk -Algorithm SHA256`. Замени `E:` на букву SSD. Результат должен совпасть с `SHA256SUMS.txt`.
+Если хочешь проверить SSD: в PowerShell выполни `Get-FileHash E:\heterodyne-fm-<versionName>-debug.apk -Algorithm SHA256`. Замени `E:` на букву SSD. Результат должен совпасть с `SHA256SUMS.txt`.
 
 ## Шаг 2. Подготовить отчёт
 
