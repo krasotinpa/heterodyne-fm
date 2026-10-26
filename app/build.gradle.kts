@@ -3,24 +3,18 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-fun gitOutput(vararg args: String): String {
-    val process = ProcessBuilder(listOf("git") + args)
-        .directory(rootDir)
-        .redirectError(ProcessBuilder.Redirect.DISCARD)
-        .start()
-    val output = process.inputStream.bufferedReader().use { it.readText() }.trim()
-    check(process.waitFor() == 0) { "Git command failed" }
-    return output
+// Read the helper as a tracked input too: edits must invalidate configuration cache.
+val versionScript = providers.fileContents(
+    rootProject.layout.projectDirectory.file("build-support/version_name.py")
+).asText.get()
+val versionOutput = providers.exec {
+    workingDir(rootDir)
+    commandLine("python3", "-c", versionScript, rootDir.absolutePath)
 }
-
-val commitLabel = try {
-    val sha = gitOutput("rev-parse", "--verify", "HEAD").take(7)
-    check(sha.isNotEmpty()) { "Git HEAD is empty" }
-    val dirty = gitOutput("status", "--porcelain", "--untracked-files=all").isNotEmpty()
-    sha + if (dirty) "-dirty" else ""
-} catch (_: Exception) {
-    "unknown"
-}
+// providers.exec rechecks output before reusing configuration cache.
+val appVersionName = versionOutput.standardOutput.asText.get().trim()
+val versionWarning = versionOutput.standardError.asText.get().trim()
+if (versionWarning.isNotEmpty()) logger.warn(versionWarning)
 
 android {
     namespace = "fm.heterodyne.app"
@@ -33,7 +27,7 @@ android {
         minSdk = libs.versions.min.sdk.get().toInt()
         targetSdk = libs.versions.target.sdk.get().toInt()
         versionCode = 1
-        versionName = "0.1.0+$commitLabel"
+        versionName = appVersionName
         ndk { abiFilters += "arm64-v8a" }
     }
 
