@@ -101,9 +101,12 @@ fun EfirScreen(
         val compact = maxHeight.value < DesignTokens.number("breakpoint.compactHeight")
         val gap = tokenDp("space.section")
         val plateHeight = tokenDp(if (compact) "size.plate.heightCompact" else "size.plate.height")
-        Column(Modifier.fillMaxSize().padding(tokenDp("space.window")), verticalArrangement = Arrangement.spacedBy(gap)) {
+        val showActions = transition.state == TransitionState.Unconfirmed || !connected ||
+            screen.error != null || screen.recovered || state == null
+        Column(Modifier.fillMaxSize().padding(tokenDp("space.window")),
+            verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
             Row(Modifier.fillMaxWidth().height(tokenDp("size.topBar.height")).testTag("efir-topbar"),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(tokenDp("space.window"))) {
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(tokenDp(if (compact) "space.plateGap" else "space.window"))) {
                 BasicText(confirmed?.let(::frequencyText) ?: "—",
                     Modifier.widthIn(min = tokenDp("size.plate.presetWidth")), style = designTextStyle("freq", LocalAppearanceColors.current[if (faded) "disabledText" else "text"]))
                 Column(Modifier.weight(1f)) {
@@ -120,7 +123,7 @@ fun EfirScreen(
                         else -> "${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
                     }
                     BasicText(status, Modifier.testTag("efir-status"),
-                        style = designTextStyle("body", when {
+                        style = designTextStyle(if (reason != null) "plate" else "body", when {
                             reason == DisabledReason.EmptySelection -> Accent
                             reason != null -> LocalAppearanceColors.current["danger"]
                             transition.state == TransitionState.Waiting || transition.state == TransitionState.Seeking -> Accent
@@ -142,7 +145,8 @@ fun EfirScreen(
             Row(Modifier.weight(1f).testTag("efir-body"), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 EdgeControls(Direction.Down, connected, entries.isNotEmpty(), transition.state, actions,
                     Modifier.fillMaxHeight(), playing, confirmed?.band)
-                Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"), verticalArrangement = Arrangement.spacedBy(gap)) {
+                Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"),
+                    verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
                     Box(Modifier.fillMaxWidth().height(tokenDp(if (compact) "size.spectrum.heightCompact" else "size.spectrum.height"))
                         .testTag("spectrum-reserved"))
                     BandScale(catalog?.stations.orEmpty(), entries, transition,
@@ -188,20 +192,25 @@ fun EfirScreen(
                 EdgeControls(Direction.Up, connected, entries.isNotEmpty(), transition.state, actions,
                     Modifier.fillMaxHeight(), playing, confirmed?.band)
             }
-        }
-        // Keep error actions visible without changing the layout or controller state.
-        Column(Modifier.align(Alignment.BottomCenter)
-            .padding(horizontal = tokenDp("space.window") + tokenDp("size.sideColumn.width") + tokenDp("space.section"),
-                vertical = tokenDp("space.window")), verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-            if (transition.state == TransitionState.Unconfirmed || !connected) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
-                    if (transition.state == TransitionState.Unconfirmed) Control("Проверить связь", connected, actions.check)
-                    if (!connected) Control("Подключить приёмник", true, actions.permission)
+            if (showActions) {
+                // Keep messages beside the actions so the compact catalog retains a full plate row.
+                Row(Modifier.fillMaxWidth().padding(horizontal = tokenDp("size.sideColumn.width") + tokenDp("space.section")),
+                    horizontalArrangement = Arrangement.spacedBy(tokenDp("space.section")),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    val buttonModifier = Modifier.height(tokenDp("size.touch.min"))
+                        .widthIn(min = tokenDp("size.touch.min"))
+                    if (transition.state == TransitionState.Unconfirmed)
+                        Control("Проверить связь", connected, actions.check, buttonModifier)
+                    if (!connected) Control("Подключить приёмник", true, actions.permission, buttonModifier)
+                    val messages = buildList {
+                        screen.error?.let { add(receiverText(it)) }
+                        if (screen.recovered) add("Данные восстановлены: использованы значения по умолчанию")
+                        if (state == null) add("Загрузка…")
+                    }
+                    if (messages.isNotEmpty()) BasicText(messages.joinToString(" · "), Modifier.weight(1f),
+                        style = designTextStyle("cardTitle", Accent), maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
-            screen.error?.let { Label(receiverText(it), 18, Accent) }
-            if (screen.recovered) Label("Данные восстановлены: использованы значения по умолчанию", 18, Accent)
-            if (state == null) Label("Загрузка…", 22)
         }
     }
 }
