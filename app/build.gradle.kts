@@ -52,6 +52,7 @@ dependencies {
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.bouncycastle)
     debugImplementation(libs.compose.ui.test.manifest)
     testImplementation(libs.junit)
     testImplementation(libs.json)
