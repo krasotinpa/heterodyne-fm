@@ -11,7 +11,7 @@ fun interface WheelScheduler {
 class WheelController(
     private val scheduler: WheelScheduler,
     private val select: (StationEntry) -> Unit,
-    private val step: (Direction) -> Unit,
+    private val seek: (Direction) -> Unit,
 ) {
     private var entries = emptyList<StationEntry>()
     private var current: StationEntry? = null
@@ -46,7 +46,7 @@ class WheelController(
         cancel?.invoke()
         cancel = null
         cursor = current
-        step(direction)
+        seek(direction)
     }
 
     fun keyUp() { held = false }

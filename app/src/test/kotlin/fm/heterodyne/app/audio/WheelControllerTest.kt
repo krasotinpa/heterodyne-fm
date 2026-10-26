@@ -10,8 +10,8 @@ class WheelControllerTest {
     private val entries = listOf(StationEntry(Band.FM, 87500), StationEntry(Band.FM, 90300), StationEntry(Band.AM, 999))
     private val timer = WheelTimerFake()
     private val selected = mutableListOf<StationEntry>()
-    private val steps = mutableListOf<Direction>()
-    private fun wheel(current: StationEntry? = entries[0]) = WheelController(timer, selected::add, steps::add).also {
+    private val seeks = mutableListOf<Direction>()
+    private fun wheel(current: StationEntry? = entries[0]) = WheelController(timer, selected::add, seek = seeks::add).also {
         it.update(entries, current)
     }
 
@@ -27,7 +27,7 @@ class WheelControllerTest {
         timer.advance(1)
         assertEquals(listOf(entries[2]), selected)
     }
-    @Test fun longPressCancelsSelectionAndStepsOnceUntilRelease() {
+    @Test fun longPressCancelsSelectionAndSeeksOnceUntilRelease() {
         val wheel = wheel()
         wheel.next()
         timer.advance(800)
@@ -35,10 +35,10 @@ class WheelControllerTest {
         repeat(20) { wheel.longPress(Direction.Up); wheel.next() }
         timer.advance(2000)
         assertTrue(selected.isEmpty())
-        assertEquals(listOf(Direction.Up), steps)
+        assertEquals(listOf(Direction.Up), seeks)
         wheel.keyUp()
         wheel.longPress(Direction.Down)
-        assertEquals(listOf(Direction.Up, Direction.Down), steps)
+        assertEquals(listOf(Direction.Up, Direction.Down), seeks)
     }
 
     @Test fun wrapsBothWaysAndStartsAtEdgesForUnknownStation() {
@@ -55,7 +55,7 @@ class WheelControllerTest {
         assertEquals(entries.first(), wheel.cursor)
     }
 
-    @Test fun repeatedKeyDownDoesNotMoveCursorButFirstLongFlagStillSteps() {
+    @Test fun repeatedKeyDownDoesNotMoveCursorButFirstLongFlagStillSeeks() {
         val wheel = wheel()
         wheel.keyDown(Direction.Down, false, 0)
         repeat(20) { wheel.keyDown(Direction.Down, false, 1) }
@@ -65,7 +65,7 @@ class WheelControllerTest {
         wheel.keyUp()
         timer.advance(1000)
         assertTrue(selected.isEmpty())
-        assertEquals(listOf(Direction.Down), steps)
+        assertEquals(listOf(Direction.Down), seeks)
         wheel.keyDown(Direction.Up, false, 0)
         timer.advance(1000)
         assertEquals(listOf(entries[1]), selected)
@@ -73,7 +73,7 @@ class WheelControllerTest {
 
     @Test fun changedInputDiscardsEvenAnAlreadyDispatchedTimer() {
         var callback: () -> Unit = {}
-        val wheel = WheelController(WheelScheduler { _, action -> callback = action; {} }, selected::add, steps::add)
+        val wheel = WheelController(WheelScheduler { _, action -> callback = action; {} }, selected::add, seeks::add)
         wheel.update(entries, entries[0])
         wheel.next()
         wheel.update(emptyList(), null)
@@ -81,12 +81,20 @@ class WheelControllerTest {
         assertTrue(selected.isEmpty())
     }
 
-    @Test fun emptySelectionStillStepsOnceOnLongPress() {
+    @Test fun emptySelectionIgnoresShortPressesButSeeksOnceOnFirstLongFlag() {
         val wheel = wheel()
         wheel.update(emptyList(), null)
-        wheel.longPress(Direction.Down)
-        wheel.longPress(Direction.Down)
-        assertEquals(listOf(Direction.Down), steps)
+        wheel.next()
+        wheel.previous()
+        wheel.keyDown(Direction.Down, false, 0)
+        timer.advance(1000)
+        assertTrue(selected.isEmpty())
+        assertTrue(seeks.isEmpty())
+        wheel.keyDown(Direction.Down, true, 1)
+        repeat(20) { wheel.keyDown(Direction.Down, true, 2) }
+        timer.advance(1000)
+        assertTrue(selected.isEmpty())
+        assertEquals(listOf(Direction.Down), seeks)
     }
 
     @Test fun emptySelectionAndCloseDiscardCommands() {

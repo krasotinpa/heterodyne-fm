@@ -34,7 +34,7 @@ class PlaybackService : Service() {
             main.postDelayed(task, delay)
             val cancel: () -> Unit = { main.removeCallbacks(task) }
             cancel
-        }, stations::selectStation, stations::stepStation)
+        }, stations::selectStation, stations::seekStation)
         session = MediaSession(this, "Heterodyne FM").apply {
             setCallback(object : MediaSession.Callback() {
                 override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
