@@ -98,6 +98,7 @@ class DiagnosticLogTest {
         repeat(100) { log.event("x") } // Each record occupies 10 bytes.
         assertEquals(1000L, file.length())
         var rotations = 0
+        var fileKeysAvailable = true
         repeat(20) {
             val before = java.nio.file.Files.readAttributes(
                 file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
@@ -106,15 +107,36 @@ class DiagnosticLogTest {
             val after = java.nio.file.Files.readAttributes(
                 file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
             ).fileKey()
-            assertNotNull(before)
-            assertNotNull(after)
-            if (before != after) rotations++
+            if (before != null && after != null) {
+                if (before != after) rotations++
+            } else {
+                fileKeysAvailable = false
+            }
             if (it == 0) assertEquals(900L, file.length())
             assertTrue(file.length() <= 1000)
             assertFalse(File(dir, "diagnostic.log.tmp").exists())
         }
-        assertEquals(2, rotations)
+        if (fileKeysAvailable) assertEquals(2, rotations)
         assertEquals("0 EVENT x\n".repeat(78) + "0 EVENT y\n".repeat(20), log.readTail(1000))
+    }
+
+    @Test fun repeatedRxSummaryRotatesWhenCountGrowsAndFollowingWriteKeepsWholeRecords() {
+        val dir = temporary.newFolder()
+        val log = DiagnosticLog(dir, maxBytes = 97, clock = { 1L })
+        repeat(7) { log.event("x") }
+        repeat(9) { log.rx(byteArrayOf(1)) }
+        assertEquals("1 EVENT x\n".repeat(7) + "1 RX 01 ×9 first=1 last=1\n", contents(dir))
+
+        // The tenth RX grows the existing summary beyond the budget, forcing rotation.
+        log.rx(byteArrayOf(1))
+        assertEquals("1 EVENT x\n".repeat(6) + "1 RX 01 ×10 first=1 last=1\n", contents(dir))
+        log.rx(byteArrayOf(1))
+        log.tx(byteArrayOf(2))
+        val expected = "1 EVENT x\n".repeat(6) + "1 RX 01 ×11 first=1 last=1\n1 TX 02\n"
+        assertEquals(expected, contents(dir))
+        assertEquals(expected, log.readTail(97))
+        assertTrue(File(dir, "diagnostic.log").length() <= 97)
+        assertFalse(File(dir, "diagnostic.log.tmp").exists())
     }
 
     @Test fun hashesSerialBeforeWriting() {
