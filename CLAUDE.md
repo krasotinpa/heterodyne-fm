@@ -20,6 +20,8 @@ Ponytail всегда включён на уровне `full`. Вызывай с
 
 Код пишет Codex в отдельном worktree. Claude проверяет, ревьюит и коммитит. См. [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md).
 
+Порядок ревью: adversarial review Codex, затем `/code-review` Claude по diff ветки. Оба шага идут до `git push` и открытия PR. Сессия `/implement` выполняет `/code-review` сама, без напоминания.
+
 ## Исследование кода
 
 - Пока репозиторий содержит только документы, читай их напрямую по списку из AGENTS.md.
