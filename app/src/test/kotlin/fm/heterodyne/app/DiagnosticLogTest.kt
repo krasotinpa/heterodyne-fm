@@ -91,6 +91,32 @@ class DiagnosticLogTest {
         assertTrue(contents(dir).contains("next"))
     }
 
+    @Test fun rotationLeavesRoomForManyShortRecordsAndRetainsWholeTail() {
+        val dir = temporary.newFolder()
+        val log = DiagnosticLog(dir, maxBytes = 1000, clock = { 0L })
+        val file = File(dir, "diagnostic.log")
+        repeat(100) { log.event("x") } // Each record occupies 10 bytes.
+        assertEquals(1000L, file.length())
+        var rotations = 0
+        repeat(20) {
+            val before = java.nio.file.Files.readAttributes(
+                file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
+            ).fileKey()
+            log.event("y")
+            val after = java.nio.file.Files.readAttributes(
+                file.toPath(), java.nio.file.attribute.BasicFileAttributes::class.java,
+            ).fileKey()
+            assertNotNull(before)
+            assertNotNull(after)
+            if (before != after) rotations++
+            if (it == 0) assertEquals(900L, file.length())
+            assertTrue(file.length() <= 1000)
+            assertFalse(File(dir, "diagnostic.log.tmp").exists())
+        }
+        assertEquals(2, rotations)
+        assertEquals("0 EVENT x\n".repeat(78) + "0 EVENT y\n".repeat(20), log.readTail(1000))
+    }
+
     @Test fun hashesSerialBeforeWriting() {
         val dir = temporary.newFolder()
         val log = DiagnosticLog(dir, clock = { 0L })

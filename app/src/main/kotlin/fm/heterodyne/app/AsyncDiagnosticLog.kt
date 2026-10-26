@@ -14,7 +14,7 @@ class AsyncDiagnosticLog(
     private val beforeWrite: () -> Unit = {},
     priority: () -> Unit = { Thread.currentThread().priority = Thread.MIN_PRIORITY },
 ) : Journal, AutoCloseable {
-    private data class Record(val frame: Boolean, val error: (Exception) -> Unit = {}, val write: (DiagnosticLog) -> Unit)
+    private data class Record(val droppable: Boolean, val error: (Exception) -> Unit = {}, val write: (DiagnosticLog) -> Unit)
     init { require(capacity > 0) }
     private val queue = ConcurrentLinkedDeque<Record>()
     private val size = AtomicInteger()
@@ -62,13 +62,13 @@ class AsyncDiagnosticLog(
                 return
             }
             if (count < capacity) continue
-            val oldestFrame = queue.firstOrNull { it.frame }
-            if (oldestFrame == null) { lost.incrementAndGet(); return }
-            if (queue.remove(oldestFrame)) { size.decrementAndGet(); lost.incrementAndGet() }
+            val oldestRx = queue.firstOrNull { it.droppable }
+            if (oldestRx == null) { lost.incrementAndGet(); return }
+            if (queue.remove(oldestRx)) { size.decrementAndGet(); lost.incrementAndGet() }
         }
     }
 
-    override fun tx(frame: ByteArray) { val copy = frame.copyOf(); offer(Record(true) { it.tx(copy) }) }
+    override fun tx(frame: ByteArray) { val copy = frame.copyOf(); offer(Record(false) { it.tx(copy) }) }
     override fun rx(frame: ByteArray) { val copy = frame.copyOf(); offer(Record(true) { it.rx(copy) }) }
     override fun event(text: String) = offer(Record(false) { it.event(text) })
     fun buildVersion(version: String) = event("build=$version")
