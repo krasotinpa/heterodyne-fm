@@ -51,6 +51,7 @@ class AudioPlayback(
     private val focus: AudioFocusController? = null,
     private val threadFactory: ((Runnable) -> Thread)? = null,
     private val onMain: (() -> Unit) -> Unit = { it() },
+    private val nanoTime: () -> Long = System::nanoTime,
     private val changed: (AudioCounters) -> Unit = {},
 ) {
     @Volatile var snapshot = AudioCounters(); private set
@@ -66,6 +67,7 @@ class AudioPlayback(
     @Volatile var moduleDetached = false; private set
     private var timedOut = false
     private var lastRead = 0L
+    private var lastReadStartedPlaying = false
     private var minimum = Long.MAX_VALUE
     private var notified = AudioState.Stopped
 
@@ -76,6 +78,7 @@ class AudioPlayback(
         failed = false
         moduleDetached = false
         lastRead = 0
+        lastReadStartedPlaying = false
         minimum = Long.MAX_VALUE
         safeLog("Audio start")
         publish(AudioCounters(state = AudioState.Starting))
@@ -113,9 +116,10 @@ class AudioPlayback(
 
     private fun readAudio() {
         val loop = checkNotNull(receiver)
-        val now = System.nanoTime()
-        val gap = if (lastRead == 0L) 0 else (now - lastRead) / 1_000_000
+        val now = nanoTime()
+        val gap = if (lastReadStartedPlaying && loop.playing) (now - lastRead) / 1_000_000 else 0
         lastRead = now
+        lastReadStartedPlaying = loop.playing
         val count = loop.receive()
         val maxGap = maxOf(snapshot.maxReadGapMs, gap)
         if (count < 0) {
