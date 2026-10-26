@@ -46,6 +46,34 @@ class AudioPlaybackTest {
         playback.stop()
     }
 
+    @Test fun readGapCountsOnlyReadsThatBothStartedPlaying() {
+        val calls = mutableListOf<String>()
+        var now = 1_000_000L
+        val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls),
+            DiagnosticLog(temporary.newFolder()), nanoTime = { now })
+        repeat(2) {
+            assertTrue(playback.play())
+            playback.receive()
+            now += 480_000_000L
+            playback.receive()
+            assertEquals(AudioState.Starting, playback.snapshot.state)
+            assertEquals(0L, playback.snapshot.maxReadGapMs)
+            while (playback.snapshot.state == AudioState.Starting) {
+                now += 480_000_000L
+                playback.receive()
+                assertEquals(0L, playback.snapshot.maxReadGapMs)
+            }
+            assertEquals(AudioState.Playing, playback.snapshot.state)
+            now += 480_000_000L
+            playback.receive()
+            assertEquals(0L, playback.snapshot.maxReadGapMs)
+            now += 480_000_000L
+            playback.receive()
+            assertEquals(480L, playback.snapshot.maxReadGapMs)
+            playback.stop()
+        }
+    }
+
     @Test fun doublePlayKeepsOneSession() {
         val calls = mutableListOf<String>()
         val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls),
