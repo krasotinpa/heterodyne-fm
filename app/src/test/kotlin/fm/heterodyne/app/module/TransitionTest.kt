@@ -10,8 +10,9 @@ class TransitionTest {
     @get:Rule val temporary = TemporaryFolder()
     private val fake = FakeTransport()
     private var now = 0L
+    private var limit = 20000L
     private val controller by lazy {
-        ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now }).also {
+        ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now }, seekLimitMillis = { limit }).also {
             it.found(DeviceProfile("module"))
             it.permissionResult(it.requestPermission()!!, true)
         }
@@ -158,27 +159,24 @@ class TransitionTest {
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
         now = 5000
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
-        now = 20000; controller.tick()
-        assertEquals(TransitionState.Idle, controller.transitionState)
+        now = 25000; controller.tick()
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
         receive("am31")
         assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
-        now = 21000; receive("am31")
-        now = 21300; controller.tick()
-        now = 34999
+        now = 26000; receive("am31")
+        now = 26300; controller.tick()
+        now = 39999
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
-        now = 35000
+        now = 40000
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
     }
-    @Test fun seekBannerEndsAtFifteenSecondsWithoutCancelOrRetry() {
+    @Test fun seekExpiresWithoutRepliesAndNeverRetries() {
         receive("am31")
-        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+        controller.seek(Direction.Up)
+        now = 19999; controller.tick()
         assertEquals("идёт поиск…", controller.snapshot.banner)
-        assertEquals(TuneTarget(Band.AM, 801), controller.snapshot.confirmed)
-        now = 14999; controller.tick()
-        assertEquals("идёт поиск…", controller.snapshot.banner)
-        now = 15000; controller.tick()
-        assertEquals(TransitionState.Idle, controller.transitionState)
-        assertNull(controller.snapshot.banner)
+        now = 20000; controller.tick()
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
         now = 60000; controller.tick()
         assertEquals(1, fake.sendCount)
     }
@@ -265,37 +263,38 @@ class TransitionTest {
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
         assertEquals(0x86, fake.sentFrames.last()[6].toInt() and 255)
     }
-    @Test fun seekBannerDeadlineAppliesEvenWhenStationRepliesContinue() {
+    @Test fun seekDeadlineReleasesCommandsDespiteContinuousReplies() {
         receive("fm28")
         controller.seek(Direction.Down)
-        for (time in 100L..14900L step 100L) {
+        for (time in 100L..19900L step 100L) {
             now = time; receive("fm0")
             assertEquals("идёт поиск…", controller.snapshot.banner)
         }
-        now = 14999; controller.tick()
-        assertEquals(TransitionState.Seeking, controller.transitionState)
-        now = 15000; controller.tick()
-        assertEquals(TransitionState.Idle, controller.transitionState)
-        assertNull(controller.snapshot.banner)
+        now = 20000; receive("fm205")
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
+        assertEquals(TuneTarget(Band.FM, 108000), controller.snapshot.confirmed)
+        now = 20100; receive("fm28")
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
+        assertEquals(TuneTarget(Band.FM, 90300), controller.snapshot.confirmed)
         assertEquals(1, fake.sendCount)
+        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
     }
-    @Test fun amSeekStillBlocksCommandsAfterBannerDeadlineUntilRepliesStop() {
+    @Test fun configuredDeadlineIsCapturedAtEachSeekAndAmPauseRemainsFifteenSeconds() {
+        limit = 10000
         receive("am31")
-        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
-        for (time in 100L..15100L step 100L) {
-            now = time; receiveAm(40)
-        }
-        assertNull(controller.snapshot.banner)
-        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
-        assertEquals(TuneResult.RateLimited, controller.step(Direction.Down))
-        assertEquals(TuneResult.RateLimited, controller.select(Band.FM, 90300))
-        assertEquals(TuneResult.RateLimited, controller.checkConnection())
+        controller.seek(Direction.Up)
+        limit = 30000
+        now = 10000; controller.tick()
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
         assertEquals(1, fake.sendCount)
-        now = 15399; controller.tick()
+        now = 14999
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
-        now = 15400; controller.tick()
-        assertEquals(1, fake.sendCount)
+        now = 15000
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+        now = 44999; controller.tick()
+        assertEquals("идёт поиск…", controller.snapshot.banner)
+        now = 45000; controller.tick()
+        assertEquals("Поиск не завершён", controller.snapshot.banner)
         assertEquals(2, fake.sendCount)
     }
     @Test fun errno19ClearsTargetAndReturnOnlyProbesOnce() {

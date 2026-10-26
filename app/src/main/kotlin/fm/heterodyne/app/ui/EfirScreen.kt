@@ -112,10 +112,11 @@ fun EfirScreen(
                     BasicText(name?.takeIf { it.isNotBlank() } ?: "Частота вне Подборки",
                         style = designTextStyle("title", LocalAppearanceColors.current["text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val status = reason?.takeUnless {
-                        it == DisabledReason.EmptySelection && transition.state == TransitionState.Seeking
+                        it == DisabledReason.EmptySelection && transition.state in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete)
                     }?.text ?: when (transition.state) {
                         TransitionState.Waiting -> "ожидание"
                         TransitionState.Seeking -> "идёт поиск…"
+                        TransitionState.SeekIncomplete -> "Поиск не завершён"
                         else -> "${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
                     }
                     BasicText(status, Modifier.testTag("efir-status"),
@@ -145,8 +146,8 @@ fun EfirScreen(
                     Box(Modifier.fillMaxWidth().height(tokenDp(if (compact) "size.spectrum.heightCompact" else "size.spectrum.height"))
                         .testTag("spectrum-reserved"))
                     BandScale(catalog?.stations.orEmpty(), entries, transition,
-                        loupeEnabled = connected && transition.state == TransitionState.Idle && transition.target == null &&
-                            transition.banner == null && screen.error == null,
+                        loupeEnabled = connected && transition.state in listOf(TransitionState.Idle, TransitionState.SeekIncomplete) && transition.target == null &&
+                            screen.error == null,
                         windowWidth = windowWidth, select = actions.select,
                         playing = playing, play = actions.play)
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {

@@ -79,6 +79,21 @@ class ParkingScreenTest {
         }
     }
 
+    @Test fun settingsSelectSearchLimitImmediately() {
+        val seconds = mutableStateOf(20)
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Auto, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {}, seekLimitSeconds = seconds.value,
+                selectSeekLimit = { seconds.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("20 с").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("35 с").performScrollTo().performClick()
+        compose.onNodeWithText("35 с").assertIsSelected()
+        compose.runOnIdle { assertEquals(35, seconds.value) }
+    }
+
     @Test fun rejectedRenameKeepsSelectedSelection() {
         val base = StationsState.defaults()
         val state = base.copy(regions = base.regions + ("moskva" to

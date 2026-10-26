@@ -59,6 +59,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   actions: ParkingActions, back: () -> Unit,
                   theme: ThemeChoice, palette: Palette,
                   selectTheme: (ThemeChoice) -> Unit, selectPalette: (Palette) -> Unit,
+                  seekLimitSeconds: Int = 20, selectSeekLimit: (Int) -> Unit = {},
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
@@ -120,6 +121,14 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         Palette.entries.forEach { option ->
                             Control(option.title, true, { selectPalette(option) }, selected = option == palette)
+                        }
+                    }
+                    Label("Предел Поиска", 24)
+                    SeekPreferences.choices.chunked(4).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                            row.forEach { seconds ->
+                                Control("$seconds с", true, { selectSeekLimit(seconds) }, selected = seconds == seekLimitSeconds)
+                            }
                         }
                     }
                 }

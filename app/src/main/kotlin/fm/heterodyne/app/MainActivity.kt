@@ -16,6 +16,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
         setContent {
+            val seekPreferences = remember {
+                fm.heterodyne.app.ui.SeekPreferences(getSharedPreferences("seek", MODE_PRIVATE))
+            }
             val appearance = remember {
                 fm.heterodyne.app.ui.AppearancePreferences(getSharedPreferences("appearance", MODE_PRIVATE))
             }
@@ -62,6 +65,7 @@ class MainActivity : ComponentActivity() {
                         remove = stations.session::removeStation, move = stations.session::moveStation,
                     ), back = { parked = false },
                     theme = appearance.theme, palette = appearance.palette,
+                    seekLimitSeconds = seekPreferences.seconds, selectSeekLimit = seekPreferences::selectSeconds,
                     selectTheme = appearance::selectTheme, selectPalette = appearance::selectPalette,
                     connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                     developerEnabled = stations.diagnostics.developerMode.enabled,
