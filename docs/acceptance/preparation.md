@@ -3,7 +3,7 @@
 Это инструкция для владельца. Она готовит всё до выезда к автомобилю.
 Сами проверки описаны в [test-plan.md](test-plan.md). Форма результатов — в [report-template.md](report-template.md).
 Тикет приёмки: [#89](https://github.com/krasotinpa/super-radio-android/issues/89).
-Это материалы для **повторного** прогона. Первый прогон — [report-run1.md](report-run1.md). Что повторять — [retest-plan.md](retest-plan.md).
+Это материалы для **повторного** прогона. Первый прогон — [report-run1.md](report-run1.md). Что повторять — [retest-plan-run3.md](retest-plan-run3.md).
 
 ## Итог
 
@@ -28,10 +28,10 @@ AM-станции в регионе нет. Слышимость AM помече
 
 ## Шаг 1. Получить APK
 
-Файлы лежат на компьютере в WSL-дистрибутиве `Ubuntu`, в папке `raw/acceptance/` репозитория. Новый APK агент кладёт в `raw/acceptance/run2/`.
+Файлы лежат на компьютере в WSL-дистрибутиве `Ubuntu`, в папке `raw/acceptance/` репозитория. Новый APK агент кладёт в `raw/acceptance/run3/`.
 
 ```text
-Windows-путь:  \\wsl$\Ubuntu\home\user\sources\super-radio-android\raw\acceptance\run2\
+Windows-путь:  \\wsl$\Ubuntu\home\user\sources\super-radio-android\raw\acceptance\run3\
 Файлы:         heterodyne-fm-<versionName>-debug.apk
                SHA256SUMS.txt
 ```
@@ -83,12 +83,12 @@ Gradle создаёт `app/build/outputs/apk/debug/app-debug.apk`. При под
 
 ## Шаг 5. Что делает агент до выезда
 
-1. Проверил, что `main` содержит нужные тикеты: #121, #122, #133, #142, #143 и #140, если он влит.
+1. Проверил, что `main` содержит тикеты прогона 3: #177–#181, #193–#196, #200–#203, #205–#207, #209, #219.
 2. Собрал APK: `./gradlew test lint assembleDebug` завершился с кодом 0.
 3. Записал SHA-256, коммит и версию (`versionName`, `versionCode`, `minSdk 30`, `targetSdk 30`, ABI `arm64-v8a`).
 4. Подпись APK — debug-ключ сборщика. Хэш подписи на ГУ не проверяется.
-5. Положил APK и `SHA256SUMS.txt` в `raw/acceptance/run2/`. Git их не хранит (`/raw/` в `.gitignore`).
-6. Подготовил папки для результатов: `raw/acceptance/run2/photos/` и `raw/acceptance/run2/log/`.
+5. Положил APK и `SHA256SUMS.txt` в `raw/acceptance/run3/`. Git их не хранит (`/raw/` в `.gitignore`).
+6. Подготовил папки для результатов: `raw/acceptance/run3/photos/` и `raw/acceptance/run3/log/`.
 
 ## После приёмки
 
