@@ -25,8 +25,8 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -133,7 +133,7 @@ fun EfirScreen(
                   }
                   Spacer(Modifier.height(tokenDp("size.rds.height")).testTag("rds-reserved"))
                 }
-                // Keep the measured width, including the pause label, while driving.
+                // Keep the measured width, including the pause label, while driving. alpha(0) alone still passes taps, so the buttons are also disabled.
                 Row(Modifier.height(tokenDp("size.seekGroup.height"))
                     .alpha(if (driving) 0f else 1f)
                     .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
