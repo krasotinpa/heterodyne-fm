@@ -30,7 +30,7 @@ class PlaybackService : Service() {
         stations.updatePlaybackService(true)
         wheel = WheelController(WheelScheduler { delay, action ->
             val task = Runnable {
-                wheel.update(stations.activeEntries, stations.currentStation)
+                wheel.update(stations.activeEntries, stations.currentStation, stations.capabilities)
                 action()
             }
             main.postDelayed(task, delay)
@@ -46,7 +46,7 @@ class PlaybackService : Service() {
                         KeyEvent.KEYCODE_MEDIA_PREVIOUS -> Direction.Down
                         else -> return true // Live radio has no wheel pause or stop.
                     }
-                    wheel.update(stations.activeEntries, stations.currentStation)
+                    wheel.update(stations.activeEntries, stations.currentStation, stations.capabilities)
                     when (event.action) {
                         KeyEvent.ACTION_UP -> wheel.keyUp()
                         KeyEvent.ACTION_DOWN -> wheel.keyDown(direction,

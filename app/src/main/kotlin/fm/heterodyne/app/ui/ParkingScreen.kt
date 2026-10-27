@@ -67,10 +67,13 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   autostartEnabled: Boolean = true, selectAutostart: (Boolean) -> Unit = {},
                   parkShowLabel: Boolean = true, selectParkShowLabel: (Boolean) -> Unit = {},
                   parkLargeIcon: Boolean = false, selectParkLargeIcon: (Boolean) -> Unit = {},
+                  receiverKinds: List<fm.heterodyne.app.receiver.ReceiverKind> = listOf(fm.heterodyne.app.receiver.ReceiverKind.Module),
+                  selectedReceiver: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module,
+                  selectReceiver: (fm.heterodyne.app.receiver.ReceiverKind) -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
-    LaunchedEffect(developerEnabled) {
-        if (!developerEnabled && page == "Режим разработчика") page = "Диагностика"
+    LaunchedEffect(developerEnabled, selectedReceiver) {
+        if ((!developerEnabled || selectedReceiver != fm.heterodyne.app.receiver.ReceiverKind.Module) && page == "Режим разработчика") page = "Диагностика"
     }
     LaunchedEffect(driving) {
         if (driving) { page = "Меню стоянки"; back() }
@@ -90,7 +93,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
             Label("Режим стоянки", 16)
             Column(Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 val destinations = listOf("Подборки", "Настройки", "Диагностика", "О приложении") +
-                    if (developerEnabled) listOf("Режим разработчика") else emptyList()
+                    if (developerEnabled && selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module) listOf("Режим разработчика") else emptyList()
                 destinations.forEach { destination ->
                     ParkingMenuItem(destination, page == destination) { page = destination }
                 }
@@ -109,6 +112,15 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                 "Режим разработчика" -> if (developerEnabled) developerTools()
                 "Настройки" -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.section").dp)) {
+                    if (receiverKinds.size > 1) {
+                        Label("Приёмник", 24)
+                        Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
+                            receiverKinds.forEachIndexed { index, kind ->
+                                Control("Приёмник ${index + 1}", !driving, { if (!driving) selectReceiver(kind) },
+                                    selected = kind == selectedReceiver)
+                            }
+                        }
+                    }
                     Label("Регион", 24)
                     Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         screen.catalogs.forEach { option ->
@@ -145,17 +157,19 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     androidx.compose.foundation.text.BasicText(
                         "Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.",
                         style = designTextStyle("body", colors["text"]))
-                    Label("Сигнал Перехода", 24)
-                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                        fm.heterodyne.app.audio.TransitionSignalMethod.entries.forEach { method ->
-                            Control(method.label, true, { selectSignal(method) }, selected = method == signalMethod)
-                        }
-                    }
-                    Label("Предел Поиска", 24)
-                    SeekPreferences.choices.chunked(4).forEach { row ->
+                    if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module) {
+                        Label("Сигнал Перехода", 24)
                         Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                            row.forEach { seconds ->
-                                Control("$seconds с", true, { selectSeekLimit(seconds) }, selected = seconds == seekLimitSeconds)
+                            fm.heterodyne.app.audio.TransitionSignalMethod.entries.forEach { method ->
+                                Control(method.label, true, { selectSignal(method) }, selected = method == signalMethod)
+                            }
+                        }
+                        Label("Предел Поиска", 24)
+                        SeekPreferences.choices.chunked(4).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                                row.forEach { seconds ->
+                                    Control("$seconds с", true, { selectSeekLimit(seconds) }, selected = seconds == seekLimitSeconds)
+                                }
                             }
                         }
                     }

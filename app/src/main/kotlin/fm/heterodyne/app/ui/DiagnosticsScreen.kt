@@ -19,15 +19,16 @@ import fm.heterodyne.app.BuildConfig
 import fm.heterodyne.app.StationsDiagnostics
 
 @Composable
-fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, connected: Boolean, export: () -> Unit) {
+fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, connected: Boolean, export: () -> Unit,
+                      receiverKind: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module) {
     DiagnosticsContent(parked, connected, app.developerMode.enabled, app.exportBusy, app.diagnosticMessage,
-        { app.developerMode.setEnabled(it, parked) }, export)
+        { app.developerMode.setEnabled(it, parked) }, export, receiverKind)
 }
 
 @Composable
 internal fun DiagnosticsContent(parked: Boolean, connected: Boolean, developerEnabled: Boolean,
                                 exportBusy: Boolean, message: String?, setDeveloper: (Boolean) -> Unit,
-                                export: () -> Unit) {
+                                export: () -> Unit, receiverKind: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module) {
     val colors = LocalAppearanceColors.current
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.section").dp)) {
@@ -38,6 +39,11 @@ internal fun DiagnosticsContent(parked: Boolean, connected: Boolean, developerEn
                 Label(BuildConfig.VERSION_NAME, 22)
             }
             ParkingCard(Modifier.weight(1f)) {
+                Label(when (receiverKind) {
+                    fm.heterodyne.app.receiver.ReceiverKind.Module -> "Модуль"
+                    null -> "Приёмник не выбран"
+                    else -> if (receiverKind.value == "rtl-sdr-v4") "RTL-SDR V4" else receiverKind.value
+                }, 16)
                 Label("Связь с приёмником", 16)
                 Label(if (connected) "Приёмник подключён" else "Приёмник не подключён", 22)
             }

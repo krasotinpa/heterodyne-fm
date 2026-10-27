@@ -21,14 +21,34 @@ class StationsModule(
     private val main: Handler,
     private val session: StationsSession,
     private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
+    private val additionalReceivers: List<fm.heterodyne.app.receiver.Receiver> = emptyList(),
     private val startPlayback: () -> Unit,
 ) {
+    val receiverKinds get() = profiles.kinds
+    var selectedReceiver by mutableStateOf<fm.heterodyne.app.receiver.ReceiverKind?>(
+        fm.heterodyne.app.ui.ReceiverPreferences(context.getSharedPreferences("receiver", android.content.Context.MODE_PRIVATE)).kind
+            ?.takeIf { it in profiles.kinds } ?: profiles.kinds.singleOrNull())
+        private set
+    var capabilities by mutableStateOf(if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module)
+        fm.heterodyne.app.receiver.moduleCapabilities else fm.heterodyne.app.receiver.ReceiverCapabilities(emptySet(), false, false, false, false, false))
+        private set
+    @Volatile private var parked = false
+    @Volatile private var moving = false
+    fun updateParked(value: Boolean) { parked = value && !driving }
+    fun selectReceiver(kind: fm.heterodyne.app.receiver.ReceiverKind) {
+        if (!parked || driving) return
+        cancelAutostart()
+        usb.selectReceiver(kind) { parked && !moving }
+    }
+
     var driving by mutableStateOf(false)
         private set
 
     // Источник не измерен, см. #89. Единственная точка установки сигнала.
     fun updateDriving(value: Boolean) {
+        moving = value
         driving = value
+        if (value) parked = false
         if (!value) {
             main.removeCallbacks(clearSeekHint)
             seekHint = null
@@ -54,7 +74,7 @@ class StationsModule(
 
     fun pickStation(entry: StationEntry) {
         cancelAutostart()
-        if (moduleState != ConnectionState.Observing) return
+        if (moduleState != ConnectionState.Observing || Band.valueOf(entry.band.name) !in capabilities.bands) return
         cursor = entry
         selectStation(entry)
         startAudio()
@@ -64,6 +84,7 @@ class StationsModule(
         cancelAutostart()
         val state = session.screen.state ?: return
         val entries = state.regions.getValue(state.selectedRegion).active.entries
+            .filter { Band.valueOf(it.band.name) in capabilities.bands }
         if (entries.isEmpty()) return
         val confirmed = transition.confirmed
         val index = entries.indexOfFirst {
@@ -77,9 +98,10 @@ class StationsModule(
     }
 
     fun step(direction: Direction) { cursor = null; stepStation(direction) }
-    fun seek(direction: Direction) { cancelAutostart(); cursor = null; usb.seek(direction) }
+    fun seek(direction: Direction) { if (!capabilities.seek) return; cancelAutostart(); cursor = null; usb.seek(direction) }
     fun checkConnection() { usb.checkConnection() }
     fun changeBand() {
+        if (capabilities.bands.size < 2) return
         cancelAutostart()
         val current = transition.confirmed ?: return
         val next = if (current.band == Band.FM)
@@ -114,7 +136,14 @@ class StationsModule(
         private set
 
     init {
-        usb = AndroidUsbAdapter(context, profiles = profiles,
+        usb = AndroidUsbAdapter(context, profiles = profiles, additionalReceivers = additionalReceivers,
+            selectionChanged = { kind, features ->
+                selectedReceiver = kind
+                capabilities = features ?: fm.heterodyne.app.receiver.ReceiverCapabilities(emptySet(), false, false, false, false, false)
+                cursor = null
+                bandStations.clear()
+                currentStation = null
+            },
             readLaunchStation = session::readLaunchStation,
             autostartPlayback = { completed ->
                 try {
@@ -169,9 +198,12 @@ class StationsModule(
     }
     fun updatePlaybackService(active: Boolean) { usb.updatePlaybackService(active) }
     fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) { usb.playAudio(autostart, started, stopped) }
-    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { cancelAutostart(); usb.selectStation(entry) }
+    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
+        if (Band.valueOf(entry.band.name) !in capabilities.bands) return
+        cancelAutostart(); usb.selectStation(entry)
+    }
     fun stepStation(direction: fm.heterodyne.app.module.Direction) { cancelAutostart(); usb.stepStation(direction) }
-    fun seekStation(direction: Direction) { cancelAutostart(); usb.seekStation(direction) }
+    fun seekStation(direction: Direction) = seek(direction)
     fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
     fun stopAudio() { usb.stopAudio() }
 

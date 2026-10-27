@@ -28,6 +28,33 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class EfirScreenTest {
+
+    @Test fun fmOnlyReceiverReservesBandAndSeekSpaceWithoutControls() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), capabilities = fm.heterodyne.app.receiver.FakeReceiver().capabilities)
+        }
+        compose.onNodeWithTag("seek-group").assertWidthIsEqualTo(224.dp)
+        compose.onNodeWithTag("band-reserved").assertHeightIsEqualTo(DesignTokens.number("size.bandButton.height").dp)
+        compose.onNodeWithContentDescription("Поиск ◀").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Поиск ▶").assertDoesNotExist()
+        compose.onNodeWithContentDescription("FM / AM").assertDoesNotExist()
+    }
+
+    @Test fun unsupportedAmPlateStaysVisibleAndDisabled() {
+        val am = StationEntry(StationBand.AM, 801, "AM тест")
+        val state = initial.copy(regions = initial.regions.mapValues { (_, region) ->
+            region.replaceActive(region.active.add(am).value!!)
+        })
+        compose.setContent {
+            EfirScreen(StationsScreenState(state, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), capabilities = fm.heterodyne.app.receiver.FakeReceiver().capabilities)
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Приёмник не принимает AM")
+        compose.onNode(hasText("AM тест", substring = true) and hasClickAction()).assertIsDisplayed().assertIsNotEnabled()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun drivingSeekHintAppearsInStatusAndKeepsControlsEnabled() {

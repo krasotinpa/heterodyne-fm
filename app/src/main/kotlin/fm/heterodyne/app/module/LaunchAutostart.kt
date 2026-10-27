@@ -6,7 +6,7 @@ import fm.heterodyne.app.receiver.Receiver
 
 /** Worker-owned autostart for application opening and Module return. */
 class LaunchAutostart(
-    private val module: Receiver,
+    private val module: Receiver?,
     private val log: Journal,
     private val clock: () -> Long,
     private val requestFocus: ((AudioFocusLease?) -> Unit) -> Unit,
@@ -38,7 +38,7 @@ class LaunchAutostart(
         cancel()
         this.reason = reason
         noFocusChanged(false)
-        this.station = station?.takeIf { enabled && isSelectableFrequency(it.band, it.frequencyKhz) }
+        this.station = station?.takeIf { enabled && module != null && it.band in module.capabilities.bands && isSelectableFrequency(it.band, it.frequencyKhz) }
         if (this.station == null) { event("skipped"); return }
         if (lastAttempt?.let { clock() - it < 30000 } == true) { event("rate-limited"); return }
         openedAt = clock()
@@ -48,7 +48,7 @@ class LaunchAutostart(
 
     fun cancel() {
         generation++
-        if (phase == Phase.Probe || phase == Phase.Selecting) module.cancelSelection()
+        if (phase == Phase.Probe || phase == Phase.Selecting) module?.cancelSelection()
         if (phase != Phase.Done) event("cancelled")
         phase = Phase.Done
         releaseOwnedFocus()
@@ -73,6 +73,7 @@ class LaunchAutostart(
     }
 
     fun tick() {
+        val module = module ?: return
         if (guardPendingWork()) return
         if (phase == Phase.Done) return
         if (phase == Phase.Pending && clock() - openedAt >= 30000) { finish("module-timeout"); return }
@@ -160,7 +161,7 @@ class LaunchAutostart(
     }
     private fun finish(result: String) {
         // The launch deadline includes rate-limit waits; it must discard any still queued target.
-        if (phase == Phase.Probe || phase == Phase.Selecting) module.cancelSelection()
+        if (phase == Phase.Probe || phase == Phase.Selecting) module?.cancelSelection()
         phase = Phase.Done
         releaseOwnedFocus()
         event(result)

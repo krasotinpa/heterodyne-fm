@@ -15,6 +15,16 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class DiagnosticsScreenTest {
+
+    @Test fun diagnosticsNamesSelectedDeviceKind() {
+        val kind = mutableStateOf<fm.heterodyne.app.receiver.ReceiverKind?>(fm.heterodyne.app.receiver.ReceiverKind.Module)
+        compose.setContent { DiagnosticsContent(true, false, false, false, null, {}, {}, kind.value) }
+        compose.onNodeWithText("Модуль").assertIsDisplayed()
+        compose.runOnIdle { kind.value = fm.heterodyne.app.receiver.ReceiverKind("rtl-sdr-v4") }
+        compose.onNodeWithText("RTL-SDR V4").assertIsDisplayed()
+        compose.runOnIdle { kind.value = null }
+        compose.onNodeWithText("Приёмник не выбран").assertIsDisplayed()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun parkedSwitchChangesModeAndExportExplainsDownloads() {

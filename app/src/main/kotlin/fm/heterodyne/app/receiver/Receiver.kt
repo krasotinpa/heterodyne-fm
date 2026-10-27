@@ -52,3 +52,6 @@ interface Receiver {
     fun stopAudio(): Boolean
     fun close()
 }
+
+/** Возможности Модуля, принятые для v1. */
+val moduleCapabilities = ReceiverCapabilities(setOf(Band.FM, Band.AM), true, false, false, false, false)

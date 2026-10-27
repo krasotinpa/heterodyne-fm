@@ -4,8 +4,7 @@ import fm.heterodyne.app.audio.AudioCounters
 import fm.heterodyne.app.module.*
 
 /** A second kind confirms transitions without Module frames or commands. */
-class FakeReceiver : Receiver {
-    override val kind = ReceiverKind("test")
+class FakeReceiver(override val kind: ReceiverKind = ReceiverKind("test")) : Receiver {
     override val capabilities = ReceiverCapabilities(setOf(Band.FM), false, false, false, false, false)
     override var state = ConnectionState.Disconnected
     override var snapshot = TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 90000))

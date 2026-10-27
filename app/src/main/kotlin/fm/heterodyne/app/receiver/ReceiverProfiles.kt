@@ -19,6 +19,8 @@ class ReceiverProfiles(profiles: List<ReceiverProfile>) {
     private val profiles = profiles.toList()
     init { require(this.profiles.map { it.kind }.distinct().size == this.profiles.size) }
 
+    val kinds: List<ReceiverKind> get() = profiles.map { it.kind }
+
     fun withProfile(profile: ReceiverProfile): ReceiverProfiles = ReceiverProfiles(profiles + profile)
 
     fun find(device: UsbDescription): DeviceProfile? {

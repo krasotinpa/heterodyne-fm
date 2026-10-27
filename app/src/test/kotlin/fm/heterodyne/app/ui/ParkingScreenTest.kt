@@ -23,6 +23,33 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
+
+    @Test fun receiverChoiceHidesModuleSettingsAndSelectsReceiver() {
+        val other = fm.heterodyne.app.receiver.ReceiverKind("test")
+        val selected = mutableStateOf(other)
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {},
+                receiverKinds = listOf(fm.heterodyne.app.receiver.ReceiverKind.Module, other),
+                selectedReceiver = selected.value, selectReceiver = { selected.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Приёмник").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Предел Поиска").assertDoesNotExist()
+        compose.onNodeWithText("Сигнал Перехода").assertDoesNotExist()
+        compose.onNodeWithText("Приёмник 1").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Предел Поиска").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun singleKindHasNoReceiverSettingsSection() {
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Приёмник").assertDoesNotExist()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun settingsSelectParkButtonAppearanceImmediately() {

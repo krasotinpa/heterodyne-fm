@@ -61,6 +61,7 @@ class MainActivity : ComponentActivity() {
             fm.heterodyne.app.ui.HeterodyneTheme(appearance.theme, appearance.palette) {
                 var parked by rememberSaveable { mutableStateOf(false) }
                 val driving = stations.module.driving
+                androidx.compose.runtime.SideEffect { stations.module.updateParked(parked && !driving) }
                 androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
                 if (!parked || driving) {
                     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
@@ -70,6 +71,7 @@ class MainActivity : ComponentActivity() {
                             connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
+                            capabilities = stations.module.capabilities,
                             parkShowLabel = parkPreferences.showLabel, parkLargeIcon = parkPreferences.largeIcon,
                             noFocus = stations.module.noFocus,
                             seekHint = stations.module.seekHint,
@@ -103,6 +105,8 @@ class MainActivity : ComponentActivity() {
                         delete = stations.session::deleteSelection, add = stations.session::addStation,
                         remove = stations.session::removeStation, move = stations.session::moveStation,
                     ), back = { parked = false },
+                    receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
+                    selectReceiver = stations.module::selectReceiver,
                     theme = appearance.theme, palette = appearance.palette,
                     signalMethod = signalPreferences.method, selectSignal = signalPreferences::selectMethod,
                     parkShowLabel = parkPreferences.showLabel, selectParkShowLabel = parkPreferences::selectShowLabel,
@@ -115,7 +119,8 @@ class MainActivity : ComponentActivity() {
                     developerTools = { fm.heterodyne.app.ui.DeveloperToolsScreen(stations.diagnostics, parked && !driving) },
                 ) { _ ->
                     fm.heterodyne.app.ui.DiagnosticsScreen(stations.diagnostics, parked && !driving,
-                        connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing, export = stations.diagnostics::exportJournal)
+                        connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing, export = stations.diagnostics::exportJournal,
+                        receiverKind = stations.module.selectedReceiver)
                 }
             }
         }
