@@ -42,6 +42,7 @@ class ModuleController(
     private val seekPaused: (Long) -> Unit = {},
     private val transitionStarted: (Boolean) -> Unit = {},
     private val transitionConfirmed: () -> Unit = {},
+    private val transitionCommandSent: (Long) -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
     private val changed: (ConnectionState) -> Unit = {},
@@ -59,6 +60,7 @@ class ModuleController(
     private var checking = false
     private var bandReply: Band? = null
     private var selected = false
+    private var signalDispatched = false
     private var lastBand: Long? = null
     private var bandSettleMillis = 0L
     private var selectNotBefore = 0L
@@ -183,6 +185,7 @@ class ModuleController(
         }
         this.bandSettleMillis = bandSettleMillis
         if (target == null) transitionStarted(signal)
+        signalDispatched = false
         target = TuneTarget(nextBand, frequencyKhz)
         publish()
         selected = false
@@ -207,7 +210,9 @@ class ModuleController(
             lastBand = now
             selectNotBefore = now + bandSettleMillis
             bandReply = if (band == Band.FM) Band.AM else Band.FM
-            return send(0x84)
+            val result = send(0x84)
+            if (result == TuneResult.Sent) notifyTransitionSend(now)
+            return result
         }
         if (now < selectNotBefore) return TuneResult.RateLimited
         if (lastSend?.let { now - it < 1000 } == true) return TuneResult.RateLimited
@@ -215,7 +220,14 @@ class ModuleController(
         if (started == null) started = now
         lastSend = now
         selected = true
-        return send(0x82, 0x20, cid, 0, cid)
+        val result = send(0x82, 0x20, cid, 0, cid)
+        if (result == TuneResult.Sent) notifyTransitionSend(now)
+        return result
+    }
+    private fun notifyTransitionSend(now: Long) {
+        if (signalDispatched) return
+        signalDispatched = true
+        transitionCommandSent(now)
     }
     fun switchBand(): TuneResult {
         tick()

@@ -96,6 +96,14 @@ class AndroidUsbAdapter(
                 context.getSharedPreferences("transition-signal", Context.MODE_PRIVATE))
             main.post { transitionSignal.begin(method) }
         },
+        transitionCommandSent = { sentAt -> main.post { transitionSignal.commandSent(sentAt) } },
+        transitionChanged = { state ->
+            when (state) {
+                TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected ->
+                    main.post { transitionSignal.stop() }
+                else -> Unit
+            }
+        },
         transitionConfirmed = { main.post { transitionSignal.confirm() } },
         beforeTick = { launch.guardPendingWork() },
         seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
@@ -165,11 +173,14 @@ class AndroidUsbAdapter(
     private var playbackStopped: (() -> Unit)? = null
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
-    private val transitionSignal by lazy {
+    private val transitionSignal: TransitionSignal by lazy {
         TransitionSignal(StaticTransitionTone(), log,
-            { !closing && audio.snapshot.state == AudioState.Playing })
+            { !closing && audio.snapshot.state == AudioState.Playing },
+            clock = { android.os.SystemClock.elapsedRealtime() },
+            schedule = { delay, task -> main.postDelayed({ task() }, delay) },
+            silence = { focus.setTransitionSilence(it) })
     }
-    private val focus by lazy { AudioFocusController(AndroidAudioFocusManager(
+    private val focus: AudioFocusController by lazy { AudioFocusController(AndroidAudioFocusManager(
         context.getSystemService(android.media.AudioManager::class.java)), sink, log, signalVolume = transitionSignal::setFocusVolume) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ controller.state == ConnectionState.Observing },

@@ -4,7 +4,7 @@ import fm.heterodyne.app.Journal
 import kotlin.math.PI
 import kotlin.math.sin
 
-enum class TransitionSignalMethod(val label: String) { Off("Выключено"), Tone("Тон") }
+enum class TransitionSignalMethod(val label: String) { Off("Выключено"), Tone("Тон"), Silence("Тишина") }
 
 interface TransitionToneOutput {
     fun play(volume: Float, finished: () -> Unit)
@@ -23,6 +23,9 @@ class TransitionSignal(
     private val output: TransitionToneOutput,
     private val journal: Journal,
     private val playing: () -> Boolean,
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
+    private val schedule: (Long, () -> Unit) -> Unit,
+    private val silence: (Boolean) -> Unit = {},
 ) {
     private var selected = TransitionSignalMethod.Tone
     private var focusVolume = 1f
@@ -30,26 +33,71 @@ class TransitionSignal(
 
     fun begin(method: TransitionSignalMethod) { selected = method }
 
+    private var silenceStart: Long? = null
+    private var silenceCommand = 0L
+    private var silenceTimer: Any? = null
+
+    /** Called on main with the actual Module send timestamp. */
+    fun commandSent(sentAt: Long) {
+        if (selected != TransitionSignalMethod.Silence) {
+            stopSilence()
+            return
+        }
+        if (silenceStart == null && (!playing() || focusVolume == 0f)) return
+        if (silenceStart == null) {
+            silenceStart = sentAt
+            silence(true)
+            event(TransitionSignalMethod.Silence, "начало")
+        }
+        silenceCommand = sentAt
+        endSilenceAt(checkNotNull(silenceStart) + 3000)
+    }
+
+    private fun endSilenceAt(deadline: Long) {
+        val token = Any()
+        silenceTimer = token
+        schedule((deadline - clock()).coerceAtLeast(0)) {
+            if (silenceTimer === token) stopSilence()
+        }
+    }
+
+    private fun stopSilence() {
+        if (silenceStart == null) return
+        silenceStart = null
+        silenceTimer = null
+        silence(false)
+        event(TransitionSignalMethod.Silence, "конец")
+    }
+
     fun confirm() {
+        silenceStart?.let { first ->
+            endSilenceAt(minOf(first + 3000, maxOf(silenceCommand + 300, clock() + 150)))
+            return
+        }
         if (selected != TransitionSignalMethod.Tone || !playing() || focusVolume == 0f) return
         stop()
         val token = Any()
         active = token
-        event("начало")
+        event(TransitionSignalMethod.Tone, "начало")
         try {
             output.play(focusVolume) { finish(token) }
         } catch (error: Exception) {
-            event("ошибка ${error.javaClass.simpleName}")
+            event(TransitionSignalMethod.Tone, "ошибка ${error.javaClass.simpleName}")
             stop()
         }
     }
 
     fun setFocusVolume(value: Float) {
         focusVolume = value
-        if (value == 0f) stop() else output.setVolume(value)
+        if (value == 0f) stopTone() else output.setVolume(value)
     }
 
     fun stop() {
+        stopSilence()
+        stopTone()
+    }
+
+    private fun stopTone() {
         val token = active ?: return
         try { output.stop() } finally { finish(token) }
     }
@@ -57,11 +105,11 @@ class TransitionSignal(
     private fun finish(token: Any) {
         if (active !== token) return
         active = null
-        event("конец")
+        event(TransitionSignalMethod.Tone, "конец")
     }
 
-    private fun event(phase: String) {
-        try { journal.event("сигнал Перехода: Тон, $phase") } catch (_: Exception) {
+    private fun event(method: TransitionSignalMethod, phase: String) {
+        try { journal.event("сигнал Перехода: ${method.label}, $phase") } catch (_: Exception) {
             // Ошибка Журнала не останавливает звук.
         }
     }

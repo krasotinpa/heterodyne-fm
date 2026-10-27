@@ -17,7 +17,8 @@ class AudioFocusTest {
         override fun rx(frame: ByteArray) {}
         override fun event(text: String) { events.add(text) }
     }
-    private fun playback() = AudioPlayback({ true }, object : AudioSource {
+    private fun playback(focus: AudioFocusController = AudioFocusController(manager, sink, journal),
+                         nanoTime: () -> Long = System::nanoTime) = AudioPlayback({ true }, object : AudioSource {
         override fun open() {}
         override fun read(out: ByteArray): Int { out.fill(0); return out.size }
         override fun badPackets() = 0L
@@ -27,7 +28,44 @@ class AudioFocusTest {
         override fun alt1() {}
         override fun alt0() {}
         override fun release() {}
-    }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink, journal))
+    }, DiagnosticLog(temporary.newFolder()), focus = focus, nanoTime = nanoTime)
+
+    @Test fun silenceKeepsReadingAndDoesNotChangeAudioMetrics() {
+        var nanos = 0L
+        val focus = AudioFocusController(manager, sink, journal)
+        val audio = playback(focus) { nanos }
+        audio.play()
+        repeat(80) { nanos += 8_000_000; audio.receive() }
+        val before = audio.snapshot
+        val bytes = sink.written
+        focus.setTransitionSilence(true)
+        repeat(80) { nanos += 8_000_000; audio.receive() }
+        assertEquals(0f, sink.level)
+        assertTrue(audio.snapshot.bytes > before.bytes)
+        assertTrue(sink.written > bytes)
+        assertEquals(before.underruns, audio.snapshot.underruns)
+        assertEquals(before.maxReadGapMs, audio.snapshot.maxReadGapMs)
+        assertEquals(AudioState.Playing, audio.snapshot.state)
+        focus.setTransitionSilence(false)
+        audio.stop()
+    }
+
+    @Test fun silenceCombinesWithCurrentFocusWithoutRestoringTransientMute() {
+        val focus = AudioFocusController(manager, sink, journal)
+        focus.start()
+        focus.setTransitionSilence(true)
+        assertEquals(0f, sink.level)
+        manager.signal(AudioFocusChange.Duck)
+        assertEquals(0f, sink.level)
+        focus.setTransitionSilence(false)
+        assertEquals(0.3f, sink.level)
+        focus.setTransitionSilence(true)
+        manager.signal(AudioFocusChange.Transient)
+        focus.setTransitionSilence(false)
+        assertEquals(0f, sink.level)
+        manager.signal(AudioFocusChange.Gain)
+        assertEquals(1f, sink.level)
+    }
 
     @Test fun signalSharesFocusVolumeWithoutAnotherRequest() {
         val volumes = mutableListOf<Float>()

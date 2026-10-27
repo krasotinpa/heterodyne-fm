@@ -107,7 +107,8 @@ class AudioThreadTest {
                     }
                     override fun setVolume(volume: Float) {}
                     override fun stop() {}
-                }, DiagnosticLog(temporary.newFolder()), { audio.snapshot.state == AudioState.Playing })
+                }, DiagnosticLog(temporary.newFolder()), { audio.snapshot.state == AudioState.Playing },
+                    schedule = { _, _ -> error("Unexpected tone timer") })
                 signal.begin(TransitionSignalMethod.Tone); signal.confirm()
             }.get()
             assertTrue("Transition tone play was not called", tonePlayed.await(1, TimeUnit.SECONDS))

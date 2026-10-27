@@ -26,6 +26,24 @@ class AudioFocusController(
     private val signalVolume: (Float) -> Unit = {},
 ) {
     private var session: Any? = null
+    private var focusLevel = 1f
+    private var silenced = false
+
+    @Synchronized fun setTransitionSilence(value: Boolean) {
+        silenced = value
+        applyVolume()
+    }
+
+    private fun applyVolume() {
+        if (focusLevel == 0f) sink.mute()
+        else sink.setVolume(if (silenced) 0f else focusLevel)
+    }
+
+    private fun setFocusLevel(value: Float) {
+        focusLevel = value
+        applyVolume()
+        signalVolume(value)
+    }
 
     private var granted = false
 
@@ -54,8 +72,7 @@ class AudioFocusController(
 
     private fun startSession(token: Any) {
         session = token
-        sink.setVolume(1f)
-        signalVolume(1f)
+        setFocusLevel(1f)
         journal.event("focus volume=1.0")
         // Live radio continues even when the manual request is denied.
         journal.event("focus request")
@@ -85,23 +102,19 @@ class AudioFocusController(
         journal.event("focus ${change.name.uppercase()}")
         when (change) {
             AudioFocusChange.Loss -> {
-                sink.setVolume(1f)
-                signalVolume(1f) // Постоянная потеря может прийти после TRANSIENT без GAIN.
+                setFocusLevel(1f) // Постоянная потеря может прийти после TRANSIENT без GAIN.
                 journal.event("focus volume=1.0")
             }
             AudioFocusChange.Duck -> {
-                sink.setVolume(0.3f)
-                signalVolume(0.3f)
+                setFocusLevel(0.3f)
                 journal.event("focus volume=0.3")
             }
             AudioFocusChange.Transient -> {
-                sink.mute()
-                signalVolume(0f)
+                setFocusLevel(0f)
                 journal.event("focus mute")
             }
             AudioFocusChange.Gain -> {
-                sink.setVolume(1f)
-                signalVolume(1f)
+                setFocusLevel(1f)
                 journal.event("focus volume=1.0")
             }
         }

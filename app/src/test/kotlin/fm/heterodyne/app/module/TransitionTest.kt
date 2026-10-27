@@ -13,9 +13,11 @@ class TransitionTest {
     private var limit = 20000L
     private val pauses = mutableListOf<Long>()
     private var signals = 0
+    private val sends = mutableListOf<Long>()
+    private val sentCounts = mutableListOf<Int>()
     private val starts = mutableListOf<Boolean>()
     private val controller by lazy {
-        ModuleController(fake, DiagnosticLog(temporary.newFolder()), transitionConfirmed = { signals++ }, transitionStarted = { starts.add(it) }, clock = { now }, seekLimitMillis = { limit }, seekPaused = { pauses.add(it) }).also {
+        ModuleController(fake, DiagnosticLog(temporary.newFolder()), transitionCommandSent = { sentCounts.add(fake.sendCount); sends.add(it) }, transitionConfirmed = { signals++ }, transitionStarted = { starts.add(it) }, clock = { now }, seekLimitMillis = { limit }, seekPaused = { pauses.add(it) }).also {
             it.found(DeviceProfile("module"))
             it.permissionResult(it.requestPermission()!!, true)
         }
@@ -35,6 +37,57 @@ class TransitionTest {
         fake.enqueueReceived(frame)
         controller.receive()
     }
+    @Test fun transitionSignalIsNotifiedAfterSuccessfulSend() {
+        receive("fm28")
+        controller.select(Band.AM, 711)
+        now = 230; receive("am31")
+        now = 2000; controller.select(Band.AM, 720)
+        assertEquals(listOf(1, 3), sentCounts)
+    }
+
+    @Test fun failedPlaySelectDoesNotStartSilence() {
+        receive("fm28")
+        fake.close() // FakeTransport.send rejects a closed transport.
+        assertEquals(TuneResult.TransportError, controller.select(Band.FM, 108000))
+        assertTrue(sends.isEmpty())
+    }
+
+    @Test fun failedBandDoesNotStartSilence() {
+        receive("fm28")
+        fake.close()
+        assertEquals(TuneResult.TransportError, controller.select(Band.AM, 711))
+        assertTrue(sends.isEmpty())
+    }
+
+    @Test fun silenceStartsAtActualSendAndNotForStepSeekOrProbe() {
+        receive("fm28")
+        controller.tune(87500); receive("fm0")
+        now = 100; controller.tune(108000)
+        assertEquals(listOf(0L), sends)
+        now = 1000; controller.tick()
+        assertEquals(listOf(0L, 1000L), sends)
+        receive("fm205")
+        now = 2000; controller.step(Direction.Up); receive("fm0")
+        now = 4000; controller.seek(Direction.Up); receive("fm28")
+        now = 4300; controller.tick(); controller.checkConnection()
+        assertEquals(listOf(0L, 1000L), sends)
+    }
+
+    @Test fun autostartDisablesSignalAtStartBeforeCommandIsSent() {
+        receive("fm28")
+        controller.select(Band.FM, 108000, signal = false)
+        assertEquals(listOf(false), starts)
+        assertEquals(listOf(0L), sends)
+    }
+
+    @Test fun composedTransitionNotifiesOnceAtBandSend() {
+        receive("fm28")
+        controller.select(Band.AM, 711)
+        assertEquals(listOf(0L), sends)
+        now = 230; receive("am31")
+        assertEquals(listOf(0L), sends)
+    }
+
     @Test fun repeatedSelectStartsOneTransitionAndLastTargetWins() {
         receive("fm28")
         controller.select(Band.FM, 108000)
