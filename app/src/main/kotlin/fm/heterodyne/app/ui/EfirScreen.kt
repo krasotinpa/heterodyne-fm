@@ -124,7 +124,7 @@ fun EfirScreen(
                         style = designTextStyle("title", LocalAppearanceColors.current["text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val status = reason?.takeUnless {
                         it == DisabledReason.EmptySelection && transition.state in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete)
-                    }?.text ?: seekHint?.takeIf { transition.state == TransitionState.CommandPause } ?: when (transition.state) {
+                    }?.text ?: seekHint?.takeIf { transition.state != TransitionState.Seeking } ?: when (transition.state) {
                         TransitionState.Waiting -> "ожидание"
                         TransitionState.Seeking -> "идёт поиск…"
                         TransitionState.SeekIncomplete -> "Поиск не завершён"
