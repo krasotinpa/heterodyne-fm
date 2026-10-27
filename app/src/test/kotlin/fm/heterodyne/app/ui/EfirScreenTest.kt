@@ -142,12 +142,77 @@ class EfirScreenTest {
                 true, EfirActions(), driving = true)
         }
         compose.onNodeWithText("Стоянка").assertIsNotEnabled()
-        listOf("Стоянка", "≡").forEach { text ->
-            val results = mutableListOf<TextLayoutResult>()
-            compose.onNodeWithText(text, useUnmergedTree = true)
-                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
-            assertEquals(expected, results.single().layoutInput.style.color)
+        val results = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithText("Стоянка", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertEquals(expected, results.single().layoutInput.style.color)
+        compose.onNodeWithText("≡", useUnmergedTree = true).assertDoesNotExist()
+    }
+
+    @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
+    @Test fun parkLabelFitsAtNormalAndLargeFontScale() {
+        val scale = mutableStateOf(1f)
+        val large = mutableStateOf(false)
+        compose.setContent {
+            val density = androidx.compose.ui.platform.LocalDensity.current.density
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density, scale.value)) {
+                Box(Modifier.requiredSize(1100.dp, 580.dp)) {
+                    EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                        TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true,
+                        EfirActions(), parkLargeIcon = large.value)
+                }
+            }
         }
+        listOf(1f, 1.3f).forEach { value ->
+            compose.runOnIdle { scale.value = value }
+            listOf(false, true).forEach { big ->
+                compose.runOnIdle { large.value = big }
+                val label = compose.onNodeWithText("Стоянка", useUnmergedTree = true)
+                val results = mutableListOf<TextLayoutResult>()
+                label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+                val layout = results.single()
+                assertEquals(1, layout.layoutInput.maxLines)
+                assertTrue(!layout.layoutInput.softWrap)
+                assertEquals(1, layout.lineCount)
+                assertTrue("scale=$value large=$big width=${layout.size.width}", !layout.hasVisualOverflow)
+                val bounds = label.fetchSemanticsNode().boundsInRoot
+                val icon = compose.onNodeWithTag("park-icon", useUnmergedTree = true).fetchSemanticsNode().boundsInRoot
+                val button = compose.onNodeWithContentDescription("Стоянка").fetchSemanticsNode().boundsInRoot
+                assertTrue(icon.right <= bounds.left && bounds.right <= button.right)
+            }
+        }
+    }
+
+    @Test fun parkIconOnlyKeepsSizeCenterAccessibilityAndDrivingGuard() {
+        val label = mutableStateOf(true)
+        val large = mutableStateOf(false)
+        val driving = mutableStateOf(false)
+        var clicks = 0
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true,
+                EfirActions(parked = { clicks++ }), driving = driving.value,
+                parkShowLabel = label.value, parkLargeIcon = large.value)
+        }
+        compose.runOnIdle { label.value = false }
+        compose.onNodeWithText("Стоянка", useUnmergedTree = true).assertDoesNotExist()
+        listOf(false, true).forEach { big ->
+            compose.runOnIdle { large.value = big }
+            val button = compose.onNodeWithContentDescription("Стоянка")
+                .assertWidthIsEqualTo(138.dp).assertHeightIsEqualTo(56.dp)
+            val icon = compose.onNodeWithTag("park-icon", useUnmergedTree = true)
+                .assertWidthIsEqualTo(if (big) 44.dp else 36.dp)
+            assertEquals(button.fetchSemanticsNode().boundsInRoot.center,
+                icon.fetchSemanticsNode().boundsInRoot.center)
+        }
+        compose.onNodeWithContentDescription("Стоянка").performClick()
+        assertEquals(1, clicks)
+        compose.runOnIdle { driving.value = true }
+        compose.onNodeWithContentDescription("Стоянка").assertIsNotEnabled().performTouchInput { click() }
+        assertEquals(1, clicks)
+        compose.runOnIdle { driving.value = false; label.value = true }
+        compose.onNodeWithText("Стоянка", useUnmergedTree = true).assertIsDisplayed()
     }
 
     @Test fun deniedAutostartShowsExactStatusAndKeepsManualStartAvailable() {

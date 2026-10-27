@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
             val signalPreferences = remember {
                 fm.heterodyne.app.ui.TransitionSignalPreferences(getSharedPreferences("transition-signal", MODE_PRIVATE))
             }
+            val parkPreferences = remember {
+                fm.heterodyne.app.ui.ParkButtonPreferences(getSharedPreferences("park-button", MODE_PRIVATE))
+            }
             val seekPreferences = remember {
                 fm.heterodyne.app.ui.SeekPreferences(getSharedPreferences("seek", MODE_PRIVATE))
             }
@@ -67,6 +70,7 @@ class MainActivity : ComponentActivity() {
                             connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
+                            parkShowLabel = parkPreferences.showLabel, parkLargeIcon = parkPreferences.largeIcon,
                             noFocus = stations.module.noFocus,
                             seekHint = stations.module.seekHint,
                             actions = fm.heterodyne.app.ui.EfirActions(
@@ -101,6 +105,8 @@ class MainActivity : ComponentActivity() {
                     ), back = { parked = false },
                     theme = appearance.theme, palette = appearance.palette,
                     signalMethod = signalPreferences.method, selectSignal = signalPreferences::selectMethod,
+                    parkShowLabel = parkPreferences.showLabel, selectParkShowLabel = parkPreferences::selectShowLabel,
+                    parkLargeIcon = parkPreferences.largeIcon, selectParkLargeIcon = parkPreferences::selectLargeIcon,
                     seekLimitSeconds = seekPreferences.seconds, selectSeekLimit = seekPreferences::selectSeconds,
                     autostartEnabled = autostartPreferences.enabled, selectAutostart = autostartPreferences::selectEnabled,
                     selectTheme = appearance::selectTheme, selectPalette = appearance::selectPalette,

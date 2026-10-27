@@ -131,6 +131,7 @@
 | `size.seekGroup.width` | 224 |
 | `size.parkButton.height` | 56 |
 | `size.parkButton.iconBox` | 36 |
+| `size.parkButton.iconBoxLarge` | 44 |
 | `size.spectrum.height` | 56 |
 | `size.spectrum.heightCompact` | 32 |
 | `size.spectrum.bars` | 56 |
