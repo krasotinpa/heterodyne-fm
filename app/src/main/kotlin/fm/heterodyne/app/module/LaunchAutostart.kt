@@ -1,8 +1,8 @@
 package fm.heterodyne.app.module
 
 import fm.heterodyne.app.Journal
-import fm.heterodyne.app.receiver.Receiver
 import fm.heterodyne.app.audio.AudioFocusLease
+import fm.heterodyne.app.receiver.Receiver
 
 /** Worker-owned autostart for application opening and Module return. */
 class LaunchAutostart(

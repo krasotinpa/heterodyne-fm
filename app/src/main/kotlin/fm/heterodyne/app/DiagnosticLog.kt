@@ -71,6 +71,10 @@ class DiagnosticLog(
     private val file = File(directory, "diagnostic.log")
     private val temporary = File(directory, "diagnostic.log.tmp")
     private var lastRx: Rx? = null
+    private val receiverPrefix = "receiver=${receiverKind.value}"
+    private val rxSummaryPattern = Regex(
+        "(-?[0-9]+) $receiverPrefix RX ([0-9a-f]*) ×([0-9]+) first=(-?[0-9]+) last=(-?[0-9]+)",
+    )
 
     private data class Rx(val hex: String, val first: Long, val count: Long, val offset: Long)
 
@@ -94,8 +98,7 @@ class DiagnosticLog(
                 var lastStart = end - 1
                 while (lastStart > start && bytes[lastStart - 1] != '\n'.code.toByte()) lastStart--
                 val line = bytes.copyOfRange(lastStart, end - 1).toString(Charsets.UTF_8)
-                val match = Regex("(-?[0-9]+) receiver=${receiverKind.value} RX ([0-9a-f]*) ×([0-9]+) first=(-?[0-9]+) last=(-?[0-9]+)")
-                    .matchEntire(line)
+                val match = rxSummaryPattern.matchEntire(line)
                 if (match != null) {
                     val first = match.groupValues[4].toLongOrNull()
                     val count = match.groupValues[3].toLongOrNull()
@@ -111,7 +114,7 @@ class DiagnosticLog(
     override fun tx(frame: ByteArray) {
         notifyFrame("TX", frame)
         lastRx = null
-        write("${clock()} receiver=${receiverKind.value} TX ${frame.hex()}\n")
+        write("${clock()} $receiverPrefix TX ${frame.hex()}\n")
     }
 
     @Synchronized
@@ -122,7 +125,7 @@ class DiagnosticLog(
         val previous = lastRx?.takeIf { it.hex == hex }
         val first = previous?.first ?: now
         val count = (previous?.count ?: 0) + 1
-        val offset = write("$first receiver=${receiverKind.value} RX $hex ×$count first=$first last=$now\n", previous?.offset)
+        val offset = write("$first $receiverPrefix RX $hex ×$count first=$first last=$now\n", previous?.offset)
         lastRx = offset?.let { Rx(hex, first, count, it) }
     }
 
@@ -131,7 +134,7 @@ class DiagnosticLog(
     override fun event(text: String) {
         lastRx = null
         val escaped = text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n")
-        write("${clock()} receiver=${receiverKind.value} EVENT $escaped\n")
+        write("${clock()} $receiverPrefix EVENT $escaped\n")
     }
 
     @Synchronized

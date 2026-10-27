@@ -11,8 +11,8 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.net.Uri
 import android.os.Build
-import fm.heterodyne.app.DiagnosticLog
 import fm.heterodyne.app.AsyncDiagnosticLog
+import fm.heterodyne.app.DiagnosticLog
 import fm.heterodyne.app.audio.*
 import fm.heterodyne.app.module.*
 import fm.heterodyne.app.receiver.Receiver
@@ -93,7 +93,7 @@ class AndroidUsbAdapter(
         context.getSharedPreferences("autostart", Context.MODE_PRIVATE).getBoolean("enabled", true)
     private val controller: ModuleController by lazy { ModuleController(transport, log,
         clock = { android.os.SystemClock.elapsedRealtime() },
-        readAudioCounters = { audio.snapshot }, startAudio = { audio.play() }, stopAudio = { audio.stop() },
+        onReadAudioCounters = { audio.snapshot }, onStartAudio = { audio.play() }, onStopAudio = { audio.stop() },
         moduleReturning = ::moduleReturning,
         transitionStarted = { signal ->
             val method = if (!signal) TransitionSignalMethod.Off else fm.heterodyne.app.ui.TransitionSignalPreferences.readMethod(

@@ -11,6 +11,7 @@ import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.module.Direction
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.module.TransitionState
+import fm.heterodyne.app.receiver.ReceiverProfiles
 import fm.heterodyne.app.stations.StationEntry
 import fm.heterodyne.app.usb.AndroidUsbAdapter
 
@@ -19,7 +20,7 @@ class StationsModule(
     context: android.content.Context,
     private val main: Handler,
     private val session: StationsSession,
-    private val profiles: fm.heterodyne.app.receiver.ReceiverProfiles = fm.heterodyne.app.receiver.ReceiverProfiles.Module,
+    private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
     private val startPlayback: () -> Unit,
 ) {
     var driving by mutableStateOf(false)

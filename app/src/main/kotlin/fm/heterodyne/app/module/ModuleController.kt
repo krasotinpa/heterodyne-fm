@@ -1,8 +1,11 @@
 package fm.heterodyne.app.module
 
 import fm.heterodyne.app.Journal
-import fm.heterodyne.app.receiver.*
 import fm.heterodyne.app.audio.AudioCounters
+import fm.heterodyne.app.receiver.ConnectionProbe
+import fm.heterodyne.app.receiver.Receiver
+import fm.heterodyne.app.receiver.ReceiverCapabilities
+import fm.heterodyne.app.receiver.ReceiverKind
 
 enum class Band { AM, FM, DAB }
 fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) {
@@ -47,16 +50,23 @@ class ModuleController(
     private val transitionCommandSent: (Long) -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
-    private val readAudioCounters: () -> AudioCounters = { AudioCounters() },
-    private val startAudio: () -> Boolean = { false },
-    private val stopAudio: () -> Boolean = { true },
+    private val onReadAudioCounters: () -> AudioCounters = { AudioCounters() },
+    private val onStartAudio: () -> Boolean = { false },
+    private val onStopAudio: () -> Boolean = { true },
     private val changed: (ConnectionState) -> Unit = {},
 ) : Receiver {
     override val kind = ReceiverKind.Module
-    override val capabilities = ReceiverCapabilities(setOf(Band.FM, Band.AM), true, false, false, false, false)
-    override val audioCounters get() = readAudioCounters()
-    override fun playAudio() = startAudio()
-    override fun stopAudio() = stopAudio.invoke()
+    override val capabilities = ReceiverCapabilities(
+        bands = setOf(Band.FM, Band.AM),
+        seek = true,
+        cancelSeek = false,
+        rds = false,
+        signalLevel = false,
+        stereo = false,
+    )
+    override val audioCounters get() = onReadAudioCounters()
+    override fun playAudio() = onStartAudio()
+    override fun stopAudio() = onStopAudio()
     private var band: Band? = null
     private var lastSend: Long? = null
     private var sequence = 0
