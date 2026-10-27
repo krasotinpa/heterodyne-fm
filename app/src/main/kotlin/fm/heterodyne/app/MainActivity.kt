@@ -41,7 +41,7 @@ class MainActivity : ComponentActivity() {
                                 check = stations.module::checkConnection,
                                 play = {
                                     if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
-                                        stations.module.stopAudio() else stations.module.startAudio()
+                                        stations.module.userStop() else stations.module.startAudio()
                                 },
                                 permission = stations.module::retryModulePermission,
                             ),
