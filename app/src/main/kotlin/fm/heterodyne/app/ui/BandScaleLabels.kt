@@ -19,3 +19,15 @@ fun scaleFrequencyLabels(band: Band, confirmedKhz: Int): List<String> {
     }
     return listOf(bounds.first, confirmedKhz, bounds.second).map { frequencyText(TuneTarget(band, it)) }
 }
+
+/** Keep adjacent marks disjoint, including a confirmed frequency outside the catalog. */
+fun scaleMarkWidth(
+    band: Band, frequencyKhz: Int, frequencies: List<Int>, width: Float,
+    preferredWidth: Float, highlighted: Boolean,
+): Float {
+    val position = bandFraction(band, frequencyKhz)
+    val gap = frequencies.asSequence().filter { it != frequencyKhz }
+        .map { kotlin.math.abs(bandFraction(band, it) - position) * width }
+        .minOrNull() ?: return preferredWidth
+    return minOf(preferredWidth, gap * if (highlighted) .8f else .4f)
+}
