@@ -37,9 +37,9 @@ class DiagnosticLogTest {
         assertFalse(tail.contains("private-serial"))
         assertTrue(tail.contains("moduleSerialSha256="))
         assertFalse(tail.contains('�'))
-        assertTrue(tail.lines().filter { it.isNotEmpty() }.all { it.startsWith("0 EVENT ") })
+        assertTrue(tail.lines().filter { it.isNotEmpty() }.all { it.startsWith("0 receiver=module EVENT ") })
         log.event("Ж😀")
-        assertEquals("0 EVENT Ж😀\n", log.readTail(15))
+        assertEquals("0 receiver=module EVENT Ж😀\n", log.readTail(31))
         assertEquals("", log.readTail(5))
         assertEquals("", log.readTail(0))
     }
@@ -52,10 +52,10 @@ class DiagnosticLogTest {
         log.event("USB attached")
         log.buildVersion("0.1.0")
         val text = contents(dir)
-        assertTrue(text.contains("123 TX fa55"))
-        assertTrue(text.contains("123 RX 01 ×1 first=123 last=123"))
-        assertTrue(text.contains("123 EVENT USB attached"))
-        assertTrue(text.contains("123 EVENT build=0.1.0"))
+        assertTrue(text.contains("123 receiver=module TX fa55"))
+        assertTrue(text.contains("123 receiver=module RX 01 ×1 first=123 last=123"))
+        assertTrue(text.contains("123 receiver=module EVENT USB attached"))
+        assertTrue(text.contains("123 receiver=module EVENT build=0.1.0"))
     }
 
     @Test fun collapsesOnlyConsecutiveIdenticalRxAndCopiesInput() {
@@ -67,7 +67,7 @@ class DiagnosticLogTest {
         frame[0] = 2
         log.rx(byteArrayOf(1))
         log.rx(byteArrayOf(1))
-        assertEquals("10 RX 01 ×3 first=10 last=12\n", contents(dir))
+        assertEquals("10 receiver=module RX 01 ×3 first=10 last=12\n", contents(dir))
         log.event("break")
         log.rx(byteArrayOf(1))
         log.tx(byteArrayOf(1))
@@ -93,10 +93,10 @@ class DiagnosticLogTest {
 
     @Test fun rotationLeavesRoomForManyShortRecordsAndRetainsWholeTail() {
         val dir = temporary.newFolder()
-        val log = DiagnosticLog(dir, maxBytes = 1000, clock = { 0L })
+        val log = DiagnosticLog(dir, maxBytes = 2600, clock = { 0L })
         val file = File(dir, "diagnostic.log")
-        repeat(100) { log.event("x") } // Each record occupies 10 bytes.
-        assertEquals(1000L, file.length())
+        repeat(100) { log.event("x") } // Each record occupies 26 bytes.
+        assertEquals(2600L, file.length())
         var rotations = 0
         var fileKeysAvailable = true
         repeat(20) {
@@ -112,30 +112,30 @@ class DiagnosticLogTest {
             } else {
                 fileKeysAvailable = false
             }
-            if (it == 0) assertEquals(900L, file.length())
-            assertTrue(file.length() <= 1000)
+            if (it == 0) assertEquals(2340L, file.length())
+            assertTrue(file.length() <= 2600)
             assertFalse(File(dir, "diagnostic.log.tmp").exists())
         }
         if (fileKeysAvailable) assertEquals(2, rotations)
-        assertEquals("0 EVENT x\n".repeat(78) + "0 EVENT y\n".repeat(20), log.readTail(1000))
+        assertEquals("0 receiver=module EVENT x\n".repeat(78) + "0 receiver=module EVENT y\n".repeat(20), log.readTail(2600))
     }
 
     @Test fun repeatedRxSummaryRotatesWhenCountGrowsAndFollowingWriteKeepsWholeRecords() {
         val dir = temporary.newFolder()
-        val log = DiagnosticLog(dir, maxBytes = 97, clock = { 1L })
+        val log = DiagnosticLog(dir, maxBytes = 225, clock = { 1L })
         repeat(7) { log.event("x") }
         repeat(9) { log.rx(byteArrayOf(1)) }
-        assertEquals("1 EVENT x\n".repeat(7) + "1 RX 01 ×9 first=1 last=1\n", contents(dir))
+        assertEquals("1 receiver=module EVENT x\n".repeat(7) + "1 receiver=module RX 01 ×9 first=1 last=1\n", contents(dir))
 
         // The tenth RX grows the existing summary beyond the budget, forcing rotation.
         log.rx(byteArrayOf(1))
-        assertEquals("1 EVENT x\n".repeat(6) + "1 RX 01 ×10 first=1 last=1\n", contents(dir))
+        assertEquals("1 receiver=module EVENT x\n".repeat(6) + "1 receiver=module RX 01 ×10 first=1 last=1\n", contents(dir))
         log.rx(byteArrayOf(1))
         log.tx(byteArrayOf(2))
-        val expected = "1 EVENT x\n".repeat(6) + "1 RX 01 ×11 first=1 last=1\n1 TX 02\n"
+        val expected = "1 receiver=module EVENT x\n".repeat(6) + "1 receiver=module RX 01 ×11 first=1 last=1\n1 receiver=module TX 02\n"
         assertEquals(expected, contents(dir))
-        assertEquals(expected, log.readTail(97))
-        assertTrue(File(dir, "diagnostic.log").length() <= 97)
+        assertEquals(expected, log.readTail(225))
+        assertTrue(File(dir, "diagnostic.log").length() <= 225)
         assertFalse(File(dir, "diagnostic.log.tmp").exists())
     }
 
@@ -163,14 +163,14 @@ class DiagnosticLogTest {
         DiagnosticLog(dir, clock = { 1L }).event("before restart")
         val log = DiagnosticLog(dir, clock = { 2L })
         log.event("after restart")
-        assertEquals("1 EVENT before restart\n2 EVENT after restart\n", contents(dir))
+        assertEquals("1 receiver=module EVENT before restart\n2 receiver=module EVENT after restart\n", contents(dir))
     }
 
     @Test fun restartContinuesConsecutiveRxSummary() {
         val dir = temporary.newFolder()
         DiagnosticLog(dir, clock = { 1L }).rx(byteArrayOf(1))
         DiagnosticLog(dir, clock = { 2L }).rx(byteArrayOf(1))
-        assertEquals("1 RX 01 ×2 first=1 last=2\n", contents(dir))
+        assertEquals("1 receiver=module RX 01 ×2 first=1 last=2\n", contents(dir))
     }
 
     @Test fun restartDiscardsInterruptedRotationAndPreservesOriginalRecords() {
@@ -187,17 +187,17 @@ class DiagnosticLogTest {
         assertFalse(temporary.exists())
         assertArrayEquals(original, File(dir, "diagnostic.log").readBytes())
         restarted.rx(byteArrayOf(1))
-        assertEquals("1 EVENT before rotation\n1 RX 01 ×2 first=1 last=2\n", contents(dir))
+        assertEquals("1 receiver=module EVENT before rotation\n1 receiver=module RX 01 ×2 first=1 last=2\n", contents(dir))
     }
 
     @Test fun rxSummaryKeepsCorrectOffsetAfterRotation() {
         val dir = temporary.newFolder()
-        val log = DiagnosticLog(dir, maxBytes = 66, clock = { 1L })
+        val log = DiagnosticLog(dir, maxBytes = 98, clock = { 1L })
         log.event("old".repeat(10))
         repeat(11) { log.rx(byteArrayOf(1)) }
-        assertEquals("1 RX 01 ×11 first=1 last=1\n", contents(dir))
+        assertEquals("1 receiver=module RX 01 ×11 first=1 last=1\n", contents(dir))
         assertFalse(File(dir, "diagnostic.log.tmp").exists())
-        assertTrue(dir.listFiles()!!.sumOf { it.length() } <= 66)
+        assertTrue(dir.listFiles()!!.sumOf { it.length() } <= 98)
     }
 
     @Test fun concurrentWritersPreserveAllEvents() {
@@ -212,6 +212,6 @@ class DiagnosticLogTest {
     @Test fun escapesLineBreaksInEvents() {
         val dir = temporary.newFolder()
         DiagnosticLog(dir, clock = { 0L }).event("one\ntwo\rthree")
-        assertEquals("0 EVENT one\\ntwo\\rthree\n", contents(dir))
+        assertEquals("0 receiver=module EVENT one\\ntwo\\rthree\n", contents(dir))
     }
 }

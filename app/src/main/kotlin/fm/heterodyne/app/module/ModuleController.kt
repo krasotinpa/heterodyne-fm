@@ -1,6 +1,8 @@
 package fm.heterodyne.app.module
 
 import fm.heterodyne.app.Journal
+import fm.heterodyne.app.receiver.*
+import fm.heterodyne.app.audio.AudioCounters
 
 enum class Band { AM, FM, DAB }
 fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) {
@@ -45,16 +47,24 @@ class ModuleController(
     private val transitionCommandSent: (Long) -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
+    private val readAudioCounters: () -> AudioCounters = { AudioCounters() },
+    private val startAudio: () -> Boolean = { false },
+    private val stopAudio: () -> Boolean = { true },
     private val changed: (ConnectionState) -> Unit = {},
-) {
+) : Receiver {
+    override val kind = ReceiverKind.Module
+    override val capabilities = ReceiverCapabilities(setOf(Band.FM, Band.AM), true, false, false, false, false)
+    override val audioCounters get() = readAudioCounters()
+    override fun playAudio() = startAudio()
+    override fun stopAudio() = stopAudio.invoke()
     private var band: Band? = null
     private var lastSend: Long? = null
     private var sequence = 0
-    var transitionState = TransitionState.Disconnected; private set
+    override var transitionState = TransitionState.Disconnected; private set
     var target: TuneTarget? = null; private set
     private var confirmed: TuneTarget? = null
-    var stationRevision = 0L; private set
-    val snapshot get() = TransitionSnapshot(transitionState, target, confirmed)
+    override var stationRevision = 0L; private set
+    override val snapshot get() = TransitionSnapshot(transitionState, target, confirmed)
     private fun publish() { transitionObserved(snapshot) }
     private var started: Long? = null
     private var checking = false
@@ -73,8 +83,7 @@ class ModuleController(
     private var seekReply: Long? = null
     private var activeSeekLimit = 20000L
     private var lastCheck: Long? = null
-    data class ReturnProbe(val sentAt: Long, val revision: Long)
-    var returnProbe: ReturnProbe? = null; private set
+    override var returnProbe: ConnectionProbe? = null; private set
     private var returning = false
     private var probeNeeded = false
     private fun radio(next: TransitionState) {
@@ -173,7 +182,7 @@ class ModuleController(
     }
 
     /** Extra BAND settling is used only by launch autostart; the R26 deadline remains shared. */
-    fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long = 0, signal: Boolean = true): TuneResult {
+    override fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long, signal: Boolean): TuneResult {
         if (!isSelectableFrequency(nextBand, frequencyKhz)) return TuneResult.InvalidFrequency
         advance(false)
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
@@ -192,7 +201,7 @@ class ModuleController(
         return dispatch()
     }
     /** Discard unsent work when the user cancels launch autostart. Sent BAND cannot be undone. */
-    fun cancelSelection() {
+    override fun cancelSelection() {
         val outstandingBand = bandReply
         val bandStarted = started
         clearAction()
@@ -229,7 +238,7 @@ class ModuleController(
         signalDispatched = true
         transitionCommandSent(now)
     }
-    fun switchBand(): TuneResult {
+    override fun switchBand(): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
@@ -241,7 +250,7 @@ class ModuleController(
         return send(0x84)
     }
 
-    fun step(direction: Direction): TuneResult {
+    override fun step(direction: Direction): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
@@ -255,7 +264,7 @@ class ModuleController(
         radio(TransitionState.CommandPause)
         return send(if (direction == Direction.Up) 0x89 else 0x88)
     }
-    fun seek(direction: Direction): TuneResult {
+    override fun seek(direction: Direction): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
@@ -273,7 +282,7 @@ class ModuleController(
         radio(TransitionState.Seeking)
         return send(if (direction == Direction.Up) 0x87 else 0x86)
     }
-    fun checkConnection(): TuneResult {
+    override fun checkConnection(): TuneResult {
         tick()
         return tryCheckConnection()
     }
@@ -288,7 +297,7 @@ class ModuleController(
         val sentAt = clock()
         lastCheck = sentAt; checking = true; started = sentAt
         val result = send(0x85, 7)
-        if (returnProbe && result == TuneResult.Sent) this.returnProbe = ReturnProbe(sentAt, stationRevision)
+        if (returnProbe && result == TuneResult.Sent) this.returnProbe = ConnectionProbe(sentAt, stationRevision)
         return result
     }
     private fun send(vararg payload: Int): TuneResult {
@@ -317,7 +326,7 @@ class ModuleController(
         } catch (failure: Exception) { error((failure as? TransportFailure)?.errno) }
     }
 
-    var state = ConnectionState.Disconnected; private set
+    override var state = ConnectionState.Disconnected; private set
     private var profile: DeviceProfile? = null
     private var generation = 0L
     private var pending: Long? = null
@@ -339,14 +348,15 @@ class ModuleController(
         state = next
         changed(next)
     }
-    fun found(device: DeviceProfile) {
+    override fun found(device: DeviceProfile) {
+        require(device.kind == kind) { "Module profile required" }
         if (profile?.deviceId == device.deviceId) return
         if (profile != null) disconnect()
         profile = device
         safeLog("USB found")
         transition(ConnectionState.DeviceFound)
     }
-    fun requestPermission(): Long? {
+    override fun requestPermission(): Long? {
         if (profile == null || pending != null || state == ConnectionState.Observing) return null
         transition(ConnectionState.DeviceFound)
         pending = ++generation
@@ -354,7 +364,7 @@ class ModuleController(
         transition(ConnectionState.PermissionPending)
         return pending
     }
-    fun permissionResult(request: Long, granted: Boolean) {
+    override fun permissionResult(request: Long, granted: Boolean) {
         if (pending != request) return
         pending = null
         if (!granted) {
@@ -387,7 +397,7 @@ class ModuleController(
         disconnect()
         radio(TransitionState.Disconnected)
     }
-    fun close() { try { disconnect() } finally { profile = null } }
+    override fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
         probeNeeded = false
         returnProbe = null
