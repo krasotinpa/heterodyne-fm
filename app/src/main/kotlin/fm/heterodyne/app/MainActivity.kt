@@ -105,7 +105,7 @@ class MainActivity : ComponentActivity() {
                         delete = stations.session::deleteSelection, add = stations.session::addStation,
                         remove = stations.session::removeStation, move = stations.session::moveStation,
                     ), back = { parked = false },
-                    receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
+                    receiverName = stations.module::receiverName, receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
                     selectReceiver = stations.module::selectReceiver,
                     theme = appearance.theme, palette = appearance.palette,
                     signalMethod = signalPreferences.method, selectSignal = signalPreferences::selectMethod,
@@ -120,7 +120,7 @@ class MainActivity : ComponentActivity() {
                 ) { _ ->
                     fm.heterodyne.app.ui.DiagnosticsScreen(stations.diagnostics, parked && !driving,
                         connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing, export = stations.diagnostics::exportJournal,
-                        receiverKind = stations.module.selectedReceiver)
+                        receiverKind = stations.module.selectedReceiver, receiverName = stations.module::receiverName)
                 }
             }
         }

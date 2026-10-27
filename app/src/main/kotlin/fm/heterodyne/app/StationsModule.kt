@@ -24,6 +24,7 @@ class StationsModule(
     private val additionalReceivers: List<fm.heterodyne.app.receiver.Receiver> = emptyList(),
     private val startPlayback: () -> Unit,
 ) {
+    fun receiverName(kind: fm.heterodyne.app.receiver.ReceiverKind): String = profiles.displayName(kind)
     val receiverKinds get() = profiles.kinds
     var selectedReceiver by mutableStateOf<fm.heterodyne.app.receiver.ReceiverKind?>(
         fm.heterodyne.app.ui.ReceiverPreferences(context.getSharedPreferences("receiver", android.content.Context.MODE_PRIVATE)).kind

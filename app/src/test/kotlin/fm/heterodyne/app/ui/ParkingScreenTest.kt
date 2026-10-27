@@ -26,19 +26,24 @@ class ParkingScreenTest {
 
     @Test fun receiverChoiceHidesModuleSettingsAndSelectsReceiver() {
         val other = fm.heterodyne.app.receiver.ReceiverKind("test")
+        val profiles = fm.heterodyne.app.receiver.ReceiverProfiles.Module.withProfile(
+            fm.heterodyne.app.receiver.ReceiverProfile(other, "Тестовый приёмник", 1, 2) { true })
         val selected = mutableStateOf(other)
         compose.setContent {
             ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
                 ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
                 selectTheme = {}, selectPalette = {},
-                receiverKinds = listOf(fm.heterodyne.app.receiver.ReceiverKind.Module, other),
+                receiverKinds = profiles.kinds, receiverName = profiles::displayName,
                 selectedReceiver = selected.value, selectReceiver = { selected.value = it }, diagnostics = {})
         }
         compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Приёмник").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Предел Поиска").assertDoesNotExist()
         compose.onNodeWithText("Сигнал Перехода").assertDoesNotExist()
-        compose.onNodeWithText("Приёмник 1").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Тестовый приёмник").performScrollTo().assertIsSelected()
+        compose.onNodeWithContentDescription("Тестовый приёмник").assertIsSelected()
+        compose.onNodeWithContentDescription("Модуль").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Модуль").assertIsSelected()
         compose.onNodeWithText("Предел Поиска").performScrollTo().assertIsDisplayed()
     }
 

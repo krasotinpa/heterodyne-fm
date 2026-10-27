@@ -17,11 +17,16 @@ import org.robolectric.annotation.Config
 class DiagnosticsScreenTest {
 
     @Test fun diagnosticsNamesSelectedDeviceKind() {
+        val profiles = fm.heterodyne.app.receiver.ReceiverProfiles.Module.withProfile(
+            fm.heterodyne.app.receiver.ReceiverProfile(
+                fm.heterodyne.app.receiver.ReceiverKind("test"), "Тестовый приёмник", 1, 2) { true })
         val kind = mutableStateOf<fm.heterodyne.app.receiver.ReceiverKind?>(fm.heterodyne.app.receiver.ReceiverKind.Module)
-        compose.setContent { DiagnosticsContent(true, false, false, false, null, {}, {}, kind.value) }
+        compose.setContent { DiagnosticsContent(true, false, false, false, null, {}, {}, kind.value, profiles::displayName) }
         compose.onNodeWithText("Модуль").assertIsDisplayed()
-        compose.runOnIdle { kind.value = fm.heterodyne.app.receiver.ReceiverKind("rtl-sdr-v4") }
-        compose.onNodeWithText("RTL-SDR V4").assertIsDisplayed()
+        compose.runOnIdle { kind.value = fm.heterodyne.app.receiver.ReceiverKind("test") }
+        compose.onNodeWithText("Тестовый приёмник").assertIsDisplayed()
+        compose.runOnIdle { kind.value = fm.heterodyne.app.receiver.ReceiverKind("unknown") }
+        compose.onNodeWithText("unknown").assertIsDisplayed()
         compose.runOnIdle { kind.value = null }
         compose.onNodeWithText("Приёмник не выбран").assertIsDisplayed()
     }

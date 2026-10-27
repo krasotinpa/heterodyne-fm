@@ -68,6 +68,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   parkShowLabel: Boolean = true, selectParkShowLabel: (Boolean) -> Unit = {},
                   parkLargeIcon: Boolean = false, selectParkLargeIcon: (Boolean) -> Unit = {},
                   receiverKinds: List<fm.heterodyne.app.receiver.ReceiverKind> = listOf(fm.heterodyne.app.receiver.ReceiverKind.Module),
+                  receiverName: (fm.heterodyne.app.receiver.ReceiverKind) -> String = fm.heterodyne.app.receiver.ReceiverProfiles.Module::displayName,
                   selectedReceiver: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module,
                   selectReceiver: (fm.heterodyne.app.receiver.ReceiverKind) -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
@@ -115,9 +116,9 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     if (receiverKinds.size > 1) {
                         Label("Приёмник", 24)
                         Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                            receiverKinds.forEachIndexed { index, kind ->
-                                Control("Приёмник ${index + 1}", !driving, { if (!driving) selectReceiver(kind) },
-                                    selected = kind == selectedReceiver)
+                            receiverKinds.forEach { kind ->
+                                Control(receiverName(kind), !driving, { if (!driving) selectReceiver(kind) },
+                                    selected = kind == selectedReceiver, description = receiverName(kind))
                             }
                         }
                     }

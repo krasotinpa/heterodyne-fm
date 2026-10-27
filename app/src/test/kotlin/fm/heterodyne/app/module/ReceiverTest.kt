@@ -43,7 +43,10 @@ class ReceiverTest {
 
     @Test fun registeredSecondKindStillRequiresItsOwnDescriptorProfile() {
         val kind = ReceiverKind("test")
-        val registry = ReceiverProfiles.Module.withProfile(ReceiverProfile(kind, 1, 2) { it.interfaces.isEmpty() })
+        val registry = ReceiverProfiles.Module.withProfile(ReceiverProfile(kind, "Тестовый приёмник", 1, 2) { it.interfaces.isEmpty() })
+        assertEquals("Модуль", registry.displayName(ReceiverKind.Module))
+        assertEquals("Тестовый приёмник", registry.displayName(kind))
+        assertEquals("unknown", registry.displayName(ReceiverKind("unknown")))
         val device = UsbDescription("fake", 1, 2, emptyList())
         assertEquals(kind, UsbDiscovery.find(device, registry)?.kind)
         assertNull(UsbDiscovery.find(device.copy(productId = 3), registry))
