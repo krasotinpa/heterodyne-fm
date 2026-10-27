@@ -366,7 +366,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             }
         }
         .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-        .padding(horizontal = if (bandDisplay != null) 0.dp else if (parkIcon) 0.dp else tokenDp("space.plateGap")), contentAlignment = Alignment.Center) {
+        .padding(horizontal = if (bandDisplay != null || parkIcon) 0.dp else tokenDp("space.plateGap")), contentAlignment = Alignment.Center) {
         if (edge || playback != null) Column(Modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
             val icon = if (playback != null) { if (playback) "■" else "▶" } else if (text.contains("◀")) "◀" else "▶"
             val iconSize = if (playback != null) "size.icon.l" else if (text.startsWith("Станция")) "size.icon.xl" else "font.style.band.size"
