@@ -24,7 +24,7 @@ class AsyncDiagnosticLogTest {
             log.rx(byteArrayOf(3))
             assertEquals(2L, log.lostRecords)
             resume.countDown()
-            assertEquals("0 EVENT потеряно 2\n0 TX 01\n0 EVENT queued\n", log.readTail(32768))
+            assertEquals("0 receiver=module EVENT потеряно 2\n0 receiver=module TX 01\n0 receiver=module EVENT queued\n", log.readTail(32768))
         } finally {
             resume.countDown()
             log.close()
@@ -47,7 +47,7 @@ class AsyncDiagnosticLogTest {
             resume.countDown()
         }
         val text = log.readTail(32768)
-        assertTrue(text.contains("0 TX 02\n"))
+        assertTrue(text.contains("0 receiver=module TX 02\n"))
         assertTrue(text.contains("first"))
         assertTrue(text.contains("second"))
         assertTrue(text.contains("потеряно 1"))
