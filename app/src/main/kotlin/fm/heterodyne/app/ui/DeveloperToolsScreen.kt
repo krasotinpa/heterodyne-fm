@@ -30,6 +30,7 @@ fun DeveloperToolsScreen(app: StationsDiagnostics, parked: Boolean) {
     val monoStyle = designTextStyle("mono", colors["text"])
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
         item { Label("Режим разработчика", 24) }
+        items(app.environmentProbeLines) { BasicText(it, style = style) }
         item { BasicText("Звук: байты ${counters.bytes}, ошибки ${counters.badPackets}, выравнивания ${counters.realignments}, underrun ${counters.underruns}", style = style) }
         item { BasicText("Звук: максимальная пауза в Playing ${counters.maxReadGapMs} мс, минимальный запас ${counters.minBufferedFrames} кадров", style = style) }
         item { BasicText("Журнал: потеряно ${counters.lostLogRecords}, сбоев записи ${counters.logWriteFailures}", style = style) }
