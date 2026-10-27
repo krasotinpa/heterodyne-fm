@@ -14,8 +14,8 @@ API, USB host и audio route требуют измерений. VID/PID не у�
 
 Агент создаёт feature-ветки, делает их push и открывает PR в `main` без отдельного запроса.
 Прямой push в `main` и merge запрещены; merge выполняет пользователь.
-Whitelist radio TX пуст, кроме команд из `docs/research/command-catalog.md`, внесённых решением владельца.
-Исключение — автозапуск последней Станции (R25, [ADR 0005](docs/adr/0005-autostart-last-station.md)): playSelect/BAND, один раз на запуск, при `lastPlayed`, с аудиофокусом, без автоповтора.
+Whitelist radio TX пуст, кроме команд из `docs/research/command-catalog.md`, внесённых решением владельца. У каждого Приёмника свой whitelist ([ADR 0007](docs/adr/0007-receivers.md)); для RTL-SDR он описывает управляющие передачи USB, запись EEPROM исключена.
+Исключение — автозапуск последней Станции (R25, [ADR 0005](docs/adr/0005-autostart-last-station.md)): playSelect/BAND у Модуля и разрешённые записи whitelist RTL-SDR (частота, выборка, усиление), один раз на запуск, при `lastPlayed`, на выбранном Приёмнике, с аудиофокусом, без автоповтора.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
 Open/claim/line coding/DTR/RTS документируй отдельно от radio commands.
 Проект выпускается под GPL-3.0-or-later ([ADR 0006](docs/adr/0006-project-license.md)). Перед добавлением зависимости проверь её лицензию на совместимость с GPL-3.0.
