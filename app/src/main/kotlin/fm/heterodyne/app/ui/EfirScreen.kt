@@ -90,6 +90,7 @@ fun EfirScreen(
     playing: Boolean = false,
     driving: Boolean = false,
     noFocus: Boolean = false,
+    seekHint: String? = null,
     connectionState: fm.heterodyne.app.module.ConnectionState = if (connected)
         fm.heterodyne.app.module.ConnectionState.Observing else fm.heterodyne.app.module.ConnectionState.Disconnected,
 ) {
@@ -123,7 +124,7 @@ fun EfirScreen(
                         style = designTextStyle("title", LocalAppearanceColors.current["text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val status = reason?.takeUnless {
                         it == DisabledReason.EmptySelection && transition.state in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete)
-                    }?.text ?: when (transition.state) {
+                    }?.text ?: seekHint?.takeIf { transition.state != TransitionState.Seeking } ?: when (transition.state) {
                         TransitionState.Waiting -> "ожидание"
                         TransitionState.Seeking -> "идёт поиск…"
                         TransitionState.SeekIncomplete -> "Поиск не завершён"

@@ -30,6 +30,32 @@ import org.robolectric.annotation.Config
 class EfirScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun drivingSeekHintAppearsInStatusAndKeepsControlsEnabled() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), driving = true, seekHint = "Поиск доступен через 4 с")
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Поиск доступен через 4 с")
+        compose.onNodeWithText("Шаг ▶ · пауза").assertIsEnabled()
+    }
+
+    @Test fun seekingStatusWinsOverStaleSeekHint() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Seeking, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), driving = true, seekHint = "Поиск доступен через 1 с")
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("идёт поиск…")
+    }
+
+    @Test fun seekHintRoundsUpOnlyWhileDriving() {
+        assertEquals("Поиск доступен через 4 с", fm.heterodyne.app.seekPauseHint(true, 4000))
+        assertEquals("Поиск доступен через 5 с", fm.heterodyne.app.seekPauseHint(true, 4001))
+        assertEquals("Поиск доступен через 1 с", fm.heterodyne.app.seekPauseHint(true, 1))
+        assertEquals(null, fm.heterodyne.app.seekPauseHint(false, 4000))
+    }
+
     @Test fun seekGroupKeepsFixedWidthInParkingPauseAndDriving() {
         val driving = mutableStateOf(false)
         val state = mutableStateOf(TransitionState.Idle)
