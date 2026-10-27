@@ -101,3 +101,62 @@ class AndroidAudioFocusManager(private val manager: AudioManager) : AudioFocusMa
         manager.abandonAudioFocusRequest(previous)
     }
 }
+
+/** Главный поток играет готовый PCM. Второй AudioTrack не запрашивает фокус. */
+class StaticTransitionTone : TransitionToneOutput {
+    private companion object {
+        const val FALLBACK_STOP_DELAY_MILLIS = 1000L
+    }
+
+    private var track: AudioTrack? = null
+    private var completed: (() -> Unit)? = null
+    private var fallback: Runnable? = null
+    private val main = Handler(Looper.getMainLooper())
+    private val pcm = transitionTone()
+
+    override fun play(volume: Float, finished: () -> Unit) {
+        stop()
+        try {
+            val next = AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
+                .setAudioFormat(AudioFormat.Builder().setSampleRate(48000)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+                .setBufferSizeInBytes(pcm.size * 2)
+                .setTransferMode(AudioTrack.MODE_STATIC).build()
+            track = next
+            completed = finished
+            check(next.state != AudioTrack.STATE_UNINITIALIZED)
+            check(next.write(pcm, 0, pcm.size) == pcm.size)
+            next.setVolume(volume)
+            next.setPlaybackPositionUpdateListener(object : AudioTrack.OnPlaybackPositionUpdateListener {
+                override fun onMarkerReached(track: AudioTrack) { if (this@StaticTransitionTone.track === track) stop() }
+                override fun onPeriodicNotification(track: AudioTrack) {}
+            }, main)
+            check(next.setNotificationMarkerPosition(pcm.size) == AudioTrack.SUCCESS)
+            next.play()
+            val timeout = Runnable { if (track === next) stop() }
+            fallback = timeout
+            main.postDelayed(timeout, FALLBACK_STOP_DELAY_MILLIS)
+        } catch (error: Exception) { stop(); throw error }
+    }
+
+    override fun setVolume(volume: Float) { track?.setVolume(volume) }
+
+    override fun stop() {
+        fallback?.let { main.removeCallbacks(it) }
+        fallback = null
+        val previous = track
+        val finished = completed
+        track = null
+        completed = null
+        try {
+            if (previous != null) {
+                try { previous.stop() } catch (_: IllegalStateException) {
+                    // Незавершённый запуск тоже требует освобождения AudioTrack.
+                } finally { previous.release() }
+            }
+        } finally { finished?.invoke() }
+    }
+}

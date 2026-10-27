@@ -59,6 +59,67 @@ class AudioThreadTest {
         } finally { module.submit { audio.stop() }.get(); module.shutdownNow() }
     }
 
+    @Test fun slowTransitionToneDoesNotBlockAudioOrCauseUnderruns() {
+        val calls = Collections.synchronizedList(mutableListOf<String>())
+        val playing = CountDownLatch(1)
+        var lastWrite = 0L
+        var underruns = 0
+        val source = object : AudioSource {
+            override fun open() { calls.add("open:${Thread.currentThread().name}") }
+            override fun read(out: ByteArray): Int { Thread.sleep(8); out.fill(0); return out.size }
+            override fun badPackets() = 0L
+            override fun close() { calls.add("discard/reap:${Thread.currentThread().name}") }
+        }
+        val sink = object : AudioSink {
+            override fun setVolume(volume: Float) {}
+            override fun open() {}
+            override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                val now = System.nanoTime()
+                if (lastWrite != 0L && now - lastWrite > 100_000_000) underruns++
+                lastWrite = now
+            }
+            override fun play() { playing.countDown() }
+            override fun underruns() = underruns
+            override fun release() { calls.add("sink release") }
+        }
+        val port = object : UsbAudioPort {
+            override fun claim() {}
+            override fun alt1() {}
+            override fun alt0() { calls.add("alt0:${Thread.currentThread().name}") }
+            override fun release() { calls.add("release:${Thread.currentThread().name}") }
+        }
+        val audio = AudioPlayback({ true }, source, sink, port, DiagnosticLog(temporary.newFolder()),
+            threadFactory = { task -> Thread(task, "audio-test") })
+        val tonePlayed = CountDownLatch(1)
+        val main = Executors.newSingleThreadExecutor { task -> Thread(task, "main-test") }
+        val module = Executors.newSingleThreadExecutor { task -> Thread(task, "module-test") }
+        try {
+            assertTrue(module.submit<Boolean> { audio.play() }.get())
+            assertTrue(playing.await(2, TimeUnit.SECONDS))
+            val before = audio.snapshot.bytes
+            main.submit {
+                val signal = TransitionSignal(object : TransitionToneOutput {
+                    override fun play(volume: Float, finished: () -> Unit) {
+                        tonePlayed.countDown()
+                        assertEquals("main-test", Thread.currentThread().name)
+                        Thread.sleep(300) // Медленный запуск сигнала не должен задерживать звуковой поток.
+                        finished()
+                    }
+                    override fun setVolume(volume: Float) {}
+                    override fun stop() {}
+                }, DiagnosticLog(temporary.newFolder()), { audio.snapshot.state == AudioState.Playing })
+                signal.begin(TransitionSignalMethod.Tone); signal.confirm()
+            }.get()
+            assertTrue("Transition tone play was not called", tonePlayed.await(1, TimeUnit.SECONDS))
+            assertTrue(audio.snapshot.bytes > before)
+            assertEquals(0, audio.snapshot.underruns)
+            assertTrue(audio.snapshot.maxReadGapMs <= 100)
+            module.submit { audio.stop(); calls.add("descriptor close") }.get()
+            assertEquals(listOf("open:audio-test", "discard/reap:audio-test", "sink release",
+                "alt0:module-test", "release:module-test", "descriptor close"), calls)
+        } finally { module.submit { audio.stop() }.get(); module.shutdownNow(); main.shutdownNow() }
+    }
+
     @Test fun stopTimeoutKeepsDescriptorAndInterfacesOpenAndFails() {
         val entered = CountDownLatch(1)
         val resume = CountDownLatch(1)

@@ -91,6 +91,12 @@ class AndroidUsbAdapter(
     private val controller: ModuleController by lazy { ModuleController(transport, log,
         clock = { android.os.SystemClock.elapsedRealtime() },
         moduleReturning = ::moduleReturning,
+        transitionStarted = { signal ->
+            val method = if (!signal) TransitionSignalMethod.Off else fm.heterodyne.app.ui.TransitionSignalPreferences.readMethod(
+                context.getSharedPreferences("transition-signal", Context.MODE_PRIVATE))
+            main.post { transitionSignal.begin(method) }
+        },
+        transitionConfirmed = { main.post { transitionSignal.confirm() } },
         beforeTick = { launch.guardPendingWork() },
         seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
             context.getSharedPreferences("seek", Context.MODE_PRIVATE)).toLong() * 1000 },
@@ -159,8 +165,12 @@ class AndroidUsbAdapter(
     private var playbackStopped: (() -> Unit)? = null
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
+    private val transitionSignal by lazy {
+        TransitionSignal(StaticTransitionTone(), log,
+            { !closing && audio.snapshot.state == AudioState.Playing })
+    }
     private val focus by lazy { AudioFocusController(AndroidAudioFocusManager(
-        context.getSystemService(android.media.AudioManager::class.java)), sink, log) }
+        context.getSystemService(android.media.AudioManager::class.java)), sink, log, signalVolume = transitionSignal::setFocusVolume) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ controller.state == ConnectionState.Observing },
             UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus,
@@ -168,7 +178,10 @@ class AndroidUsbAdapter(
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 task.run()
             }, "Audio") }, onMain = { task -> main.post { task() } }) { counters ->
-            main.post { audioChanged(counters) }
+            main.post {
+                if (counters.state != AudioState.Playing) transitionSignal.stop()
+                audioChanged(counters)
+            }
             if (counters.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
     }
@@ -287,6 +300,7 @@ class AndroidUsbAdapter(
         started = false
         polling?.cancel(false)
         closing = true
+        main.post { transitionSignal.stop() }
         worker.execute { try { launch.cancel(); controller.close() } finally { log.close(); worker.shutdown() } }
     }
 }
