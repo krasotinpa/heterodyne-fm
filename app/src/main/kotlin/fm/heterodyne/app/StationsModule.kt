@@ -122,6 +122,7 @@ class StationsModule(
     fun playAudio(stopped: () -> Unit) { usb.playAudio(stopped) }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { usb.selectStation(entry) }
     fun stepStation(direction: fm.heterodyne.app.module.Direction) { usb.stepStation(direction) }
+    fun seekStation(direction: Direction) { usb.seekStation(direction) }
     fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
     fun stopAudio() { usb.stopAudio() }
 

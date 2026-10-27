@@ -152,6 +152,7 @@ class AndroidUsbAdapter(
         if (!closing) worker.execute { controller.select(Band.valueOf(entry.band.name), entry.frequencyKhz) }
     }
     fun stepStation(direction: Direction) { if (!closing) worker.execute { controller.step(direction) } }
+    fun seekStation(direction: Direction) { if (!closing) worker.execute { controller.seek(direction) } }
     fun reclaimAudioFocus(completed: () -> Unit) {
         if (!closing) main.post { focus.reclaim(); completed() }
     }
