@@ -103,7 +103,7 @@ class AndroidAudioFocusManager(private val manager: AudioManager) : AudioFocusMa
 }
 
 /** Главный поток играет готовый PCM. Второй AudioTrack не запрашивает фокус. */
-class StaticTransitionTone : TransitionToneOutput {
+class StaticTransitionTone(private val pcm: ShortArray = transitionTone()) : TransitionToneOutput {
     private companion object {
         const val FALLBACK_STOP_DELAY_MILLIS = 1000L
     }
@@ -112,7 +112,6 @@ class StaticTransitionTone : TransitionToneOutput {
     private var completed: (() -> Unit)? = null
     private var fallback: Runnable? = null
     private val main = Handler(Looper.getMainLooper())
-    private val pcm = transitionTone()
 
     override fun play(volume: Float, finished: () -> Unit) {
         stop()
@@ -139,7 +138,11 @@ class StaticTransitionTone : TransitionToneOutput {
             val timeout = Runnable { if (track === next) stop() }
             fallback = timeout
             main.postDelayed(timeout, FALLBACK_STOP_DELAY_MILLIS)
-        } catch (error: Exception) { stop(); throw error }
+        } catch (error: Exception) {
+            completed = null
+            stop()
+            throw error
+        }
     }
 
     override fun setVolume(volume: Float) { track?.setVolume(volume) }

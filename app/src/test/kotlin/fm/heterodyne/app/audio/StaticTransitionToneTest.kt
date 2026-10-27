@@ -28,6 +28,15 @@ class StaticTransitionToneTest {
         ): Int = size
     }
 
+    @Test fun keyClickUsesSameStaticOutputAndReleasesOnce() {
+        val click = StaticTransitionTone(transitionKeyClick())
+        var finishes = 0
+        click.play(0.3f) { finishes++ }
+        click.stop()
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(1))
+        assertEquals(1, finishes)
+    }
+
     @Test fun missingMarkerFinishesAfterOneSecond() {
         val tone = StaticTransitionTone()
         var finishes = 0
