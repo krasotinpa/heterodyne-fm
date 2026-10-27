@@ -91,6 +91,8 @@ fun EfirScreen(
     driving: Boolean = false,
     noFocus: Boolean = false,
     seekHint: String? = null,
+    parkShowLabel: Boolean = true,
+    parkLargeIcon: Boolean = false,
     connectionState: fm.heterodyne.app.module.ConnectionState = if (connected)
         fm.heterodyne.app.module.ConnectionState.Observing else fm.heterodyne.app.module.ConnectionState.Disconnected,
 ) {
@@ -155,7 +157,8 @@ fun EfirScreen(
                     Control("▶", connected && !driving, { actions.seek(Direction.Up) },
                         Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
                 }
-                Control("Стоянка", !driving, actions.parked, Modifier.size(138.dp, tokenDp("size.parkButton.height")) /* width: components.md §3, not in tokens.json */, radius = "l", parkIcon = true)
+                Control("Стоянка", !driving, actions.parked, Modifier.size(138.dp, tokenDp("size.parkButton.height")) /* width: components.md §3, not in tokens.json */, radius = "l", parkIcon = true,
+                    parkShowLabel = parkShowLabel, parkLargeIcon = parkLargeIcon, description = "Стоянка")
             }
             Row(Modifier.weight(1f).testTag("efir-body"), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 EdgeControls(Direction.Down, connected, entries.isNotEmpty(), transition.state, actions,
@@ -298,6 +301,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
                      selected: Boolean = false, description: String? = null, radius: String = "m",
                      waiting: Boolean = false, plate: Boolean = false, outlined: Boolean = false,
                      bandDisplay: fm.heterodyne.app.module.Band? = null, parkIcon: Boolean = false,
+                     parkShowLabel: Boolean = true, parkLargeIcon: Boolean = false,
                      edge: Boolean = false, playback: Boolean? = null, faded: Boolean = false) {
     val colors = LocalAppearanceColors.current
     val tokens = controlColorTokens(enabled && !faded, selected)
@@ -362,7 +366,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             }
         }
         .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-        .padding(horizontal = if (bandDisplay != null) 0.dp else tokenDp(if (parkIcon) "space.window" else "space.plateGap")), contentAlignment = Alignment.Center) {
+        .padding(horizontal = if (bandDisplay != null) 0.dp else if (parkIcon) 0.dp else tokenDp("space.plateGap")), contentAlignment = Alignment.Center) {
         if (edge || playback != null) Column(Modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
             val icon = if (playback != null) { if (playback) "■" else "▶" } else if (text.contains("◀")) "◀" else "▶"
             val iconSize = if (playback != null) "size.icon.l" else if (text.startsWith("Станция")) "size.icon.xl" else "font.style.band.size"
@@ -379,11 +383,28 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
                     BasicText(band.name, style = designTextStyle(if (active) "band" else "bandBack", colors[if (!enabled) "disabledText" else if (active) "onAccent" else "text"]))
                 }
             }
-        } else if (parkIcon) Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.width(tokenDp("size.parkButton.iconBox")), contentAlignment = Alignment.Center) {
-                BasicText("≡", style = designTextStyle("band", foreground))
+        } else if (parkIcon) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center) {
+            androidx.compose.foundation.Canvas(Modifier.size(tokenDp(
+                if (parkLargeIcon) "size.parkButton.iconBoxLarge" else "size.parkButton.iconBox"))
+                .testTag("park-icon")) {
+                val unit = size.minDimension / 36f
+                val stroke = androidx.compose.ui.graphics.drawscope.Stroke(2f * unit)
+                drawRoundRect(foreground, topLeft = androidx.compose.ui.geometry.Offset(unit, unit),
+                    size = androidx.compose.ui.geometry.Size(size.width - 2 * unit, size.height - 2 * unit),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8f * unit), style = stroke)
+                val p = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(14f * unit, 26f * unit)
+                    lineTo(14f * unit, 10f * unit)
+                    lineTo(20f * unit, 10f * unit)
+                    cubicTo(28f * unit, 10f * unit, 28f * unit, 20f * unit, 20f * unit, 20f * unit)
+                    lineTo(14f * unit, 20f * unit)
+                }
+                drawPath(p, foreground, style = androidx.compose.ui.graphics.drawscope.Stroke(3f * unit))
             }
-            BasicText(text, style = designTextStyle("button", foreground))
+            if (parkShowLabel) BasicText(text, Modifier.weight(1f),
+                style = designTextStyle("button", foreground).copy(textAlign = TextAlign.Center),
+                maxLines = 1, softWrap = false)
         } else if (plate) Column {
             BasicText(text.substringBefore('\n'), style = designTextStyle("plate", foreground), maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicText(text.substringAfter('\n'), style = designTextStyle("label", if (selected || !enabled || faded) foreground else colors["muted"]), maxLines = 1, overflow = TextOverflow.Ellipsis)

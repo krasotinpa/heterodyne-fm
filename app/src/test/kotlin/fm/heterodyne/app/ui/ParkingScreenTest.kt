@@ -25,6 +25,25 @@ import org.robolectric.annotation.Config
 class ParkingScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun settingsSelectParkButtonAppearanceImmediately() {
+        val label = mutableStateOf(true)
+        val large = mutableStateOf(false)
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {}, parkShowLabel = label.value,
+                selectParkShowLabel = { label.value = it }, parkLargeIcon = large.value,
+                selectParkLargeIcon = { large.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Кнопка «Стоянка»").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Выкл").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Вкл").assertIsNotSelected()
+        compose.onNodeWithText("Крупный").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Обычный").performClick().assertIsSelected()
+        compose.onNodeWithText("Вкл").performScrollTo().performClick().assertIsSelected()
+    }
+
     @Test fun settingsSelectTransitionSignal() {
         val method = mutableStateOf(fm.heterodyne.app.audio.TransitionSignalMethod.Tone)
         compose.setContent {

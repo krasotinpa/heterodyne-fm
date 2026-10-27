@@ -65,6 +65,8 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
                   autostartEnabled: Boolean = true, selectAutostart: (Boolean) -> Unit = {},
+                  parkShowLabel: Boolean = true, selectParkShowLabel: (Boolean) -> Unit = {},
+                  parkLargeIcon: Boolean = false, selectParkLargeIcon: (Boolean) -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
     LaunchedEffect(developerEnabled) {
@@ -125,6 +127,17 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                         Palette.entries.forEach { option ->
                             Control(option.title, true, { selectPalette(option) }, selected = option == palette)
                         }
+                    }
+                    Label("Кнопка «Стоянка»", 24)
+                    Label("Подпись", 18)
+                    Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
+                        Control("Вкл", true, { selectParkShowLabel(true) }, selected = parkShowLabel)
+                        Control("Выкл", true, { selectParkShowLabel(false) }, selected = !parkShowLabel)
+                    }
+                    Label("Размер пиктограммы", 18)
+                    Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
+                        Control("Обычный", true, { selectParkLargeIcon(false) }, selected = !parkLargeIcon)
+                        Control("Крупный", true, { selectParkLargeIcon(true) }, selected = parkLargeIcon)
                     }
                     Label("Запуск", 24)
                     Control("Играть последнюю Станцию при запуске", true,

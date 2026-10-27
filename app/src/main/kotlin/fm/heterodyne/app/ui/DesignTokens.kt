@@ -261,6 +261,7 @@ object DesignTokens {
         "size.seekGroup.width" to "224",
         "size.parkButton.height" to "56",
         "size.parkButton.iconBox" to "36",
+        "size.parkButton.iconBoxLarge" to "44",
         "size.spectrum.height" to "56",
         "size.spectrum.heightCompact" to "32",
         "size.spectrum.bars" to "56",
