@@ -4,7 +4,10 @@ import fm.heterodyne.app.Journal
 import kotlin.math.PI
 import kotlin.math.sin
 
-enum class TransitionSignalMethod(val label: String) { Off("Выключено"), Tone("Тон"), Silence("Тишина") }
+enum class TransitionSignalMethod(val label: String) { Off("Выключено"), Tone("Тон"), KeyClick("Звук клавиши"), Silence("Тишина") }
+
+// Выбор системного эффекта или PCM решается в #208.
+const val KEY_CLICK_USES_SYSTEM_EFFECT = true
 
 interface TransitionToneOutput {
     fun play(volume: Float, finished: () -> Unit)
@@ -18,6 +21,12 @@ fun transitionTone(): ShortArray = ShortArray(3840) { index ->
     (32767 * 0.3 * envelope * sin(2 * PI * 880 * index / 48000)).toInt().toShort()
 }
 
+/** PCM 48 кГц: синус 1,5 кГц, 15 мс, амплитуда 0,3, края по 2 мс. */
+fun transitionKeyClick(): ShortArray = ShortArray(720) { index ->
+    val envelope = minOf(1.0, index / 96.0, (719 - index) / 96.0)
+    (32767 * 0.3 * envelope * sin(2 * PI * 1500 * index / 48000)).toInt().toShort()
+}
+
 /** Главный поток владеет сигналом. Звуковой поток не вызывает этот класс. */
 class TransitionSignal(
     private val output: TransitionToneOutput,
@@ -26,10 +35,15 @@ class TransitionSignal(
     private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
     private val schedule: (Long, () -> Unit) -> Unit,
     private val silence: (Boolean) -> Unit = {},
+    private val keyClickOutput: TransitionToneOutput = output,
+    private val systemKeyClick: (Float) -> Unit = {},
+    private val keyClickUsesSystemEffect: Boolean = KEY_CLICK_USES_SYSTEM_EFFECT,
 ) {
     private var selected = TransitionSignalMethod.Tone
     private var focusVolume = 1f
     private var active: Any? = null
+    private var activeMethod = TransitionSignalMethod.Tone
+    private var activeOutput: TransitionToneOutput? = null
 
     fun begin(method: TransitionSignalMethod) { selected = method }
 
@@ -74,22 +88,32 @@ class TransitionSignal(
             endSilenceAt(minOf(first + 3000, maxOf(silenceCommand + 300, clock() + 150)))
             return
         }
-        if (selected != TransitionSignalMethod.Tone || !playing() || focusVolume == 0f) return
+        if (selected != TransitionSignalMethod.Tone && selected != TransitionSignalMethod.KeyClick) return
+        if (!playing() || focusVolume == 0f) return
         stop()
         val token = Any()
         active = token
-        event(TransitionSignalMethod.Tone, "начало")
+        activeMethod = selected
+        val system = selected == TransitionSignalMethod.KeyClick && keyClickUsesSystemEffect
+        activeOutput = if (system) null else if (selected == TransitionSignalMethod.KeyClick) keyClickOutput else output
+        event(activeMethod, "начало")
         try {
-            output.play(focusVolume) { finish(token) }
+            if (system) {
+                systemKeyClick(if (focusVolume == 1f) -1f else focusVolume)
+                // API не сообщает конец системного эффекта; фиксируем завершение вызова.
+                finish(token)
+            } else {
+                checkNotNull(activeOutput).play(focusVolume) { finish(token) }
+            }
         } catch (error: Exception) {
-            event(TransitionSignalMethod.Tone, "ошибка ${error.javaClass.simpleName}")
+            event(activeMethod, "ошибка ${error.javaClass.simpleName}")
             stop()
         }
     }
 
     fun setFocusVolume(value: Float) {
         focusVolume = value
-        if (value == 0f) stopTone() else output.setVolume(value)
+        if (value == 0f) stopTone() else activeOutput?.setVolume(value)
     }
 
     fun stop() {
@@ -99,17 +123,21 @@ class TransitionSignal(
 
     private fun stopTone() {
         val token = active ?: return
-        try { output.stop() } finally { finish(token) }
+        try { activeOutput?.stop() } finally { finish(token) }
     }
 
     private fun finish(token: Any) {
         if (active !== token) return
         active = null
-        event(TransitionSignalMethod.Tone, "конец")
+        activeOutput = null
+        event(activeMethod, "конец")
     }
 
     private fun event(method: TransitionSignalMethod, phase: String) {
-        try { journal.event("сигнал Перехода: ${method.label}, $phase") } catch (_: Exception) {
+        val path = if (method == TransitionSignalMethod.KeyClick) {
+            if (keyClickUsesSystemEffect) " (системный)" else " (PCM)"
+        } else ""
+        try { journal.event("сигнал Перехода: ${method.label}$path, $phase") } catch (_: Exception) {
             // Ошибка Журнала не останавливает звук.
         }
     }

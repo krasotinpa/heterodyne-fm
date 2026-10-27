@@ -173,15 +173,21 @@ class AndroidUsbAdapter(
     private var playbackStopped: (() -> Unit)? = null
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
+    private val audioManager by lazy { context.getSystemService(android.media.AudioManager::class.java) }
     private val transitionSignal: TransitionSignal by lazy {
         TransitionSignal(StaticTransitionTone(), log,
             { !closing && audio.snapshot.state == AudioState.Playing },
             clock = { android.os.SystemClock.elapsedRealtime() },
             schedule = { delay, task -> main.postDelayed({ task() }, delay) },
-            silence = { focus.setTransitionSilence(it) })
+            silence = { focus.setTransitionSilence(it) },
+            keyClickOutput = StaticTransitionTone(fm.heterodyne.app.audio.transitionKeyClick()),
+            systemKeyClick = { volume ->
+                // -1f задаёт громкость платформы, 0.3f передаёт DUCK; после запуска эффект неуправляем.
+                audioManager.playSoundEffect(android.media.AudioManager.FX_KEY_CLICK, volume)
+            })
     }
     private val focus: AudioFocusController by lazy { AudioFocusController(AndroidAudioFocusManager(
-        context.getSystemService(android.media.AudioManager::class.java)), sink, log, signalVolume = transitionSignal::setFocusVolume) }
+        audioManager), sink, log, signalVolume = transitionSignal::setFocusVolume) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ controller.state == ConnectionState.Observing },
             UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus,
