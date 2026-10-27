@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.graphicsLayer
@@ -134,12 +135,16 @@ fun EfirScreen(
                   }
                   Spacer(Modifier.height(tokenDp("size.rds.height")).testTag("rds-reserved"))
                 }
-                Row(Modifier.height(tokenDp("size.seekGroup.height")), verticalAlignment = Alignment.CenterVertically,
+                // Keep the measured width, including the pause label, while driving. alpha(0) alone still passes taps, so the buttons are also disabled.
+                Row(Modifier.height(tokenDp("size.seekGroup.height"))
+                    .alpha(if (driving) 0f else 1f)
+                    .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
+                    verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                     BasicText(if (transition.state == TransitionState.CommandPause) "Поиск · пауза" else "Поиск", style = designTextStyle("button", Muted))
-                    Control("◀", connected, { actions.seek(Direction.Down) },
+                    Control("◀", connected && !driving, { actions.seek(Direction.Down) },
                         Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ◀")
-                    Control("▶", connected, { actions.seek(Direction.Up) },
+                    Control("▶", connected && !driving, { actions.seek(Direction.Up) },
                         Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
                 }
                 Control("Стоянка", !driving, actions.parked, Modifier.size(138.dp, tokenDp("size.parkButton.height")) /* width: components.md §3, not in tokens.json */, radius = "l", parkIcon = true)

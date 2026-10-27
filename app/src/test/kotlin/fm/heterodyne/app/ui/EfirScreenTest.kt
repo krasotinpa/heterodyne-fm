@@ -228,6 +228,73 @@ class EfirScreenTest {
         compose.onNodeWithText("Стоянка").assertIsNotEnabled()
     }
 
+    @Test fun drivingHidesSeekWithoutMovingNeighborsAndParkingRestoresActions() {
+        val driving = mutableStateOf(false)
+        val transition = mutableStateOf(TransitionState.Idle)
+        val seeks = mutableListOf<Direction>()
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(transition.value, null, TuneTarget(Band.FM, 87500)), true,
+                EfirActions(seek = { seeks.add(it) }), driving = driving.value)
+        }
+        fun neighborBounds() = listOf(
+            compose.onAllNodesWithText("87,5").onFirst(),
+            compose.onNodeWithContentDescription("FM / AM"),
+            compose.onNodeWithText("Стоянка"),
+        ).map { it.fetchSemanticsNode().boundsInRoot }
+        val parkedBounds = neighborBounds()
+        compose.onNodeWithText("Поиск").assertIsDisplayed()
+        compose.runOnIdle { driving.value = true }
+        // Merged tree is what accessibility sees; the hidden group stays composed only to keep its width.
+        compose.onNodeWithContentDescription("Поиск ◀").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Поиск ▶").assertDoesNotExist()
+        compose.onNodeWithText("Поиск").assertDoesNotExist()
+        assertEquals(parkedBounds, neighborBounds())
+        compose.runOnIdle { driving.value = false }
+        compose.onNodeWithContentDescription("Поиск ◀").assertIsEnabled().performClick()
+        compose.onNodeWithContentDescription("Поиск ▶").assertIsEnabled().performClick()
+        assertEquals(listOf(Direction.Down, Direction.Up), seeks)
+        compose.runOnIdle { transition.value = TransitionState.CommandPause }
+        compose.onNodeWithText("Поиск · пауза").assertIsDisplayed()
+        compose.runOnIdle { driving.value = true }
+        compose.onNodeWithText("Поиск · пауза").assertDoesNotExist()
+    }
+
+    @Test fun drivingKeepsOngoingSeekStatus() {
+        val driving = mutableStateOf(false)
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Seeking, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), driving = driving.value)
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("идёт поиск…")
+        compose.runOnIdle { driving.value = true }
+        compose.onNodeWithTag("efir-status").assertTextEquals("идёт поиск…").assertIsDisplayed()
+        compose.onNodeWithContentDescription("Поиск ◀").assertDoesNotExist()
+        compose.onNodeWithContentDescription("Поиск ▶").assertDoesNotExist()
+    }
+
+    @Test fun drivingKeepsDisabledReasonWhenSeekIsHidden() {
+        val connection = mutableStateOf(ConnectionState.Disconnected)
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                connection.value == ConnectionState.Observing, EfirActions(), driving = true,
+                connectionState = connection.value)
+        }
+        listOf(
+            ConnectionState.Disconnected to "Приёмник отключён",
+            ConnectionState.PermissionPending to "Нужно разрешение USB",
+            ConnectionState.DeviceFound to "Подключение идёт",
+            ConnectionState.Observing to "Подборка пуста",
+        ).forEach { (state, reason) ->
+            compose.runOnIdle { connection.value = state }
+            compose.onNodeWithTag("efir-status").assertTextEquals(reason).assertIsDisplayed()
+            compose.onNodeWithContentDescription("Поиск ◀").assertDoesNotExist()
+            compose.onNodeWithContentDescription("Поиск ▶").assertDoesNotExist()
+        }
+    }
+
     @Test fun catalogSelectionRequestsStationWithoutChangingConfirmedFrequency() {
         val selected = mutableListOf<StationEntry>()
         val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),
