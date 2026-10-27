@@ -98,7 +98,6 @@ class AndroidUsbAdapter(
             connectionGeneration++
             returnGeneration = cancellation.capture()
             playbackStopping = playbackServiceActive
-            launch.cancel()
             frames.resetConnection()
         }
         main.post { changed(state) }
@@ -251,7 +250,7 @@ class AndroidUsbAdapter(
     }
     fun updatePlaybackService(active: Boolean) {
         playbackServiceActive = active
-        if (!active) worker.execute { playbackStopping = false }
+        if (!active) worker.execute { audio.stop(); playbackStopping = false }
     }
     fun stopAudio() {
         if (!closing) worker.execute { audio.stop() }
