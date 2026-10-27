@@ -41,7 +41,7 @@ class ParkingScreenTest {
         compose.onNodeWithText("Выключено").performClick().assertIsSelected()
         compose.onNodeWithText("Тон").performClick().assertIsSelected()
         compose.onNodeWithText("Звук клавиши").assertDoesNotExist()
-        compose.onNodeWithText("Тишина").assertDoesNotExist()
+        compose.onNodeWithText("Тишина").performClick().assertIsSelected()
     }
 
     @Test fun menuOffersRegionsAndAboutWithSafeSourceLink() {

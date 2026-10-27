@@ -38,7 +38,8 @@ class TransitionSignalTest {
                 if (text.contains("ошибка")) throw IllegalArgumentException("journal failed")
             }
         }
-        val signal = TransitionSignal(output, journal, { true })
+        val signal = TransitionSignal(output, journal, { true },
+            schedule = { _, _ -> error("Unexpected tone timer") })
         signal.begin(TransitionSignalMethod.Tone)
         signal.confirm()
         assertEquals(listOf("сигнал Перехода: Тон, начало",
@@ -57,7 +58,8 @@ class TransitionSignalTest {
             override fun setVolume(volume: Float) {}
             override fun stop() {}
         }
-        val signal = TransitionSignal(output, DiagnosticLog(directory), { playing })
+        val signal = TransitionSignal(output, DiagnosticLog(directory), { playing },
+            schedule = { _, _ -> error("Unexpected tone timer") })
         signal.begin(method); signal.confirm()
         assertTrue(volumes.isEmpty())
         playing = true

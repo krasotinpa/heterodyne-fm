@@ -18,6 +18,7 @@ class TransitionSignalPreferencesTest {
         prefs.edit().clear().commit()
         val store = TransitionSignalPreferences(prefs)
         assertEquals(TransitionSignalMethod.Tone, store.method)
+        assertEquals(listOf("Выключено", "Тон", "Тишина"), TransitionSignalMethod.entries.map { it.label })
         for (method in TransitionSignalMethod.entries) {
             store.selectMethod(method)
             assertEquals(method, store.method)
