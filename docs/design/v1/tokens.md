@@ -128,6 +128,7 @@
 | `size.seekButton.width` | 52 |
 | `size.seekButton.height` | 48 |
 | `size.seekGroup.height` | 56 |
+| `size.seekGroup.width` | 224 |
 | `size.parkButton.height` | 56 |
 | `size.parkButton.iconBox` | 36 |
 | `size.spectrum.height` | 56 |
