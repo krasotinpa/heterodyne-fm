@@ -347,7 +347,7 @@ class App extends preact.Component {
       togglePlay: function(){ self.setState({ playing:!self.state.playing }); },
       freqText: fq(cur), unit: FM ? 'МГц' : 'кГц', freqColor: off ? t.disabledText : t.text,
       stName:stName, metaText:metaText, metaColor:metaColor, rds:s.rds,
-      seekL: function(){ self.seek(-1); }, seekR: function(){ self.seek(1); },
+      driving:P.driving, pause:P.pause, seekL: function(){ self.seek(-1); }, seekR: function(){ self.seek(1); },
       goPark: function(){ self.setState({ screen:'park', loupe:null }); }, goAir: function(){ self.setState({ screen:'air', drag:null }); },
       stDis:stDis, stFg: stDis ? t.disabledText : t.text, stPrev: function(){ self.stationStep(-1); }, stNext: function(){ self.stationStep(1); },
       stepL: function(){ self.step(-1); }, stepR: function(){ self.step(1); }, stepText: FM ? '0,1 МГц' : '9 кГц',
@@ -417,9 +417,9 @@ ${(v.rds) ? html`
 ` : null}
 </div>
 </div>
-<div style="height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 14px; background: ${v.t.surface}">
+<div style="width: 224px; height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 14px; background: ${v.t.surface}; visibility: ${v.driving ? 'hidden' : 'visible'}">
 <button class="b" aria-label="Поиск назад" disabled=${v.off} onClick=${v.seekL} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 6l-7 6 7 6"></path><path d="M20 6l-7 6 7 6"></path></svg></button>
-<span style="padding: 0 4px; font-size: 14px; font-weight: 600; color: ${v.ctl.sub}">Поиск</span>
+<span style="flex: 1; min-width: 0; text-align: center; font-size: 14px; font-weight: 600; color: ${v.ctl.sub}">Поиск${v.pause ? ' · пауза' : ''}</span>
 <button class="b" aria-label="Поиск вперёд" disabled=${v.off} onClick=${v.seekR} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 6l7 6-7 6"></path><path d="M4 6l7 6-7 6"></path></svg></button>
 </div>
 <button class="b" onClick=${v.goPark} style="height: 56px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 16px 0 10px; border: 0; border-radius: 14px; background: ${v.t.surface2}; color: ${v.t.text}; font-size: 16px; font-weight: 600">
@@ -440,7 +440,7 @@ ${(v.notPlaying) ? html`<svg width="26" height="26" viewBox="0 0 24 24" fill="cu
 </button>
 <button class="b" aria-label="Шаг вниз" disabled=${v.off} onClick=${v.stepL} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>
-<span style="font-size: 16px; font-weight: 600">Шаг</span>
+<span style="font-size: ${v.pause ? 14 : 16}px; font-weight: 600">Шаг${v.pause ? ' · пауза' : ''}</span>
 <span class="tn" style="font-size: 13px; color: ${v.ctl.sub}">${v.stepText}</span>
 </button>
 </div>
@@ -556,7 +556,7 @@ ${(v.catEmpty) ? html`
 </button>
 <button class="b" aria-label="Шаг вверх" disabled=${v.off} onClick=${v.stepR} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
-<span style="font-size: 16px; font-weight: 600">Шаг</span>
+<span style="font-size: ${v.pause ? 14 : 16}px; font-weight: 600">Шаг${v.pause ? ' · пауза' : ''}</span>
 <span class="tn" style="font-size: 13px; color: ${v.ctl.sub}">${v.stepText}</span>
 </button>
 </div>
@@ -783,17 +783,19 @@ ${(v.hasToast) ? html`
 </div>`; }
 
 class Root extends preact.Component {
-  constructor(p){ super(p); this.state = { demo:'ok', daylight:'night', winW:TOKENS.size.window.width, winH:TOKENS.size.window.height }; }
+  constructor(p){ super(p); this.state = { demo:'ok', driving:false, pause:false, daylight:'night', winW:TOKENS.size.window.width, winH:TOKENS.size.window.height }; }
   render(){
     var s = this.state, self = this;
     function chip(label, on, patch){ return html`<button class=${'pc' + (on ? ' on' : '')} aria-pressed=${on} onClick=${function(){ self.setState(patch); }}>${label}</button>`; }
     var W = TOKENS.size.window;
     return html`<div class="stage">
-      <${App} demo=${s.demo} daylight=${s.daylight} winW=${s.winW} winH=${s.winH} palette=${TOKENS.color.defaultPalette} theme="auto" />
+      <${App} demo=${s.demo} driving=${s.driving} pause=${s.pause} daylight=${s.daylight} winW=${s.winW} winH=${s.winH} palette=${TOKENS.color.defaultPalette} theme="auto" />
       <section class="panel" aria-label="Панель проверки прототипа">
         <div class="ph">Панель проверки — не часть приложения. Тема, Палитра, RDS и Режим разработчика переключаются внутри приложения: Стоянка → Настройки / Диагностика.</div>
         <div class="pr">
           <div class="pg"><span>Приёмник</span>${chip('Норма', s.demo === 'ok', { demo:'ok' })}${chip('Медленный Переход', s.demo === 'slow', { demo:'slow' })}${chip('Не подключён', s.demo === 'off', { demo:'off' })}${chip('Сбой Перехода', s.demo === 'fail', { demo:'fail' })}</div>
+          <div class="pg"><span>Движение</span>${chip('На стоянке', !s.driving, { driving:false })}${chip('На ходу', s.driving, { driving:true })}</div>
+          <div class="pg"><span>Пауза команды</span>${chip('нет', !s.pause, { pause:false })}${chip('да', s.pause, { pause:true })}</div>
           <div class="pg"><span>Время суток (Тема «Авто»)</span>${chip('ночь', s.daylight === 'night', { daylight:'night' })}${chip('день', s.daylight === 'day', { daylight:'day' })}${chip('нет данных', s.daylight === 'none', { daylight:'none' })}</div>
         </div>
         <div class="pr">
