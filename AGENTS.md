@@ -18,6 +18,8 @@ Whitelist radio TX пуст, кроме команд из `docs/research/command
 Исключение — автозапуск последней Станции (R25, [ADR 0005](docs/adr/0005-autostart-last-station.md)): playSelect/BAND, один раз на запуск, при `lastPlayed`, с аудиофокусом, без автоповтора.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
 Open/claim/line coding/DTR/RTS документируй отдельно от radio commands.
+Проект выпускается под GPL-3.0-or-later ([ADR 0006](docs/adr/0006-project-license.md)). Перед добавлением зависимости проверь её лицензию на совместимость с GPL-3.0.
+Не коммить APK производителя, декомпилированный код и его цитаты. Факты о протоколе пиши своими словами.
 Используй проверенный interface mapping. Не force claim всех interfaces.
 Car tests проводят на стоящем автомобиле с малой громкостью.
 
