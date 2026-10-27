@@ -348,7 +348,7 @@ class App extends preact.Component {
       freqText: fq(cur), unit: FM ? 'МГц' : 'кГц', freqColor: off ? t.disabledText : t.text,
       stName:stName, metaText:metaText, metaColor:metaColor, rds:s.rds,
       driving:P.driving, seekW:TOKENS.size.seekGroup.width, parkFg: P.driving ? t.disabledText : t.text, pause:P.pause && !off, seekL: function(){ self.seek(-1); }, seekR: function(){ self.seek(1); },
-      goPark: function(){ self.setState({ screen:'park', loupe:null }); }, goAir: function(){ self.setState({ screen:'air', drag:null }); },
+      goPark: function(){ if (self.props.driving) return; self.setState({ screen:'park', loupe:null }); }, goAir: function(){ self.setState({ screen:'air', drag:null }); },
       stDis:stDis, stFg: stDis ? t.disabledText : t.text, stPrev: function(){ self.stationStep(-1); }, stNext: function(){ self.stationStep(1); },
       stepL: function(){ self.step(-1); }, stepR: function(){ self.step(1); }, stepText: FM ? '0,1 МГц' : '9 кГц',
       scDown: function(e){ self.scDown(e); }, scMove: function(e){ self.scMove(e); }, scUp: function(e){ self.scUp(e); }, scCancel: function(){ self.scCancel(); },
