@@ -23,6 +23,7 @@ class AudioFocusController(
     private val manager: AudioFocusManager,
     private val sink: AudioSink,
     private val journal: Journal,
+    private val signalVolume: (Float) -> Unit = {},
 ) {
     private var session: Any? = null
 
@@ -54,6 +55,7 @@ class AudioFocusController(
     private fun startSession(token: Any) {
         session = token
         sink.setVolume(1f)
+        signalVolume(1f)
         journal.event("focus volume=1.0")
         // Live radio continues even when the manual request is denied.
         journal.event("focus request")
@@ -73,6 +75,7 @@ class AudioFocusController(
         session = null
         automaticSession = null
         granted = false
+        signalVolume(0f)
         manager.abandon()
         journal.event("focus abandon")
     }
@@ -82,19 +85,23 @@ class AudioFocusController(
         journal.event("focus ${change.name.uppercase()}")
         when (change) {
             AudioFocusChange.Loss -> {
-                sink.setVolume(1f) // a permanent loss may follow a transient one, with no GAIN
+                sink.setVolume(1f)
+                signalVolume(1f) // Постоянная потеря может прийти после TRANSIENT без GAIN.
                 journal.event("focus volume=1.0")
             }
             AudioFocusChange.Duck -> {
                 sink.setVolume(0.3f)
+                signalVolume(0.3f)
                 journal.event("focus volume=0.3")
             }
             AudioFocusChange.Transient -> {
                 sink.mute()
+                signalVolume(0f)
                 journal.event("focus mute")
             }
             AudioFocusChange.Gain -> {
                 sink.setVolume(1f)
+                signalVolume(1f)
                 journal.event("focus volume=1.0")
             }
         }

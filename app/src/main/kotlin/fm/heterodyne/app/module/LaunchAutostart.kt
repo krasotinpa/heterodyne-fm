@@ -118,7 +118,7 @@ class LaunchAutostart(
                     phase = Phase.Selecting
                     transitionAt = clock()
                     val goal = checkNotNull(station)
-                    when (module.select(goal.band, goal.frequencyKhz, bandSettleMillis = 2000)) {
+                    when (module.select(goal.band, goal.frequencyKhz, bandSettleMillis = 2000, signal = false)) {
                         TuneResult.Sent, TuneResult.RateLimited -> event("transition")
                         else -> finish("select-failed")
                     }

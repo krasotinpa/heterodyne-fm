@@ -43,6 +43,9 @@ class MainActivity : ComponentActivity() {
                     checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
                         android.content.pm.PackageManager.PERMISSION_GRANTED)
             }
+            val signalPreferences = remember {
+                fm.heterodyne.app.ui.TransitionSignalPreferences(getSharedPreferences("transition-signal", MODE_PRIVATE))
+            }
             val seekPreferences = remember {
                 fm.heterodyne.app.ui.SeekPreferences(getSharedPreferences("seek", MODE_PRIVATE))
             }
@@ -97,6 +100,7 @@ class MainActivity : ComponentActivity() {
                         remove = stations.session::removeStation, move = stations.session::moveStation,
                     ), back = { parked = false },
                     theme = appearance.theme, palette = appearance.palette,
+                    signalMethod = signalPreferences.method, selectSignal = signalPreferences::selectMethod,
                     seekLimitSeconds = seekPreferences.seconds, selectSeekLimit = seekPreferences::selectSeconds,
                     autostartEnabled = autostartPreferences.enabled, selectAutostart = autostartPreferences::selectEnabled,
                     selectTheme = appearance::selectTheme, selectPalette = appearance::selectPalette,

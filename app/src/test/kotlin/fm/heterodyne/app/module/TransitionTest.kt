@@ -12,8 +12,10 @@ class TransitionTest {
     private var now = 0L
     private var limit = 20000L
     private val pauses = mutableListOf<Long>()
+    private var signals = 0
+    private val starts = mutableListOf<Boolean>()
     private val controller by lazy {
-        ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now }, seekLimitMillis = { limit }, seekPaused = { pauses.add(it) }).also {
+        ModuleController(fake, DiagnosticLog(temporary.newFolder()), transitionConfirmed = { signals++ }, transitionStarted = { starts.add(it) }, clock = { now }, seekLimitMillis = { limit }, seekPaused = { pauses.add(it) }).also {
             it.found(DeviceProfile("module"))
             it.permissionResult(it.requestPermission()!!, true)
         }
@@ -33,6 +35,40 @@ class TransitionTest {
         fake.enqueueReceived(frame)
         controller.receive()
     }
+    @Test fun repeatedSelectStartsOneTransitionAndLastTargetWins() {
+        receive("fm28")
+        controller.select(Band.FM, 108000)
+        controller.select(Band.FM, 87500)
+        assertEquals(listOf(true), starts)
+        assertEquals(TuneTarget(Band.FM, 87500), controller.snapshot.target)
+        now = 1000
+        controller.tick()
+        receive("fm0")
+        assertEquals(TuneTarget(Band.FM, 87500), controller.snapshot.confirmed)
+        assertEquals(1, signals)
+    }
+
+    @Test fun signalOnlyForMatchingTransitionAndNeverForStepSeekOrLateReply() {
+        receive("fm28")
+        controller.tune(108000)
+        receive("fm0")
+        assertEquals(0, signals)
+        receive("fm205")
+        receive("fm205")
+        assertEquals(1, signals)
+        now = 2000
+        controller.step(Direction.Up)
+        receive("fm0")
+        now = 4000
+        controller.seek(Direction.Up)
+        receive("fm28")
+        now = 5000; controller.tick()
+        controller.tune(108000)
+        now = 8000; controller.tick()
+        receive("fm205")
+        assertEquals(1, signals)
+    }
+
     @Test fun detachReturnProbesOnceAndRespectsTenSecondLimit() {
         receive("fm28")
         controller.detach("module")

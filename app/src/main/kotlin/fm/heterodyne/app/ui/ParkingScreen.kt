@@ -60,6 +60,8 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   theme: ThemeChoice, palette: Palette,
                   selectTheme: (ThemeChoice) -> Unit, selectPalette: (Palette) -> Unit,
                   seekLimitSeconds: Int = 20, selectSeekLimit: (Int) -> Unit = {},
+                  signalMethod: fm.heterodyne.app.audio.TransitionSignalMethod = fm.heterodyne.app.audio.TransitionSignalMethod.Tone,
+                  selectSignal: (fm.heterodyne.app.audio.TransitionSignalMethod) -> Unit = {},
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
                   autostartEnabled: Boolean = true, selectAutostart: (Boolean) -> Unit = {},
@@ -130,6 +132,12 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     androidx.compose.foundation.text.BasicText(
                         "Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.",
                         style = designTextStyle("body", colors["text"]))
+                    Label("Сигнал Перехода", 24)
+                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                        fm.heterodyne.app.audio.TransitionSignalMethod.entries.forEach { method ->
+                            Control(method.label, true, { selectSignal(method) }, selected = method == signalMethod)
+                        }
+                    }
                     Label("Предел Поиска", 24)
                     SeekPreferences.choices.chunked(4).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {

@@ -40,6 +40,8 @@ class ModuleController(
     private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
     private val seekLimitMillis: () -> Long = { 20000L },
     private val seekPaused: (Long) -> Unit = {},
+    private val transitionStarted: (Boolean) -> Unit = {},
+    private val transitionConfirmed: () -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
     private val changed: (ConnectionState) -> Unit = {},
@@ -139,6 +141,7 @@ class ModuleController(
             val actual = station?.frequencyKhz
             if (selected && goal != null && goal.band == band && goal.frequencyKhz == actual) {
                 clearAction(); radio(TransitionState.Idle)
+                transitionConfirmed()
             } else if (goal == null && seeking == null) {
                 started = null
                 if (transitionState != TransitionState.SeekIncomplete) radio(TransitionState.Idle)
@@ -168,7 +171,7 @@ class ModuleController(
     }
 
     /** Extra BAND settling is used only by launch autostart; the R26 deadline remains shared. */
-    fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long = 0): TuneResult {
+    fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long = 0, signal: Boolean = true): TuneResult {
         if (!isSelectableFrequency(nextBand, frequencyKhz)) return TuneResult.InvalidFrequency
         advance(false)
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
@@ -179,6 +182,7 @@ class ModuleController(
             radio(TransitionState.Idle)
         }
         this.bandSettleMillis = bandSettleMillis
+        if (target == null) transitionStarted(signal)
         target = TuneTarget(nextBand, frequencyKhz)
         publish()
         selected = false

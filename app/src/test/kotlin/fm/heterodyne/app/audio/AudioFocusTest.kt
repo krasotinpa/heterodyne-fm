@@ -29,6 +29,28 @@ class AudioFocusTest {
         override fun release() {}
     }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink, journal))
 
+    @Test fun signalSharesFocusVolumeWithoutAnotherRequest() {
+        val volumes = mutableListOf<Float>()
+        val focus = AudioFocusController(manager, sink, journal, signalVolume = { volumes.add(it) })
+        focus.start()
+        manager.signal(AudioFocusChange.Duck)
+        manager.signal(AudioFocusChange.Transient)
+        manager.signal(AudioFocusChange.Loss)
+        manager.signal(AudioFocusChange.Gain)
+        assertEquals(listOf(1f, 0.3f, 0f, 1f, 1f), volumes)
+        assertEquals(1, manager.requests)
+    }
+
+    @Test fun transitionSignalFollowsFocusAndStopsWithPlayback() {
+        val volumes = mutableListOf<Float>()
+        val focus = AudioFocusController(manager, sink, journal, signalVolume = { volumes.add(it) })
+        focus.start()
+        for (change in listOf(AudioFocusChange.Duck, AudioFocusChange.Transient,
+            AudioFocusChange.Gain, AudioFocusChange.Transient, AudioFocusChange.Loss)) manager.signal(change)
+        focus.stop()
+        assertEquals(listOf(1f, 0.3f, 0f, 1f, 0f, 1f, 0f), volumes)
+    }
+
     @Test fun autostartChecksGrantAndPlaybackReusesTheGrantedRequest() {
         val focus = AudioFocusController(manager, sink, journal)
         manager.granted = false

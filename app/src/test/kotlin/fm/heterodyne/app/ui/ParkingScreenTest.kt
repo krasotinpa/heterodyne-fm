@@ -25,6 +25,25 @@ import org.robolectric.annotation.Config
 class ParkingScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun settingsSelectTransitionSignal() {
+        val method = mutableStateOf(fm.heterodyne.app.audio.TransitionSignalMethod.Tone)
+        compose.setContent {
+            HeterodyneTheme(ThemeChoice.Dark, Palette.Coral) {
+                ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                    ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
+                    selectTheme = {}, selectPalette = {}, signalMethod = method.value,
+                    selectSignal = { method.value = it }, diagnostics = {})
+            }
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Сигнал Перехода").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Тон").assertIsSelected()
+        compose.onNodeWithText("Выключено").performClick().assertIsSelected()
+        compose.onNodeWithText("Тон").performClick().assertIsSelected()
+        compose.onNodeWithText("Звук клавиши").assertDoesNotExist()
+        compose.onNodeWithText("Тишина").assertDoesNotExist()
+    }
+
     @Test fun menuOffersRegionsAndAboutWithSafeSourceLink() {
         val regions = listOf("moskva" to "Москва", "yaroslavl" to "Ярославль").map { (id, name) ->
             Catalog(1, "test", Region(id, name), CatalogSource("vcfm.ru", "https://vcfm.ru/"), emptyList())

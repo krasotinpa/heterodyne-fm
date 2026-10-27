@@ -18,7 +18,8 @@ class LaunchAutostartTest {
     private var releases = 0
     private fun lease(granted: Boolean = true) = AudioFocusLease(granted) { releases++ }
     private val log by lazy { DiagnosticLog(temporary.newFolder()) }
-    private val module by lazy { ModuleController(transport, log, clock = { now }) }
+    private val starts = mutableListOf<Boolean>()
+    private val module by lazy { ModuleController(transport, log, clock = { now }, transitionStarted = { starts.add(it) }) }
     private val launch by lazy { LaunchAutostart(module, log, { now },
         requestFocus = { done -> focusRequests++; done(lease(granted)) }, startPlayback = { plays++; it(true) },
         noFocusChanged = { noFocus = it }) }
@@ -31,6 +32,17 @@ class LaunchAutostartTest {
     private fun receive(name: String) {
         transport.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
         module.receive(); launch.tick()
+    }
+
+    @Test fun openingSelectsTargetWithoutSignalAndManualSelectSignals() {
+        launch.open(true, TuneTarget(Band.FM, 108000))
+        connect(); receive("fm28"); receive("fm205")
+        assertEquals(TuneTarget(Band.FM, 108000), module.snapshot.confirmed)
+        assertEquals(1, plays)
+        assertEquals(listOf(false), starts)
+        now = 2000
+        module.select(Band.FM, 90300)
+        assertEquals(listOf(false, true), starts)
     }
 
     @Test fun returnReusesProbeAndWaitsTwoSecondsBeforeSelectAndPlayback() {
@@ -46,6 +58,8 @@ class LaunchAutostartTest {
         assertEquals(listOf(0x85, 0x84, 0x82), transport.sentFrames.map { it[6].toInt() and 255 })
         receive("am31")
         assertEquals(1, plays)
+        assertEquals(TuneTarget(Band.AM, 801), module.snapshot.confirmed)
+        assertEquals(listOf(false), starts)
         assertTrue(log.readTail(32768).contains("autostart reason=module-return result=selected"))
     }
 
