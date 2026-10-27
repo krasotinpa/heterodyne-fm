@@ -5,7 +5,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import fm.heterodyne.app.audio.AudioState
-import fm.heterodyne.app.module.TuneTarget
 import fm.heterodyne.app.module.isSelectableFrequency
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.ConnectionState
@@ -114,6 +113,7 @@ class StationsModule(
 
     init {
         usb = AndroidUsbAdapter(context,
+            readLaunchStation = session::readLaunchStation,
             autostartPlayback = { completed ->
                 try {
                     context.startForegroundService(android.content.Intent(context, fm.heterodyne.app.audio.PlaybackService::class.java)
@@ -129,9 +129,7 @@ class StationsModule(
                 else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), frequency)
             }
             if (frequency != null && isSelectableFrequency(band, frequency)) {
-                session.rememberStation(band, frequency) {
-                    usb.restoreStation(TuneTarget(band, frequency))
-                }
+                session.rememberStation(band, frequency) {}
             }
         }, changed = { state ->
             main.post {

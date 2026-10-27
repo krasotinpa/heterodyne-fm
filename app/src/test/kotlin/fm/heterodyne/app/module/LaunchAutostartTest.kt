@@ -33,6 +33,135 @@ class LaunchAutostartTest {
         module.receive(); launch.tick()
     }
 
+    @Test fun returnReusesProbeAndWaitsTwoSecondsBeforeSelectAndPlayback() {
+        connect(); receive("fm28"); module.detach("module"); now = 10000
+        connect()
+        launch.moduleReturn(true, TuneTarget(Band.AM, 801))
+        receive("fm28")
+        assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
+        now = 10230; receive("am31")
+        now = 11999; module.tick(); launch.tick()
+        assertEquals(2, transport.sendCount)
+        now = 12000; module.tick(); launch.tick()
+        assertEquals(listOf(0x85, 0x84, 0x82), transport.sentFrames.map { it[6].toInt() and 255 })
+        receive("am31")
+        assertEquals(1, plays)
+        assertTrue(log.readTail(32768).contains("autostart reason=module-return result=selected"))
+    }
+
+    @Test fun returnSkipsDisabledStoppedMissingAndInvalidTargetsWithOnlyOneProbe() {
+        connect()
+        listOf(false to TuneTarget(Band.FM, 90300), true to null,
+            true to TuneTarget(Band.FM, 90301), true to TuneTarget(Band.DAB, 90300)).forEach { (enabled, station) ->
+            module.detach("module"); now += 40000; connect()
+            launch.moduleReturn(enabled, station); receive("fm28")
+            now += 3000; module.tick(); launch.tick()
+        }
+        assertEquals(List(4) { 0x85 }, transport.sentFrames.map { it[6].toInt() and 255 })
+        assertEquals(0, focusRequests)
+        assertEquals(0, plays)
+    }
+
+    @Test fun twoReturnsWithinThirtySecondsOnlyStartOnceAndNeverQueueRetry() {
+        connect(); module.detach("module"); connect()
+        launch.moduleReturn(true, TuneTarget(Band.FM, 90300)); receive("fm28")
+        module.detach("module"); now = 10000; connect()
+        launch.moduleReturn(true, TuneTarget(Band.FM, 108000)); receive("fm28")
+        now = 60000; module.tick(); launch.tick()
+        assertEquals(listOf(0x85, 0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+        assertEquals(1, plays)
+        assertEquals(1, focusRequests)
+        assertTrue(log.readTail(32768).contains("autostart reason=module-return result=rate-limited"))
+    }
+
+    @Test fun applicationOpeningAndReturnShareOneAttemptLimit() {
+        launch.open(true, TuneTarget(Band.FM, 90300)); connect(); receive("fm28")
+        module.detach("module"); now = 10000; connect()
+        launch.moduleReturn(true, TuneTarget(Band.FM, 108000)); receive("fm28")
+        assertEquals(1, focusRequests)
+        assertEquals(1, plays)
+        assertEquals(listOf(0x85, 0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+        now = 30000; launch.open(true, TuneTarget(Band.FM, 90300)); receive("fm28")
+        assertEquals(2, plays)
+    }
+
+    @Test fun returnDenialShowsNoFocusWithoutSelectionOrRetry() {
+        connect(); module.detach("module"); connect()
+        granted = false
+        launch.moduleReturn(true, TuneTarget(Band.FM, 108000)); receive("fm28")
+        assertTrue(noFocus)
+        granted = true; now = 60000; launch.tick(); receive("fm28")
+        assertTrue(noFocus)
+        assertEquals(listOf(0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+        assertEquals(1, focusRequests)
+        assertEquals(0, plays)
+        assertTrue(log.readTail(32768).contains("autostart reason=module-return result=no-focus"))
+    }
+
+    @Test fun userCancelsReturnAfterBandAndBeforePlayback() {
+        connect(); module.detach("module"); connect()
+        launch.moduleReturn(true, TuneTarget(Band.AM, 801)); receive("fm28")
+        launch.cancel()
+        receive("am31"); now = 2000; module.tick(); launch.tick()
+        assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
+        assertEquals(0, plays)
+        assertEquals(1, releases)
+    }
+
+    @Test fun returnUsesFreshProbeReplyReceivedBeforeFocusCompletion() {
+        connect(); module.detach("module"); connect()
+        var completed: ((AudioFocusLease?) -> Unit)? = null
+        val delayed = LaunchAutostart(module, log, { now }, { completed = it }, { plays++; it(true) })
+        delayed.moduleReturn(true, TuneTarget(Band.FM, 90300))
+        now = 2000
+        receive("fm28")
+        now = 3001
+        completed!!(lease()); delayed.tick()
+        assertEquals(1, plays)
+        assertEquals(listOf(0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+    }
+
+    @Test fun returnWaitsForDeferredProbeAndIgnoresEarlierReply() {
+        connect(); module.checkConnection()
+        module.detach("module"); now = 100; connect()
+        launch.moduleReturn(true, TuneTarget(Band.FM, 90300)); receive("fm28")
+        assertEquals(0, focusRequests)
+        now = 10000; module.tick(); launch.tick()
+        assertEquals(0, plays)
+        receive("fm28")
+        assertEquals(1, plays)
+        assertEquals(listOf(0x85, 0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+    }
+
+    @Test fun returnDoesNotStartWhenAudioAlreadyPlays() {
+        connect(); module.detach("module"); connect()
+        val playing = LaunchAutostart(module, log, { now }, { focusRequests++; it(lease()) },
+            { plays++; it(true) }, isPlaying = { true })
+        playing.moduleReturn(true, TuneTarget(Band.FM, 108000)); receive("fm28")
+        assertEquals(0, focusRequests)
+        assertEquals(0, plays)
+        assertEquals(listOf(0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+    }
+
+    @Test fun returnKeepsProbeReplyWhileOldPlaybackServiceStopsPastProbeDeadline() {
+        connect(); module.detach("module"); connect()
+        var stopping = true
+        val waiting = LaunchAutostart(module, log, { now },
+            { focusRequests++; it(lease()) }, { plays++; it(true) },
+            isPlaying = { stopping }, isPlaybackStopping = { stopping })
+        waiting.moduleReturn(true, TuneTarget(Band.FM, 90300))
+        now = 2000; receive("fm28"); waiting.tick()
+        assertEquals(0, focusRequests)
+        assertEquals(0, plays)
+        now = 3001; stopping = false
+        waiting.tick(); waiting.tick()
+        assertEquals(1, focusRequests)
+        assertEquals(1, plays)
+        now = 60000; module.tick(); waiting.tick()
+        assertEquals(1, plays)
+        assertEquals(listOf(0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+    }
+
     @Test fun matchingReplyStartsLocallyWithOneProbeAndNoPlaySelect() {
         launch.open(true, TuneTarget(Band.FM, 90300))
         connect()
@@ -146,7 +275,7 @@ class LaunchAutostartTest {
         now = 2000
         transport.enqueueReceived(byteArrayOf(0xfa.toByte(), 0x55, 0, 0, 2, 0x27, 0xd9.toByte()))
         module.receive(); launch.tick()
-        now = 3000; receive("fm28")
+        now = 3000; launch.tick(); receive("fm28")
         now = 60000; module.tick(); launch.tick()
         assertEquals(1, transport.sendCount)
         assertEquals(0, plays)

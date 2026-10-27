@@ -19,8 +19,7 @@ class RestartTest {
         fake.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
         controller.receive()
     }
-    @Test fun startupIsSilentAndReturnSelectsOnceWithoutTimeoutRetry() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
+    @Test fun startupAndReturnNeverSelectWithoutAutostartDecision() {
         controller.tick()
         assertEquals(0, fake.sendCount)
         connect(); receive()
@@ -31,31 +30,25 @@ class RestartTest {
         connect()
         assertEquals(1, fake.sendCount) // Return probe, without select until a band reply.
         assertEquals(0x85, fake.sentFrames.single()[6].toInt() and 255)
-        receive()
-        assertEquals(2, fake.sendCount)
-        assertEquals(0x82, fake.sentFrames.last()[6].toInt() and 255)
-        assertEquals(205, fake.sentFrames.last()[8].toInt() and 255)
         receive(); now = 20000; controller.tick(); receive()
-        assertEquals(2, fake.sendCount)
-        controller.error(19); now = 30000; controller.tick()
-        assertEquals(2, fake.sendCount)
+        assertEquals(1, fake.sendCount)
+        controller.error(19); now = 30000
         connect(); receive()
-        assertEquals(4, fake.sendCount)
+        assertEquals(2, fake.sendCount)
     }
+
     @Test fun noStationMeansOnlyReturnProbeWithoutSelect() {
         connect(); receive(); controller.detach("module"); connect(); receive()
         now = 60000; controller.tick()
         assertEquals(1, fake.sendCount)
     }
-    @Test fun manualSelectionBeforeBandReplySuppressesRestore() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
+    @Test fun manualSelectionBeforeBandReplyDoesNotAddAutomaticSelection() {
         connect(); receive(); controller.detach("module"); connect()
         assertEquals(TuneResult.BandNotFM, controller.select(Band.FM, 87500))
         receive(); now = 60000; controller.tick()
         assertEquals(1, fake.sendCount)
     }
-    @Test fun missingBandReplyExpiresAndDetachCancelsRestore() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
+    @Test fun missingBandReplyAndRepeatedDetachNeverAddCommands() {
         connect(); controller.detach("module"); connect()
         now = 3000; controller.tick(); receive()
         assertEquals(1, fake.sendCount)
@@ -63,21 +56,7 @@ class RestartTest {
         now = 60000; controller.tick()
         assertEquals(1, fake.sendCount)
     }
-    @Test fun crossBandReturnUsesExistingSelectFlow() {
-        controller.restoreStation(TuneTarget(Band.AM, 711))
-        connect(); receive(); controller.detach("module"); connect(); receive()
-        assertEquals(0x85, fake.sentFrames.first()[6].toInt() and 255)
-        assertEquals(0x84, fake.sentFrames.last()[6].toInt() and 255)
-        now = 230; receive("am31")
-        assertEquals(3, fake.sendCount)
-        assertEquals(0x82, fake.sentFrames.last()[6].toInt() and 255)
-        assertEquals(21, fake.sentFrames.last()[8].toInt() and 255)
-        now = 3000; controller.tick(); now = 60000; controller.tick()
-        assertEquals(3, fake.sendCount)
-    }
-
-    @Test fun manualSelectionDuringPermissionSuppressesReturnSelection() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
+    @Test fun manualSelectionDuringPermissionDoesNotAddAutomaticSelection() {
         connect(); receive(); controller.detach("module")
         controller.found(DeviceProfile("module"))
         val permission = controller.requestPermission()!!
@@ -88,7 +67,6 @@ class RestartTest {
     }
 
     @Test fun returnWithoutSpontaneousRxOnlyProbesAndTimeoutNeverSelects() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
         connect(); controller.detach("module"); connect()
         assertEquals(1, fake.sendCount)
         assertEquals(0x85, fake.sentFrames.single()[6].toInt() and 255)
@@ -99,8 +77,7 @@ class RestartTest {
         assertEquals(1, fake.sendCount)
     }
 
-    @Test fun fastReturnWaitsForProbeLimitAndGetsFullReplyWindowFromSend() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
+    @Test fun fastReturnWaitsForProbeLimitWithoutSelecting() {
         connect()
         assertEquals(TuneResult.Sent, controller.checkConnection())
         now = 100; controller.detach("module"); connect()
@@ -112,15 +89,12 @@ class RestartTest {
         assertEquals(2, fake.sendCount)
         assertEquals(0x85, fake.sentFrames.last()[6].toInt() and 255)
         now = 12999; receive()
-        assertEquals(3, fake.sendCount)
-        assertEquals(0x82, fake.sentFrames.last()[6].toInt() and 255)
-        assertEquals(205, fake.sentFrames.last()[8].toInt() and 255)
+        assertEquals(2, fake.sendCount)
         receive(); now = 30000; controller.tick()
-        assertEquals(3, fake.sendCount)
+        assertEquals(2, fake.sendCount)
     }
 
     @Test fun unrelatedReplyDoesNotExtendReturnBandDeadline() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
         connect(); controller.detach("module"); connect()
         now = 2000
         fake.enqueueReceived(byteArrayOf(0xfa.toByte(), 0x55, 0, 0, 2, 0x27, 0xd9.toByte()))
@@ -129,17 +103,14 @@ class RestartTest {
         assertEquals(1, fake.sendCount)
     }
 
-    @Test fun preProbeObservationCannotReplaceStationSavedBeforeReturn() {
-        controller.restoreStation(TuneTarget(Band.FM, 108000))
-        connect()
-        controller.checkConnection()
-        now = 100; controller.detach("module"); connect()
-        receive()
-        // Storage may save spontaneous RX while the 10-second probe limit is active.
-        controller.restoreStation(TuneTarget(Band.FM, 90300))
-        now = 10000; controller.tick(); receive()
-        assertEquals(3, fake.sendCount)
-        assertEquals(0x82, fake.sentFrames.last()[6].toInt() and 255)
-        assertEquals(205, fake.sentFrames.last()[8].toInt() and 255)
+    @Test fun eightReturnsOnlySendEightProbes() {
+        connect(); receive()
+        repeat(8) {
+            controller.detach("module")
+            now += 10000
+            connect(); receive()
+            controller.tick()
+        }
+        assertEquals(List(8) { 0x85 }, fake.sentFrames.map { it[6].toInt() and 255 })
     }
 }

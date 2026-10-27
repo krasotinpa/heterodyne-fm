@@ -57,6 +57,43 @@ class LaunchSessionTest {
         }
     }
 
+    @Test fun returnReadsCurrentSavedStationAndStopFlag() {
+        val context = RuntimeEnvironment.getApplication()
+        val file = File(context.filesDir, "return-session.json")
+        file.writeText(StationsJson.encode(StationsState.defaults().copy(
+            lastStation = SessionStation(Band.FM, 90300), lastPlayed = true)))
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() }, AtomicStationsFile(file))
+        session.load {}
+        val transport = FakeTransport()
+        val log = DiagnosticLog(File(context.cacheDir, "return-session-journal"))
+        var now = 0L
+        var plays = 0
+        lateinit var launch: LaunchAutostart
+        val module = ModuleController(transport, log, clock = { now }, moduleReturning = {
+            session.readLaunchStation { launch.moduleReturn(true, it) }
+        })
+        launch = LaunchAutostart(module, log, { now }, { it(AudioFocusLease(true) {}) }, { plays++; it(true) })
+        fun connect() {
+            module.found(DeviceProfile("module"))
+            module.permissionResult(module.requestPermission()!!, true)
+            launch.tick()
+        }
+        fun reply() {
+            transport.enqueueReceived(javaClass.getResourceAsStream("/module/fm205.bin")!!.use { it.readBytes() })
+            module.receive(); launch.tick()
+        }
+        connect()
+        session.rememberStation(ModuleBand.FM, 108000) {}
+        module.detach("module"); connect(); reply()
+        assertEquals(1, plays)
+        assertEquals(1, transport.sendCount)
+        session.setLastPlayed(false)
+        module.detach("module"); now = 40000; connect(); reply()
+        assertEquals(1, plays)
+        assertEquals(listOf(0x85, 0x85), transport.sentFrames.map { it[6].toInt() and 255 })
+        module.close()
+    }
+
     @Test fun reopeningAfterStopReadsTheSavedFalseFlag() {
         val context = RuntimeEnvironment.getApplication()
         val file = File(context.filesDir, "launch-session-stop.json")
