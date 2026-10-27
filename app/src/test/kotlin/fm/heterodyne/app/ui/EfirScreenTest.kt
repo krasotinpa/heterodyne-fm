@@ -27,6 +27,18 @@ import org.robolectric.annotation.Config
 class EfirScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun deniedAutostartShowsExactStatusAndKeepsManualStartAvailable() {
+        var starts = 0
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, null), true,
+                EfirActions(play = { starts++ }), noFocus = true)
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Нет фокуса, нажмите Старт")
+        compose.onNodeWithText("Старт").assertIsEnabled().performClick()
+        compose.runOnIdle { assertEquals(1, starts) }
+    }
+
     @Test fun compactCatalogKeepsOnePlateVisibleWithAllActionMessages() {
         val screen = mutableStateOf(StationsScreenState(StationsState.defaults(), listOf(catalog),
             recovered = true, error = "Ошибка приёмника ".repeat(20)))

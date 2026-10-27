@@ -39,6 +39,7 @@ class ModuleController(
     private val transitionChanged: (TransitionState) -> Unit = {},
     private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
     private val seekLimitMillis: () -> Long = { 20000L },
+    private val beforeTick: () -> Unit = {},
     private val changed: (ConnectionState) -> Unit = {},
 ) {
     private var band: Band? = null
@@ -47,6 +48,7 @@ class ModuleController(
     var transitionState = TransitionState.Disconnected; private set
     var target: TuneTarget? = null; private set
     private var confirmed: TuneTarget? = null
+    var stationRevision = 0L; private set
     val snapshot get() = TransitionSnapshot(transitionState, target, confirmed)
     private fun publish() { transitionObserved(snapshot) }
     private var started: Long? = null
@@ -54,6 +56,8 @@ class ModuleController(
     private var bandReply: Band? = null
     private var selected = false
     private var lastBand: Long? = null
+    private var bandSettleMillis = 0L
+    private var selectNotBefore = 0L
     private var stepStarted: Long? = null
     private var lastStep: Long? = null
     private var lastSeek: Long? = null
@@ -77,9 +81,11 @@ class ModuleController(
     private fun clearAction() {
         target = null; started = null; checking = false; bandReply = null; selected = false
         seeking = null; seekReply = null; stepStarted = null
+        selectNotBefore = 0L; bandSettleMillis = 0L
     }
     /** The adapter calls this on its serialized worker, including during idle reads. */
     fun tick() {
+        beforeTick()
         advance(true)
         if (probeNeeded) tryCheckConnection()
         restart.take(clock())?.let { select(it.band, it.frequencyKhz) }
@@ -128,7 +134,7 @@ class ModuleController(
             }
             if (seeking != null) seekReply = clock()
             val station = actualStation(band, cid)
-            if (station != null) confirmed = station
+            if (station != null) { confirmed = station; stationRevision++ }
             val goal = target
             val actual = station?.frequencyKhz
             if (selected && goal != null && goal.band == band && goal.frequencyKhz == actual) {
@@ -161,7 +167,8 @@ class ModuleController(
         return select(Band.FM, frequencyKhz)
     }
 
-    fun select(nextBand: Band, frequencyKhz: Int): TuneResult {
+    /** Extra BAND settling is used only by launch autostart; the R26 deadline remains shared. */
+    fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long = 0): TuneResult {
         if (!isSelectableFrequency(nextBand, frequencyKhz)) return TuneResult.InvalidFrequency
         restart.manualSelection()
         advance(false)
@@ -172,11 +179,21 @@ class ModuleController(
             started = null
             radio(TransitionState.Idle)
         }
+        this.bandSettleMillis = bandSettleMillis
         target = TuneTarget(nextBand, frequencyKhz)
         publish()
         selected = false
         return dispatch()
     }
+    /** Discard unsent work when the user cancels launch autostart. Sent BAND cannot be undone. */
+    fun cancelSelection() {
+        val outstandingBand = bandReply
+        val bandStarted = started
+        clearAction()
+        if (outstandingBand != null) { bandReply = outstandingBand; started = bandStarted }
+        if (state == ConnectionState.Observing) radio(TransitionState.Idle)
+    }
+
     private fun dispatch(): TuneResult {
         val goal = target ?: return TuneResult.RateLimited
         if (selected || bandReply != null) return TuneResult.RateLimited
@@ -185,9 +202,11 @@ class ModuleController(
             if (lastBand?.let { now - it < 2000 } == true) return TuneResult.RateLimited
             if (started == null) started = now
             lastBand = now
+            selectNotBefore = now + bandSettleMillis
             bandReply = if (band == Band.FM) Band.AM else Band.FM
             return send(0x84)
         }
+        if (now < selectNotBefore) return TuneResult.RateLimited
         if (lastSend?.let { now - it < 1000 } == true) return TuneResult.RateLimited
         val cid = if (goal.band == Band.FM) (goal.frequencyKhz - 87500) / 100 else (goal.frequencyKhz - 522) / 9
         if (started == null) started = now

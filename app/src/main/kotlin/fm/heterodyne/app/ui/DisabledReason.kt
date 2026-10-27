@@ -11,6 +11,7 @@ enum class DisabledReason(val text: String) {
     PermissionPending("Нужно разрешение USB"),
     Connecting("Подключение идёт"),
     Unconfirmed("Нет ответа от приёмника"),
+    NoFocus("Нет фокуса, нажмите Старт"),
     EmptySelection("Подборка пуста"),
 }
 

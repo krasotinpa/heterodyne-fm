@@ -25,6 +25,8 @@ class AndroidUsbAdapter(
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
     transitionObserved: (TransitionSnapshot) -> Unit = {},
+    private val autostartPlayback: ((Boolean) -> Unit) -> Unit = { it(false) },
+    private val noFocusChanged: (Boolean) -> Unit = {},
 ) {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     val frames = fm.heterodyne.app.DiagnosticFrames()
@@ -43,19 +45,22 @@ class AndroidUsbAdapter(
             fm.heterodyne.app.JournalExport(store).save { it.write(snapshot) }
         }) }
     }
-    fun diagnosticCommand(command: DiagnosticCommand, done: (TuneResult) -> Unit) { worker.execute {
-        val result = when (command) {
-            DiagnosticCommand.RequestAllInfo -> controller.checkConnection()
-            DiagnosticCommand.TuneUp -> controller.step(Direction.Down)
-            DiagnosticCommand.TuneDown -> controller.step(Direction.Up)
-            DiagnosticCommand.Band -> controller.switchBand()
-            DiagnosticCommand.PlaySelect -> controller.snapshot.confirmed?.let { controller.select(it.band, it.frequencyKhz) }
-                ?: TuneResult.BandNotFM
-            DiagnosticCommand.SeekUp -> controller.seek(Direction.Down)
-            DiagnosticCommand.SeekDown -> controller.seek(Direction.Up)
+    fun diagnosticCommand(command: DiagnosticCommand, done: (TuneResult) -> Unit) {
+        cancelAutostart()
+        worker.execute {
+            val result = when (command) {
+                DiagnosticCommand.RequestAllInfo -> controller.checkConnection()
+                DiagnosticCommand.TuneUp -> controller.step(Direction.Down)
+                DiagnosticCommand.TuneDown -> controller.step(Direction.Up)
+                DiagnosticCommand.Band -> controller.switchBand()
+                DiagnosticCommand.PlaySelect -> controller.snapshot.confirmed?.let { controller.select(it.band, it.frequencyKhz) }
+                    ?: TuneResult.BandNotFM
+                DiagnosticCommand.SeekUp -> controller.seek(Direction.Down)
+                DiagnosticCommand.SeekDown -> controller.seek(Direction.Up)
+            }
+            done(result)
         }
-        done(result)
-    } }
+    }
     private val manager = context.getSystemService(UsbManager::class.java)
     private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Module") }
     private val log by lazy {
@@ -67,12 +72,66 @@ class AndroidUsbAdapter(
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
     private val controller: ModuleController by lazy { ModuleController(transport, log,
+        beforeTick = { launch.guardPendingWork() },
         seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
             context.getSharedPreferences("seek", Context.MODE_PRIVATE)).toLong() * 1000 },
         frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency -> main.post { stationChanged(band, frequency) } }, changed = { state ->
-        if (state == ConnectionState.Disconnected) frames.resetConnection()
+        if (state == ConnectionState.Disconnected) {
+            frames.resetConnection()
+        }
         main.post { changed(state) }
     }, transitionObserved = { snapshot -> main.post { transitionObserved(snapshot) } }) }
+    private val cancellation = AutostartGeneration()
+    @Volatile private var launchGeneration = cancellation.capture()
+    @Volatile private var playbackServiceActive = false
+    @Volatile private var pendingAutostart: ((Boolean) -> Unit)? = null
+    private fun audioActive() = audio.snapshot.state in listOf(AudioState.Starting, AudioState.Playing)
+    private fun playbackActive() = playbackServiceActive || audioActive() || focus.playbackActive
+    private val launch: LaunchAutostart by lazy { LaunchAutostart(controller, log,
+        clock = { android.os.SystemClock.elapsedRealtime() },
+        requestFocus = { completed ->
+            val token = launchGeneration
+            main.post {
+                val acquired = if (!cancellation.isCancelled(token) && !playbackActive()) focus.acquireForAutostart() else null
+                val lease = acquired?.let { AudioFocusLease(it.granted) { main.post { it.release() } } }
+                worker.execute { completed(lease) }
+            }
+        },
+        startPlayback = { completed ->
+            val token = launchGeneration
+            pendingAutostart = completed
+            main.post {
+                if (cancellation.isCancelled(token) || closing || !launch.startingPlayback || pendingAutostart !== completed) {
+                    worker.execute { completeAutostart(completed, false) }
+                } else {
+                    autostartPlayback { accepted ->
+                        if (!accepted) worker.execute { completeAutostart(completed, false) }
+                        // Success is completed by playAudio, after playback takes focus ownership.
+                    }
+                }
+            }
+        },
+        noFocusChanged = { denied -> main.post { noFocusChanged(denied) } },
+        cancelled = { cancellation.isCancelled(launchGeneration) },
+        isPlaying = ::playbackActive) }
+
+    fun openingGeneration(): Long = cancellation.capture()
+    fun openApplication(station: TuneTarget?, generation: Long) {
+        worker.execute {
+            if (cancellation.isCancelled(generation)) return@execute
+            launchGeneration = generation
+            launch.open(context.getSharedPreferences("autostart", Context.MODE_PRIVATE).getBoolean("enabled", true), station)
+        }
+    }
+    fun cancelAutostart() {
+        cancellation.cancel()
+        worker.execute { launch.cancel() }
+    }
+    private fun completeAutostart(completed: (Boolean) -> Unit, started: Boolean) {
+        if (pendingAutostart === completed) pendingAutostart = null
+        completed(started)
+    }
+
     private var playbackStopped: (() -> Unit)? = null
     @Volatile private var closing = false
     private val sink by lazy { AudioTrackSink() }
@@ -132,6 +191,7 @@ class AndroidUsbAdapter(
             audio.receive()
             if (audio.moduleDetached) controller.deviceId?.let { moduleGone(it) }
             controller.receive()
+            launch.tick()
         }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
@@ -140,12 +200,21 @@ class AndroidUsbAdapter(
     fun seek(direction: Direction) { worker.execute { controller.seek(direction) } }
     fun checkConnection() { worker.execute { controller.checkConnection() } }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
-    fun playAudio(stopped: () -> Unit) {
+    fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) {
         if (closing) { stopped(); return }
+        playbackServiceActive = true
         worker.execute {
-            if (closing) { stopped(); return@execute }
+            val completed = if (autostart) pendingAutostart else null
+            if (closing || (autostart && (cancellation.isCancelled(launchGeneration) || !launch.startingPlayback))) {
+                completed?.let { completeAutostart(it, false) }
+                if (!audioActive()) stopped() // A cancelled old start cannot stop an already playing service.
+                return@execute
+            }
             playbackStopped = stopped
-            if (!audio.play() && audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
+            val playing = audio.play()
+            completed?.let { completeAutostart(it, playing) }
+            if (playing || audioActive()) main.post { started() }
+            if (!playing && audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
     }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
@@ -156,7 +225,10 @@ class AndroidUsbAdapter(
     fun reclaimAudioFocus(completed: () -> Unit) {
         if (!closing) main.post { focus.reclaim(); completed() }
     }
-    fun stopAudio() { if (!closing) worker.execute { audio.stop() } }
+    fun updatePlaybackService(active: Boolean) { playbackServiceActive = active }
+    fun stopAudio() {
+        if (!closing) worker.execute { audio.stop() }
+    }
     private fun finishPlayback() {
         val stopped = playbackStopped ?: return
         playbackStopped = null
@@ -187,7 +259,7 @@ class AndroidUsbAdapter(
         started = false
         polling?.cancel(false)
         closing = true
-        worker.execute { try { controller.close() } finally { log.close(); worker.shutdown() } }
+        worker.execute { try { launch.cancel(); controller.close() } finally { log.close(); worker.shutdown() } }
     }
 }
 

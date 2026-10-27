@@ -24,6 +24,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
+        stations.module.openApplication(restoredActivity = savedInstanceState != null)
         stations.diagnostics.updateProbeUiMode(resources.configuration.uiMode)
         val permissionPreferences = getSharedPreferences("diagnostics", MODE_PRIVATE)
         val probePermission = fm.heterodyne.app.ui.ProbePermission(
@@ -63,6 +64,7 @@ class MainActivity : ComponentActivity() {
                             connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
+                            noFocus = stations.module.noFocus,
                             actions = fm.heterodyne.app.ui.EfirActions(
                                 select = stations.module::pickStation, station = stations.module::nextStation,
                                 step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,

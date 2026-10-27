@@ -9,6 +9,16 @@ interface AudioFocusManager {
     fun abandon()
 }
 
+/** A release action tied to one automatically acquired focus session. */
+class AudioFocusLease(val granted: Boolean, private val releaseAction: () -> Unit) {
+    private var released = false
+    @Synchronized fun release() {
+        if (released) return
+        released = true
+        releaseAction()
+    }
+}
+
 class AudioFocusController(
     private val manager: AudioFocusManager,
     private val sink: AudioSink,
@@ -16,15 +26,38 @@ class AudioFocusController(
 ) {
     private var session: Any? = null
 
-    @Synchronized fun start() {
-        if (session != null) return
+    private var granted = false
+
+    private var automaticSession: Any? = null
+
+    val playbackActive: Boolean @Synchronized get() = session != null && automaticSession == null
+
+    /** Returns ownership only when this call creates a new focus session. */
+    @Synchronized fun acquireForAutostart(): AudioFocusLease? {
+        if (session != null) return null
         val token = Any()
+        automaticSession = token
+        startSession(token)
+        return AudioFocusLease(granted) { releaseAutostart(token) }
+    }
+
+    @Synchronized private fun releaseAutostart(token: Any) {
+        if (session === token && automaticSession === token) stop()
+    }
+
+    @Synchronized fun start() {
+        automaticSession = null // Playback takes ownership, including an already granted session.
+        if (session != null) return
+        startSession(Any())
+    }
+
+    private fun startSession(token: Any) {
         session = token
         sink.setVolume(1f)
         journal.event("focus volume=1.0")
-        // Live radio continues even when the request is denied.
+        // Live radio continues even when the manual request is denied.
         journal.event("focus request")
-        val granted = manager.request { change -> onFocus(token, change) }
+        granted = manager.request { change -> onFocus(token, change) }
         journal.event("focus request ${if (granted) "granted" else "denied"}")
     }
 
@@ -38,6 +71,8 @@ class AudioFocusController(
     @Synchronized fun stop() {
         if (session == null) return
         session = null
+        automaticSession = null
+        granted = false
         manager.abandon()
         journal.event("focus abandon")
     }

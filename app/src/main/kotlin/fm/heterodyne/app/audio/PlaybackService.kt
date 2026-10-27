@@ -17,6 +17,7 @@ import fm.heterodyne.app.StationsApplication
 
 /** Owns foreground playback and steering wheel events on the main event loop. */
 class PlaybackService : Service() {
+    companion object { const val EXTRA_AUTOSTART = "autostart" }
     private val main = Handler(Looper.getMainLooper())
     private val stations get() = (application as StationsApplication).module
 
@@ -26,6 +27,7 @@ class PlaybackService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        stations.updatePlaybackService(true)
         wheel = WheelController(WheelScheduler { delay, action ->
             val task = Runnable {
                 wheel.update(stations.activeEntries, stations.currentStation)
@@ -73,8 +75,10 @@ class PlaybackService : Service() {
             .setOngoing(true)
             .build())
         // startId prevents an old session's queued completion from stopping a newer start.
-        stations.playAudio { main.post { stopSelf(startId) } }
-        reclaimWheel()
+        val autostart = intent?.getBooleanExtra(EXTRA_AUTOSTART, false) == true
+        stations.playAudio(autostart, started = { if (!destroyed) reclaimWheel() }) {
+            main.post { stopSelf(startId) }
+        }
         return START_NOT_STICKY
     }
 
@@ -85,6 +89,7 @@ class PlaybackService : Service() {
     }
 
     override fun onDestroy() {
+        stations.updatePlaybackService(false)
         destroyed = true
         wheel.close()
         session.isActive = false

@@ -109,6 +109,18 @@ class StationsSession(
         }
     }
 
+    /** Serialize with Stop and station saves; reopening must not use the process's original flag. */
+    fun readLaunchStation(ready: (TuneTarget?) -> Unit) {
+        storage.execute {
+            val saved = repository.load()
+            val station = saved.state.lastStation?.takeIf {
+                current.state != null && pendingLastPlayed == null &&
+                    saved.status == LoadStatus.LOADED && saved.state.lastPlayed
+            }
+            ready(station?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) })
+        }
+    }
+
     fun rememberStation(band: Band, frequency: Int, saved: () -> Unit) {
         storage.execute {
             val state = current.state ?: return@execute
