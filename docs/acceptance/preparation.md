@@ -1,7 +1,7 @@
 # Приёмка MVP на ГУ: подготовка
 
 Это инструкция для владельца. Она готовит всё до выезда к автомобилю.
-Сами проверки описаны в [test-plan.md](test-plan.md). Форма результатов — в [report-template.md](report-template.md).
+Сами проверки прогона 3 описаны в [test-plan-run3.md](test-plan-run3.md). Форма результатов — в [report-template-run3.md](report-template-run3.md).
 Тикет приёмки: [#89](https://github.com/krasotinpa/super-radio-android/issues/89).
 Это материалы для **повторного** прогона. Первый прогон — [report-run1.md](report-run1.md). Что повторять — [retest-plan-run3.md](retest-plan-run3.md).
 
