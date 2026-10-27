@@ -1,0 +1,9 @@
+Heterodyne FM
+Copyright (C) 2026 Pavel Krasotin
+Лицензия: GPL-3.0-or-later (см. LICENSE).
+
+Сторонние компоненты, которые попадут в сборку RTL-SDR (ADR 0006):
+- librtlsdr, GPL-2.0-or-later (osmocom/rtl-sdr). Версия и SHA — при подключении.
+- libusb, LGPL-2.1. Динамическая .so. Версия и SHA — при подключении.
+
+Пока эти компоненты не подключены, сборка содержит только код проекта и зависимости из gradle/libs.versions.toml.
