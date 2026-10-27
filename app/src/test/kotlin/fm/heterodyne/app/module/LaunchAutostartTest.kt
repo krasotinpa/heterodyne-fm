@@ -8,6 +8,26 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
 class LaunchAutostartTest {
+
+    @Test fun noSelectedReceiverNeverRequestsFocus() {
+        val absent = LaunchAutostart(null, log, { now },
+            requestFocus = { focusRequests++ }, startPlayback = { plays++ })
+        absent.open(true, TuneTarget(Band.FM, 90000)); absent.tick()
+        assertEquals(0, focusRequests)
+        assertEquals(0, plays)
+    }
+
+    @Test fun fmOnlyReceiverDoesNotAutostartAm() {
+        val receiver = fm.heterodyne.app.receiver.FakeReceiver().apply { state = ConnectionState.Observing }
+        val start = LaunchAutostart(receiver, log, { now },
+            requestFocus = { focusRequests++; it(lease()) }, startPlayback = { plays++; it(true) })
+        start.open(true, TuneTarget(Band.AM, 801)); start.tick()
+        assertEquals(0, focusRequests)
+        assertTrue(receiver.selected.isEmpty())
+        start.open(true, TuneTarget(Band.FM, 90300)); start.tick(); start.tick()
+        assertEquals(listOf(TuneTarget(Band.FM, 90300)), receiver.selected)
+        assertEquals(1, plays)
+    }
     @get:Rule val temporary = TemporaryFolder()
     private val transport = FakeTransport()
     private var now = 0L

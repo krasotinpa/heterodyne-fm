@@ -17,16 +17,20 @@ class WheelController(
     private var current: StationEntry? = null
     private var generation = 0L
     private var held = false
+    private var seekEnabled = true
     private var cancel: (() -> Unit)? = null
     var cursor: StationEntry? = null
         private set
 
-    fun update(entries: List<StationEntry>, current: StationEntry?) {
-        if (this.entries != entries) {
+    fun update(entries: List<StationEntry>, current: StationEntry?,
+               capabilities: fm.heterodyne.app.receiver.ReceiverCapabilities = fm.heterodyne.app.receiver.moduleCapabilities) {
+        val supported = entries.filter { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
+        seekEnabled = capabilities.seek
+        if (this.entries != supported) {
             generation++
             cancel?.invoke()
             cancel = null
-            this.entries = entries.toList()
+            this.entries = supported
             cursor = current
         } else if (cancel == null && this.current != current) cursor = current
         this.current = current
@@ -46,7 +50,7 @@ class WheelController(
         cancel?.invoke()
         cancel = null
         cursor = current
-        seek(direction)
+        if (seekEnabled) seek(direction)
     }
 
     fun keyUp() { held = false }

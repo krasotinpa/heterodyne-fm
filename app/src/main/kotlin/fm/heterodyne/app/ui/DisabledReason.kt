@@ -12,17 +12,20 @@ enum class DisabledReason(val text: String) {
     Connecting("Подключение идёт"),
     Unconfirmed("Нет ответа от приёмника"),
     NoFocus("Нет фокуса, нажмите Старт"),
+    UnsupportedBand("Приёмник не принимает AM"),
     EmptySelection("Подборка пуста"),
 }
 
 fun disabledReason(connectionState: ConnectionState, transitionState: TransitionState,
-                   band: Band?, entries: List<StationEntry>): DisabledReason? = when {
+                   band: Band?, entries: List<StationEntry>,
+                   supportedBands: Set<Band> = setOf(Band.FM, Band.AM)): DisabledReason? = when {
     transitionState == TransitionState.Unresponsive -> DisabledReason.Unresponsive
     connectionState == ConnectionState.Disconnected -> DisabledReason.Disconnected
     connectionState == ConnectionState.PermissionPending -> DisabledReason.PermissionPending
     connectionState == ConnectionState.DeviceFound || connectionState == ConnectionState.Open -> DisabledReason.Connecting
     transitionState == TransitionState.Unconfirmed -> DisabledReason.Unconfirmed
     band == null -> DisabledReason.Connecting
+    band !in supportedBands || entries.any { Band.valueOf(it.band.name) !in supportedBands } -> DisabledReason.UnsupportedBand
     entries.isEmpty() -> DisabledReason.EmptySelection
     else -> null
 }

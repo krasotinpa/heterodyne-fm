@@ -7,6 +7,27 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class WheelControllerTest {
+
+    @Test fun fmOnlyWheelSkipsAmAndLongPressDoesNotSeek() {
+        val receiver = fm.heterodyne.app.receiver.FakeReceiver()
+        val wheel = wheel(entries[1])
+        wheel.update(entries, entries[1], receiver.capabilities)
+        wheel.next()
+        assertEquals(entries[0], wheel.cursor)
+        timer.advance(1000)
+        assertEquals(listOf(entries[0]), selected)
+        wheel.longPress(Direction.Up)
+        timer.advance(1000)
+        assertTrue(seeks.isEmpty())
+    }
+
+    @Test fun capabilityChangeCancelsPendingUnsupportedStation() {
+        val wheel = wheel(entries[1])
+        wheel.next()
+        wheel.update(entries, entries[1], fm.heterodyne.app.receiver.FakeReceiver().capabilities)
+        timer.advance(1000)
+        assertTrue(selected.isEmpty())
+    }
     private val entries = listOf(StationEntry(Band.FM, 87500), StationEntry(Band.FM, 90300), StationEntry(Band.AM, 999))
     private val timer = WheelTimerFake()
     private val selected = mutableListOf<StationEntry>()

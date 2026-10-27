@@ -4,7 +4,6 @@ import fm.heterodyne.app.Journal
 import fm.heterodyne.app.audio.AudioCounters
 import fm.heterodyne.app.receiver.ConnectionProbe
 import fm.heterodyne.app.receiver.Receiver
-import fm.heterodyne.app.receiver.ReceiverCapabilities
 import fm.heterodyne.app.receiver.ReceiverKind
 
 enum class Band { AM, FM, DAB }
@@ -56,14 +55,7 @@ class ModuleController(
     private val changed: (ConnectionState) -> Unit = {},
 ) : Receiver {
     override val kind = ReceiverKind.Module
-    override val capabilities = ReceiverCapabilities(
-        bands = setOf(Band.FM, Band.AM),
-        seek = true,
-        cancelSeek = false,
-        rds = false,
-        signalLevel = false,
-        stereo = false,
-    )
+    override val capabilities = fm.heterodyne.app.receiver.moduleCapabilities
     override val audioCounters get() = onReadAudioCounters()
     override fun playAudio() = onStartAudio()
     override fun stopAudio() = onStopAudio()

@@ -23,6 +23,38 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
+
+    @Test fun receiverChoiceHidesModuleSettingsAndSelectsReceiver() {
+        val other = fm.heterodyne.app.receiver.ReceiverKind("test")
+        val profiles = fm.heterodyne.app.receiver.ReceiverProfiles.Module.withProfile(
+            fm.heterodyne.app.receiver.ReceiverProfile(other, "Тестовый приёмник", 1, 2) { true })
+        val selected = mutableStateOf(other)
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {},
+                receiverKinds = profiles.kinds, receiverName = profiles::displayName,
+                selectedReceiver = selected.value, selectReceiver = { selected.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Приёмник").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Предел Поиска").assertDoesNotExist()
+        compose.onNodeWithText("Сигнал Перехода").assertDoesNotExist()
+        compose.onNodeWithText("Тестовый приёмник").performScrollTo().assertIsSelected()
+        compose.onNodeWithContentDescription("Тестовый приёмник").assertIsSelected()
+        compose.onNodeWithContentDescription("Модуль").performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("Модуль").assertIsSelected()
+        compose.onNodeWithText("Предел Поиска").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun singleKindHasNoReceiverSettingsSection() {
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Приёмник").assertDoesNotExist()
+    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun settingsSelectParkButtonAppearanceImmediately() {

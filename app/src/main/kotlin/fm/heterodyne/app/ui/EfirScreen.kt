@@ -93,6 +93,7 @@ fun EfirScreen(
     seekHint: String? = null,
     parkShowLabel: Boolean = true,
     parkLargeIcon: Boolean = false,
+    capabilities: fm.heterodyne.app.receiver.ReceiverCapabilities = fm.heterodyne.app.receiver.moduleCapabilities,
     connectionState: fm.heterodyne.app.module.ConnectionState = if (connected)
         fm.heterodyne.app.module.ConnectionState.Observing else fm.heterodyne.app.module.ConnectionState.Disconnected,
 ) {
@@ -101,7 +102,8 @@ fun EfirScreen(
     val selections = state?.regions?.get(state.selectedRegion)
     val entries = selections?.active?.entries.orEmpty()
     val reason = if (noFocus && connected) DisabledReason.NoFocus
-        else disabledReason(connectionState, transition.state, transition.confirmed?.band, entries)
+        else disabledReason(connectionState, transition.state, transition.confirmed?.band, entries, capabilities.bands)
+    val hasSupportedEntries = entries.any { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
     val confirmed = transition.confirmed
     val name = entries.firstOrNull { it.matches(confirmed) }?.name
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
@@ -143,26 +145,30 @@ fun EfirScreen(
                   Spacer(Modifier.height(tokenDp("size.rds.height")).testTag("rds-reserved"))
                 }
                 // Reserve the same width in every state. Hidden buttons must also reject taps.
-                Row(Modifier.width(tokenDp("size.seekGroup.width")).height(tokenDp("size.seekGroup.height"))
-                    .testTag("seek-group")
-                    .alpha(if (driving) 0f else 1f)
-                    .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                    Control("◀", connected && !driving, { actions.seek(Direction.Down) },
-                        Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ◀")
-                    BasicText(if (isCommandPaused(connected, transition.state)) "Поиск · пауза" else "Поиск",
-                        Modifier.width(tokenDp("size.seekGroup.width") - tokenDp("size.seekButton.width") * 2 -
-                            tokenDp("space.plateGap") * 2), style = designTextStyle("label", Muted).copy(textAlign = TextAlign.Center), maxLines = 1)
-                    Control("▶", connected && !driving, { actions.seek(Direction.Up) },
-                        Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
+                Box(Modifier.width(tokenDp("size.seekGroup.width")).height(tokenDp("size.seekGroup.height"))
+                    .testTag("seek-group")) {
+                    if (capabilities.seek) {
+                        Row(Modifier.fillMaxSize()
+                            .alpha(if (driving) 0f else 1f)
+                            .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
+                            Control("◀", connected && !driving, { actions.seek(Direction.Down) },
+                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ◀")
+                            BasicText(if (isCommandPaused(connected, transition.state)) "Поиск · пауза" else "Поиск",
+                                Modifier.width(tokenDp("size.seekGroup.width") - tokenDp("size.seekButton.width") * 2 -
+                                    tokenDp("space.plateGap") * 2), style = designTextStyle("label", Muted).copy(textAlign = TextAlign.Center), maxLines = 1)
+                            Control("▶", connected && !driving, { actions.seek(Direction.Up) },
+                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
+                        }
+                    }
                 }
                 Control("Стоянка", !driving, actions.parked, Modifier.size(138.dp, tokenDp("size.parkButton.height")) /* width: components.md §3, not in tokens.json */, radius = "l", parkIcon = true,
                     parkShowLabel = parkShowLabel, parkLargeIcon = parkLargeIcon, description = "Стоянка")
             }
             Row(Modifier.weight(1f).testTag("efir-body"), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                EdgeControls(Direction.Down, connected, entries.isNotEmpty(), transition.state, actions,
-                    Modifier.fillMaxHeight(), playing, confirmed?.band)
+                EdgeControls(Direction.Down, connected, hasSupportedEntries, transition.state, actions,
+                    Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
                 Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"),
                     verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
                     Box(Modifier.fillMaxWidth().height(tokenDp(if (compact) "size.spectrum.heightCompact" else "size.spectrum.height"))
@@ -170,7 +176,9 @@ fun EfirScreen(
                     BandScale(catalog?.stations.orEmpty(), entries, transition,
                         loupeEnabled = connected && transition.state in listOf(TransitionState.Idle, TransitionState.SeekIncomplete) && transition.target == null &&
                             screen.error == null,
-                        windowWidth = windowWidth, select = actions.select,
+                        windowWidth = windowWidth, select = { entry ->
+                            if (fm.heterodyne.app.module.Band.valueOf(entry.band.name) in capabilities.bands) actions.select(entry)
+                        },
                         playing = playing, play = actions.play)
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         var choosing by remember(state?.selectedRegion, selections?.activeName) { mutableStateOf(false) }
@@ -193,7 +201,7 @@ fun EfirScreen(
                             .padding(horizontal = tokenDp("space.section")), verticalArrangement = Arrangement.Center) {
                             BasicText("Подборка пуста — добавьте станции в режиме стоянки", style = designTextStyle("plate", Muted))
                         } else StationRibbon(entries, transition, connected, actions.select, Modifier.weight(1f), plateHeight,
-                            "${state?.selectedRegion}:${selections?.activeName}")
+                            "${state?.selectedRegion}:${selections?.activeName}", capabilities.bands)
                     }
                     BasicText("Справочник", style = designTextStyle("button", Muted))
                     val visible = catalog?.stations.orEmpty().filter { it.band.name == (confirmed?.band?.name ?: state?.band?.name) }.map { it.copyEntry() }
@@ -203,12 +211,12 @@ fun EfirScreen(
                         horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap")),
                         verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         items(visible, key = { "${it.band}:${it.frequencyKhz}" }) { entry ->
-                            StationPlate(entry, null, transition, connected, actions.select, Modifier.height(plateHeight))
+                            StationPlate(entry, null, transition, connected && fm.heterodyne.app.module.Band.valueOf(entry.band.name) in capabilities.bands, actions.select, Modifier.height(plateHeight))
                         }
                     }
                 }
-                EdgeControls(Direction.Up, connected, entries.isNotEmpty(), transition.state, actions,
-                    Modifier.fillMaxHeight(), playing, confirmed?.band)
+                EdgeControls(Direction.Up, connected, hasSupportedEntries, transition.state, actions,
+                    Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
             }
             if (showActions) {
                 // Keep messages beside the actions so the compact catalog retains a full plate row.
@@ -238,11 +246,12 @@ internal fun receiverText(text: String) = text.replace("Модуля", "приё
 
 @Composable
 private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: Boolean, state: TransitionState,
-                         actions: EfirActions, modifier: Modifier, playing: Boolean, band: fm.heterodyne.app.module.Band?) {
+                         actions: EfirActions, modifier: Modifier, playing: Boolean, band: fm.heterodyne.app.module.Band?, showBand: Boolean) {
     val arrow = if (direction == Direction.Down) "◀" else "▶"
     Column(modifier.width(tokenDp("size.sideColumn.width")), verticalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
         if (direction == Direction.Down) Control(if (playing) "Стоп" else "Старт", connected, actions.play,
             Modifier.fillMaxWidth().height(tokenDp("size.startStop.height")), selected = playing, radius = "xl", outlined = !playing, playback = playing)
+        else if (!showBand) Spacer(Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")).testTag("band-reserved"))
         else Control("${band?.name ?: "FM"} / ${if (band == fm.heterodyne.app.module.Band.AM) "FM" else "AM"}",
             connected && band != null, actions.band, Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")), selected = true, radius = "xl", bandDisplay = band)
         Control("Станция $arrow", connected && hasEntries, { actions.station(direction) },
@@ -255,7 +264,7 @@ private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: B
 @Composable
 private fun StationRibbon(entries: List<StationEntry>, transition: TransitionSnapshot,
                           connected: Boolean, select: (StationEntry) -> Unit, modifier: Modifier,
-                          height: androidx.compose.ui.unit.Dp, selectionKey: String) {
+                          height: androidx.compose.ui.unit.Dp, selectionKey: String, supportedBands: Set<fm.heterodyne.app.module.Band>) {
     val list = rememberLazyListState()
     val target = transition.target ?: transition.confirmed
     val density = LocalDensity.current
@@ -278,7 +287,7 @@ private fun StationRibbon(entries: List<StationEntry>, transition: TransitionSna
         if (list.canScrollForward) drawRect(Brush.horizontalGradient(listOf(background.copy(alpha = 0f), background), size.width - fade, size.width))
     }, state = list, horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
         itemsIndexed(entries, key = { _, it -> "${it.band}:${it.frequencyKhz}" }) { index, entry ->
-            StationPlate(entry, index + 1, transition, connected, select,
+            StationPlate(entry, index + 1, transition, connected && fm.heterodyne.app.module.Band.valueOf(entry.band.name) in supportedBands, select,
                 Modifier.width(tokenDp("size.plate.presetWidth")).height(height))
         }
     }
