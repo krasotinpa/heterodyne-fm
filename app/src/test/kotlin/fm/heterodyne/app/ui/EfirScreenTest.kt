@@ -27,6 +27,79 @@ import org.robolectric.annotation.Config
 class EfirScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun seekGroupKeepsFixedWidthInParkingPauseAndDriving() {
+        val driving = mutableStateOf(false)
+        val state = mutableStateOf(TransitionState.Idle)
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(state.value, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), driving = driving.value)
+        }
+        listOf(false to TransitionState.Idle, false to TransitionState.CommandPause,
+            true to TransitionState.CommandPause, true to TransitionState.Idle).forEach { (moving, transition) ->
+            compose.runOnIdle { driving.value = moving; state.value = transition }
+            compose.onNodeWithTag("seek-group").assertWidthIsEqualTo(224.dp)
+        }
+    }
+
+    @Test fun seekLabelFitsBetweenDirectionalButtonsInParkingAndPause() {
+        val state = mutableStateOf(TransitionState.Idle)
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(state.value, null, TuneTarget(Band.FM, 87500)), true, EfirActions())
+        }
+        listOf(TransitionState.Idle to "Поиск", TransitionState.CommandPause to "Поиск · пауза").forEach { (transition, text) ->
+            compose.runOnIdle { state.value = transition }
+            val label = compose.onNodeWithText(text).assertWidthIsEqualTo(104.dp)
+            val bounds = label.fetchSemanticsNode().boundsInRoot
+            val left = compose.onNodeWithContentDescription("Поиск ◀").fetchSemanticsNode().boundsInRoot
+            val right = compose.onNodeWithContentDescription("Поиск ▶").fetchSemanticsNode().boundsInRoot
+            assertTrue(left.right <= bounds.left && bounds.right <= right.left)
+            assertEquals((left.center.x + right.center.x) / 2, bounds.center.x, .5f)
+            val results = mutableListOf<TextLayoutResult>()
+            label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            val layout = results.single()
+            assertEquals(14f, layout.layoutInput.style.fontSize.value)
+            assertEquals(androidx.compose.ui.text.style.TextAlign.Center, layout.layoutInput.style.textAlign)
+            assertEquals(1, layout.layoutInput.maxLines)
+            assertEquals(1, layout.lineCount)
+            assertTrue(!layout.hasVisualOverflow)
+        }
+    }
+
+    @Test fun commandPauseLabelsRequireConnectedReceiver() {
+        val connected = mutableStateOf(true)
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500)),
+                connected.value, EfirActions())
+        }
+        listOf("Шаг ◀ · пауза", "Шаг ▶ · пауза", "Поиск · пауза").forEach {
+            compose.onNodeWithText(it).assertIsDisplayed()
+        }
+        compose.runOnIdle { connected.value = false }
+        compose.onAllNodesWithText("пауза", substring = true).assertCountEquals(0)
+        listOf("Шаг ◀", "Шаг ▶").forEach { compose.onNodeWithText(it).assertIsNotEnabled() }
+        compose.onNodeWithText("Поиск").assertIsDisplayed()
+    }
+
+    @Test fun drivingParkingTextAndIconUseDisabledText() {
+        var expected = androidx.compose.ui.graphics.Color.Unspecified
+        compose.setContent {
+            expected = LocalAppearanceColors.current["disabledText"]
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions(), driving = true)
+        }
+        compose.onNodeWithText("Стоянка").assertIsNotEnabled()
+        listOf("Стоянка", "≡").forEach { text ->
+            val results = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithText(text, useUnmergedTree = true)
+                .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            assertEquals(expected, results.single().layoutInput.style.color)
+        }
+    }
+
     @Test fun deniedAutostartShowsExactStatusAndKeepsManualStartAvailable() {
         var starts = 0
         compose.setContent {

@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fm.heterodyne.app.StationsScreenState
@@ -135,15 +136,17 @@ fun EfirScreen(
                   }
                   Spacer(Modifier.height(tokenDp("size.rds.height")).testTag("rds-reserved"))
                 }
-                // Keep the measured width, including the pause label, while driving. alpha(0) alone still passes taps, so the buttons are also disabled.
-                Row(Modifier.height(tokenDp("size.seekGroup.height"))
+                // Reserve the same width in every state. Hidden buttons must also reject taps.
+                Row(Modifier.width(tokenDp("size.seekGroup.width")).height(tokenDp("size.seekGroup.height"))
+                    .testTag("seek-group")
                     .alpha(if (driving) 0f else 1f)
                     .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                    BasicText(if (transition.state == TransitionState.CommandPause) "Поиск · пауза" else "Поиск", style = designTextStyle("button", Muted))
                     Control("◀", connected && !driving, { actions.seek(Direction.Down) },
                         Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ◀")
+                    BasicText(if (connected && transition.state == TransitionState.CommandPause) "Поиск · пауза" else "Поиск",
+                        Modifier.width(104.dp), style = designTextStyle("label", Muted).copy(textAlign = TextAlign.Center), maxLines = 1)
                     Control("▶", connected && !driving, { actions.seek(Direction.Up) },
                         Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
                 }
@@ -236,7 +239,7 @@ private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: B
             connected && band != null, actions.band, Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")), selected = true, radius = "xl", bandDisplay = band)
         Control("Станция $arrow", connected && hasEntries, { actions.station(direction) },
             Modifier.fillMaxWidth().weight(1f).heightIn(min = tokenDp("size.stationButton.minHeight")), radius = "xl", edge = true)
-        Control("Шаг $arrow" + if (state == TransitionState.CommandPause) " · пауза" else "", connected,
+        Control("Шаг $arrow" + if (connected && state == TransitionState.CommandPause) " · пауза" else "", connected,
             { actions.step(direction) }, Modifier.fillMaxWidth().height(tokenDp("size.stepButton.height")), radius = "xl", edge = true)
     }
 }
@@ -360,7 +363,9 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             val iconSize = if (playback != null) "size.icon.l" else if (text.startsWith("Станция")) "size.icon.xl" else "font.style.band.size"
             BasicText(icon, style = designTextStyle("band", foreground).copy(fontSize = DesignTokens.number(iconSize).sp,
                 lineHeight = DesignTokens.number(iconSize).sp))
-            BasicText(if (edge) text.substringBefore(' ') else text, style = designTextStyle("button", foreground))
+            BasicText(if (edge) text.substringBefore(' ') else text, style = designTextStyle("button", foreground).let {
+                if (text.startsWith("Шаг")) it.copy(fontSize = 16.sp) else it
+            })
             if (text.contains("пауза")) BasicText("пауза", style = designTextStyle("label", foreground))
         } else if (bandDisplay != null) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             listOf(fm.heterodyne.app.module.Band.FM, fm.heterodyne.app.module.Band.AM).forEach { band ->
