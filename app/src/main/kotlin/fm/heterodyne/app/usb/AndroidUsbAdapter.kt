@@ -25,6 +25,7 @@ class AndroidUsbAdapter(
     changed: (ConnectionState) -> Unit,
     private val audioChanged: (AudioCounters) -> Unit = {},
     transitionObserved: (TransitionSnapshot) -> Unit = {},
+    seekPaused: (Long) -> Unit = {},
     private val autostartPlayback: ((Boolean) -> Unit) -> Unit = { it(false) },
     private val noFocusChanged: (Boolean) -> Unit = {},
 ) {
@@ -80,7 +81,8 @@ class AndroidUsbAdapter(
             frames.resetConnection()
         }
         main.post { changed(state) }
-    }, transitionObserved = { snapshot -> main.post { transitionObserved(snapshot) } }) }
+    }, transitionObserved = { snapshot -> main.post { transitionObserved(snapshot) } },
+        seekPaused = { remaining -> main.post { seekPaused(remaining) } }) }
     private val cancellation = AutostartGeneration()
     @Volatile private var launchGeneration = cancellation.capture()
     @Volatile private var playbackServiceActive = false
