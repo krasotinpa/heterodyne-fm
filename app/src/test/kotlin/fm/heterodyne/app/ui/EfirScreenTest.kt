@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.*
@@ -25,6 +27,84 @@ import org.robolectric.annotation.Config
 class EfirScreenTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun compactCatalogKeepsOnePlateVisibleWithAllActionMessages() {
+        val screen = mutableStateOf(StationsScreenState(StationsState.defaults(), listOf(catalog),
+            recovered = true, error = "Ошибка приёмника ".repeat(20)))
+        compose.setContent {
+            Box(Modifier.requiredSize(935.dp, 493.dp)) {
+                EfirScreen(screen.value, TransitionSnapshot(TransitionState.Unconfirmed, null, null),
+                    false, EfirActions())
+            }
+        }
+        compose.onNodeWithTag("catalog-grid").assertHeightIsAtLeast(tokenDp("size.plate.heightCompact"))
+        compose.onNodeWithText("Справочная", substring = true).assertIsDisplayed()
+        compose.onNodeWithText("Проверить связь").assertHeightIsEqualTo(tokenDp("size.touch.min"))
+        compose.onNodeWithText("Подключить приёмник").assertHeightIsEqualTo(tokenDp("size.touch.min"))
+        val bodyHeight = compose.onNodeWithTag("efir-body").fetchSemanticsNode().boundsInRoot.height
+        compose.runOnIdle { screen.value = screen.value.copy(state = null) }
+        // Loading has no catalog yet; its extra message must not take more body space.
+        assertEquals(bodyHeight, compose.onNodeWithTag("efir-body").fetchSemanticsNode().boundsInRoot.height, .5f)
+    }
+
+    @Test fun longestReasonFitsCompactStatusWithoutVisualOverflow() {
+        compose.setContent {
+            Box(Modifier.requiredSize(935.dp, 493.dp)) {
+                EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                    TransitionSnapshot(TransitionState.Unresponsive, null, null), true, EfirActions())
+            }
+        }
+        val results = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithTag("efir-status").assertTextEquals("Модуль не отвечает, переподключите USB")
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        val layout = results.single()
+        assertTrue("Reason must be at least 17sp", layout.layoutInput.style.fontSize.value >= 17f)
+        assertEquals(1, layout.lineCount)
+        assertTrue("Reason must not be ellipsized", !layout.isLineEllipsized(0))
+        val status = compose.onNodeWithTag("efir-status").fetchSemanticsNode().boundsInRoot
+        val topBar = compose.onNodeWithTag("efir-topbar").fetchSemanticsNode().boundsInRoot
+        assertTrue("Status $status must fit inside top bar $topBar",
+            status.left >= topBar.left && status.top >= topBar.top &&
+                status.right <= topBar.right && status.bottom <= topBar.bottom)
+        assertEquals(DesignTokens.number("font.style.plate.size"), results.single().layoutInput.style.fontSize.value)
+    }
+
+    @Test fun disconnectedConnectButtonHasLargeTargetAndDoesNotCoverCatalog() {
+        val many = catalog.copy(stations = (0 until 20).map {
+            CatalogStation("s$it", "Станция $it", StationBand.FM, 88000 + it * 100)
+        })
+        compose.setContent {
+            Box(Modifier.requiredSize(935.dp, 493.dp)) {
+                EfirScreen(StationsScreenState(StationsState.defaults(), listOf(many)),
+                    TransitionSnapshot(TransitionState.Disconnected, null, null), false, EfirActions())
+            }
+        }
+        val button = compose.onNodeWithText("Подключить приёмник")
+        button.assertHeightIsAtLeast(tokenDp("size.touch.min")).assertWidthIsAtLeast(tokenDp("size.touch.min"))
+        val bounds = button.fetchSemanticsNode().boundsInRoot
+        compose.onAllNodesWithText("Станция ", substring = true).fetchSemanticsNodes()
+            .forEach { assertTrue("Connect overlaps catalog plate", !bounds.overlaps(it.boundsInRoot)) }
+        assertTrue(!bounds.overlaps(compose.onNodeWithTag("catalog-grid").fetchSemanticsNode().boundsInRoot))
+    }
+
+    @Test fun connectionAndEmptySelectionReasonsUseTokenStyleWithinUnchangedTopBar() {
+        val connection = mutableStateOf(ConnectionState.Disconnected)
+        compose.setContent {
+            EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
+                connection.value == ConnectionState.Observing, EfirActions(), connectionState = connection.value)
+        }
+        listOf(ConnectionState.Disconnected, ConnectionState.PermissionPending, ConnectionState.DeviceFound,
+            ConnectionState.Observing).forEach { state ->
+            compose.runOnIdle { connection.value = state }
+            val results = mutableListOf<TextLayoutResult>()
+            compose.onNodeWithTag("efir-status").performSemanticsAction(
+                SemanticsActions.GetTextLayoutResult) { it(results) }
+            assertEquals(DesignTokens.number("font.style.plate.size"), results.single().layoutInput.style.fontSize.value)
+            compose.onNodeWithTag("efir-topbar").assertHeightIsEqualTo(tokenDp("size.topBar.height"))
+            compose.onNodeWithTag("rds-reserved").assertHeightIsEqualTo(tokenDp("size.rds.height"))
+        }
+    }
+
     @Test fun emptySelectionKeepsCatalogAvailableAndExplainsDisabledNavigation() {
         compose.setContent {
             EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
@@ -38,7 +118,7 @@ class EfirScreenTest {
         compose.onNodeWithText("Станция ◀").assertIsNotEnabled()
         compose.onNodeWithText("Станция ▶").assertIsNotEnabled()
         compose.onNodeWithText("Справочная", substring = true).assertIsEnabled()
-        compose.onNodeWithTag("rds-reserved").assertHeightIsEqualTo(22.dp)
+        compose.onNodeWithTag("rds-reserved").assertHeightIsEqualTo(tokenDp("size.rds.height"))
         compose.onNodeWithTag("spectrum-reserved").assertHeightIsEqualTo(56.dp)
     }
 
@@ -214,7 +294,7 @@ class EfirScreenTest {
             "FM / AM", "Подборка: Дорога", "Старт", "Стоянка").forEach {
             if (it == "Подборка: Дорога") compose.onNodeWithText("Подборка: Основной").performClick()
             val node = if (it == "FM / AM" || it.startsWith("Поиск")) compose.onNodeWithContentDescription(it) else compose.onNodeWithText(it)
-            node.assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp).performClick()
+            node.assertWidthIsAtLeast(tokenDp("size.touch.min")).assertHeightIsAtLeast(tokenDp("size.touch.min")).performClick()
         }
         assertEquals(listOf("station:Down", "station:Up", "step:Down", "step:Up", "seek:Down", "seek:Up",
             "band", "selection:Дорога", "play", "parked"), events)
