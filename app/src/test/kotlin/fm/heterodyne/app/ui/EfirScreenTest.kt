@@ -3,6 +3,9 @@ package fm.heterodyne.app.ui
 import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
@@ -60,10 +63,31 @@ class EfirScreenTest {
             label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
             val layout = results.single()
             assertEquals(14f, layout.layoutInput.style.fontSize.value)
-            assertEquals(androidx.compose.ui.text.style.TextAlign.Center, layout.layoutInput.style.textAlign)
+            assertEquals(TextAlign.Center, layout.layoutInput.style.textAlign)
             assertEquals(1, layout.layoutInput.maxLines)
             assertEquals(1, layout.lineCount)
             assertTrue(!layout.hasVisualOverflow)
+        }
+    }
+
+    @Test fun stepPauseKeepsLabelAt16SpAndPauseInSeparateText() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500)),
+                true, EfirActions())
+        }
+        listOf("Шаг ◀ · пауза", "Шаг ▶ · пауза").forEach { description ->
+            val label = compose.onNode(hasText("Шаг") and hasAnyAncestor(hasText(description)),
+                useUnmergedTree = true)
+            val results = mutableListOf<TextLayoutResult>()
+            label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            assertEquals("Шаг", results.single().layoutInput.text.text)
+            assertEquals(16f, results.single().layoutInput.style.fontSize.value)
+            val pause = compose.onNode(hasText("пауза") and hasAnyAncestor(hasText(description)),
+                useUnmergedTree = true)
+            val pauseResults = mutableListOf<TextLayoutResult>()
+            pause.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(pauseResults) }
+            assertEquals("пауза", pauseResults.single().layoutInput.text.text)
         }
     }
 
@@ -84,7 +108,7 @@ class EfirScreenTest {
     }
 
     @Test fun drivingParkingTextAndIconUseDisabledText() {
-        var expected = androidx.compose.ui.graphics.Color.Unspecified
+        var expected = Color.Unspecified
         compose.setContent {
             expected = LocalAppearanceColors.current["disabledText"]
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
@@ -312,6 +336,7 @@ class EfirScreenTest {
         }
         fun neighborBounds() = listOf(
             compose.onAllNodesWithText("87,5").onFirst(),
+            compose.onNodeWithText("Первая"),
             compose.onNodeWithContentDescription("FM / AM"),
             compose.onNodeWithText("Стоянка"),
         ).map { it.fetchSemanticsNode().boundsInRoot }
@@ -323,14 +348,22 @@ class EfirScreenTest {
         compose.onNodeWithContentDescription("Поиск ▶").assertDoesNotExist()
         compose.onNodeWithText("Поиск").assertDoesNotExist()
         assertEquals(parkedBounds, neighborBounds())
+        compose.onNodeWithTag("seek-group").performTouchInput {
+            val inset = tokenDp("size.seekButton.width").toPx() / 2
+            click(Offset(inset, center.y))
+            click(Offset(width - inset, center.y))
+        }
+        compose.runOnIdle { assertTrue(seeks.isEmpty()) }
         compose.runOnIdle { driving.value = false }
         compose.onNodeWithContentDescription("Поиск ◀").assertIsEnabled().performClick()
         compose.onNodeWithContentDescription("Поиск ▶").assertIsEnabled().performClick()
         assertEquals(listOf(Direction.Down, Direction.Up), seeks)
         compose.runOnIdle { transition.value = TransitionState.CommandPause }
         compose.onNodeWithText("Поиск · пауза").assertIsDisplayed()
+        assertEquals(parkedBounds, neighborBounds())
         compose.runOnIdle { driving.value = true }
         compose.onNodeWithText("Поиск · пауза").assertDoesNotExist()
+        assertEquals(parkedBounds, neighborBounds())
     }
 
     @Test fun drivingKeepsOngoingSeekStatus() {
