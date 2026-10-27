@@ -11,8 +11,9 @@ class TransitionTest {
     private val fake = FakeTransport()
     private var now = 0L
     private var limit = 20000L
+    private val pauses = mutableListOf<Long>()
     private val controller by lazy {
-        ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now }, seekLimitMillis = { limit }).also {
+        ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now }, seekLimitMillis = { limit }, seekPaused = { pauses.add(it) }).also {
             it.found(DeviceProfile("module"))
             it.permissionResult(it.requestPermission()!!, true)
         }
@@ -146,6 +147,45 @@ class TransitionTest {
         assertEquals(TuneResult.Sent, controller.checkConnection())
         assertEquals(3, fake.sendCount)
     }
+    @Test fun completedSeekReportsRemainingBandPauseWithoutSending() {
+        for ((fixture, pause) in listOf("fm28" to 5000L, "am31" to 15000L)) {
+            now += 20000
+            receive(fixture)
+            val start = now
+            assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
+            now = start + 100
+            receive(fixture)
+            now = start + 1000
+            controller.tick()
+            val sent = fake.sendCount
+            pauses.clear()
+            assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
+            assertEquals(listOf(pause - 1000), pauses)
+            assertEquals(sent, fake.sendCount)
+            now = start + pause
+            assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
+            assertEquals(listOf(pause - 1000), pauses)
+        }
+    }
+
+    @Test fun activeSeekStepAndTargetDoNotReportSeekPause() {
+        receive("fm28")
+        controller.seek(Direction.Up)
+        now = 1000
+        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
+        assertTrue(pauses.isEmpty())
+        receive("fm28")
+        now = 1300
+        controller.tick()
+        controller.step(Direction.Up)
+        controller.seek(Direction.Down)
+        assertTrue(pauses.isEmpty())
+        receive("fm28")
+        controller.tune(108000)
+        controller.seek(Direction.Down)
+        assertTrue(pauses.isEmpty())
+    }
+
     @Test fun seekSeriesEndsAfterQuietAndRespectsBandSpecificPause() {
         receive("fm28")
         assertEquals(TuneResult.Sent, controller.seek(Direction.Up))

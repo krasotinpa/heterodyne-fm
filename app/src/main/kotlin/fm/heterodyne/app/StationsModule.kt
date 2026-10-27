@@ -25,7 +25,17 @@ class StationsModule(
         private set
 
     // Источник не измерен, см. #89. Единственная точка установки сигнала.
-    fun updateDriving(value: Boolean) { driving = value }
+    fun updateDriving(value: Boolean) {
+        driving = value
+        if (!value) {
+            main.removeCallbacks(clearSeekHint)
+            seekHint = null
+        }
+    }
+
+    var seekHint by mutableStateOf<String?>(null)
+        private set
+    private val clearSeekHint = Runnable { seekHint = null }
 
     var moduleState by mutableStateOf(ConnectionState.Disconnected)
         private set
@@ -130,7 +140,11 @@ class StationsModule(
                 }
             }
         }, audioChanged = { counters -> main.post { audioState = counters.state } },
-            transitionObserved = { snapshot -> main.post {
+            seekPaused = { remaining ->
+                main.removeCallbacks(clearSeekHint)
+                seekHint = seekPauseHint(driving, remaining)
+                if (seekHint != null) main.postDelayed(clearSeekHint, 2000L)
+            }, transitionObserved = { snapshot -> main.post {
                 if (snapshot.target == null && cursor?.let {
                     it.band.name == snapshot.confirmed?.band?.name && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
                 } == true) cursor = null
@@ -162,3 +176,7 @@ class StationsModule(
     fun activateSelection(name: String) { cursor = null; session.activateSelection(name) }
     fun selectRegion(id: String) { cursor = null; session.selectRegion(id) }
 }
+
+internal fun seekPauseHint(driving: Boolean, remainingMillis: Long): String? =
+    if (driving) "Поиск доступен через ${maxOf(1L, remainingMillis / 1000 + if (remainingMillis % 1000 > 0) 1 else 0)} с"
+    else null

@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
                             noFocus = stations.module.noFocus,
+                            seekHint = stations.module.seekHint,
                             actions = fm.heterodyne.app.ui.EfirActions(
                                 select = stations.module::pickStation, station = stations.module::nextStation,
                                 step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,

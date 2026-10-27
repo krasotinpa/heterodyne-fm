@@ -39,6 +39,7 @@ class ModuleController(
     private val transitionChanged: (TransitionState) -> Unit = {},
     private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
     private val seekLimitMillis: () -> Long = { 20000L },
+    private val seekPaused: (Long) -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
     private val changed: (ConnectionState) -> Unit = {},
@@ -245,6 +246,7 @@ class ModuleController(
         if (stepStarted != null || started != null || seeking != null || target != null) return TuneResult.RateLimited
         if (lastSeek?.let { clock() - it < seekPause } == true) {
             pauseUntil = checkNotNull(lastSeek) + seekPause
+            seekPaused(pauseUntil - clock())
             radio(TransitionState.CommandPause)
             return TuneResult.RateLimited
         }
