@@ -23,8 +23,7 @@ class StationsApplication : Application() {
             startForegroundService(Intent(this, PlaybackService::class.java))
         }
         diagnostics = StationsDiagnostics(this, main, module.usb)
-        session.load { station ->
-            module.usb.restoreStation(station)
+        session.load {
             main.post { module.usb.start() }
         }
     }

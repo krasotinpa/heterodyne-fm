@@ -3,7 +3,7 @@ package fm.heterodyne.app.module
 import fm.heterodyne.app.Journal
 import fm.heterodyne.app.audio.AudioFocusLease
 
-/** Module-worker owned. Opening the application is separate from SessionRestart's return trigger. */
+/** Worker-owned autostart for application opening and Module return. */
 class LaunchAutostart(
     private val module: ModuleController,
     private val log: Journal,
@@ -13,6 +13,7 @@ class LaunchAutostart(
     private val noFocusChanged: (Boolean) -> Unit = {},
     private val cancelled: () -> Boolean = { false },
     private val isPlaying: () -> Boolean = { false },
+    private val isPlaybackStopping: () -> Boolean = { false },
 ) {
     private enum class Phase { Done, Pending, Focus, Probe, Selecting, Starting }
     @Volatile private var phase = Phase.Done
@@ -26,9 +27,15 @@ class LaunchAutostart(
     private var focusLease: AudioFocusLease? = null
     private var openedAt = 0L
 
-    fun open(enabled: Boolean, station: TuneTarget?) {
-        if (isPlaying()) { event("already-playing"); return }
+    private var reason = "application-open"
+
+    fun moduleReturn(enabled: Boolean, station: TuneTarget?) = begin(enabled, station, "module-return")
+    fun open(enabled: Boolean, station: TuneTarget?) = begin(enabled, station, "application-open")
+
+    private fun begin(enabled: Boolean, station: TuneTarget?, reason: String) {
+        if (isPlaying() && !isPlaybackStopping()) { event("already-playing", reason); return }
         cancel()
+        this.reason = reason
         noFocusChanged(false)
         this.station = station?.takeIf { enabled && isSelectableFrequency(it.band, it.frequencyKhz) }
         if (this.station == null) { event("skipped"); return }
@@ -57,7 +64,7 @@ class LaunchAutostart(
     /** Guard the Module's internal dispatch too, including when playback starts during a USB read. */
     fun guardPendingWork(): Boolean {
         if (cancelIfRequested()) return true
-        if (phase != Phase.Done && phase != Phase.Starting && isPlaying()) {
+        if (phase != Phase.Done && phase != Phase.Starting && isPlaying() && !isPlaybackStopping()) {
             finish("already-playing")
             return true
         }
@@ -74,6 +81,13 @@ class LaunchAutostart(
         }
         when (phase) {
             Phase.Pending -> {
+                // The old service must finish before a new playback session can own focus.
+                if (isPlaybackStopping()) return
+                // The controller owns the single return probe, including its rate-limit wait.
+                val probe = if (reason == "module-return") module.returnProbe ?: return else null
+                if (probe != null && module.stationRevision == probe.revision && clock() - probe.sentAt >= 3000) {
+                    finish("probe-timeout"); return
+                }
                 lastAttempt = clock()
                 phase = Phase.Focus
                 val token = generation
@@ -87,16 +101,18 @@ class LaunchAutostart(
                     else if (!lease.granted) { finish("no-focus"); noFocusChanged(true) }
                     else if (module.state != ConnectionState.Observing) finish("disconnected")
                     else {
-                        revision = module.stationRevision
-                        probeAt = clock()
+                        revision = probe?.revision ?: module.stationRevision
+                        probeAt = probe?.sentAt ?: clock()
                         phase = Phase.Probe
-                        if (module.checkConnection() != TuneResult.Sent) finish("probe-not-sent")
+                        if (probe == null && module.checkConnection() != TuneResult.Sent) finish("probe-not-sent")
                     }
                 }
             }
             Phase.Probe -> {
-                if (clock() - probeAt >= 3000) { finish("probe-timeout"); return }
-                if (module.stationRevision == revision) return
+                if (module.stationRevision == revision) {
+                    if (clock() - probeAt >= 3000) finish("probe-timeout")
+                    return
+                }
                 if (module.snapshot.confirmed == station) play("already-selected")
                 else {
                     phase = Phase.Selecting
@@ -148,7 +164,7 @@ class LaunchAutostart(
         releaseOwnedFocus()
         event(result)
     }
-    private fun event(result: String) {
-        try { log.event("autostart reason=application-open result=$result") } catch (_: Exception) { /* Passive Journal. */ }
+    private fun event(result: String, reason: String = this.reason) {
+        try { log.event("autostart reason=$reason result=$result") } catch (_: Exception) { /* Passive Journal. */ }
     }
 }

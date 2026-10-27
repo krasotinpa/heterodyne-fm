@@ -27,6 +27,7 @@ class AndroidUsbAdapter(
     transitionObserved: (TransitionSnapshot) -> Unit = {},
     private val autostartPlayback: ((Boolean) -> Unit) -> Unit = { it(false) },
     private val noFocusChanged: (Boolean) -> Unit = {},
+    private val readLaunchStation: ((TuneTarget?) -> Unit) -> Unit = { it(null) },
 ) {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     val frames = fm.heterodyne.app.DiagnosticFrames()
@@ -71,12 +72,33 @@ class AndroidUsbAdapter(
         }, priority = { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) })
     }
     private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
+    private var connectionGeneration = 0L
+    private var returnGeneration = 0L
+    private fun moduleReturning() {
+        launch.cancel()
+        val connection = connectionGeneration
+        val token = returnGeneration
+        // Enqueue storage before any new RX can save the returned Module's frequency.
+        readLaunchStation { station -> worker.execute {
+            if (connection != connectionGeneration || cancellation.isCancelled(token) || closing) return@execute
+            launchGeneration = token
+            launch.moduleReturn(autostartEnabled(), station)
+        } }
+    }
+    private fun autostartEnabled() =
+        context.getSharedPreferences("autostart", Context.MODE_PRIVATE).getBoolean("enabled", true)
     private val controller: ModuleController by lazy { ModuleController(transport, log,
+        clock = { android.os.SystemClock.elapsedRealtime() },
+        moduleReturning = ::moduleReturning,
         beforeTick = { launch.guardPendingWork() },
         seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
             context.getSharedPreferences("seek", Context.MODE_PRIVATE)).toLong() * 1000 },
         frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency -> main.post { stationChanged(band, frequency) } }, changed = { state ->
         if (state == ConnectionState.Disconnected) {
+            connectionGeneration++
+            returnGeneration = cancellation.capture()
+            playbackStopping = playbackServiceActive
+            launch.cancel()
             frames.resetConnection()
         }
         main.post { changed(state) }
@@ -84,6 +106,7 @@ class AndroidUsbAdapter(
     private val cancellation = AutostartGeneration()
     @Volatile private var launchGeneration = cancellation.capture()
     @Volatile private var playbackServiceActive = false
+    @Volatile private var playbackStopping = false
     @Volatile private var pendingAutostart: ((Boolean) -> Unit)? = null
     private fun audioActive() = audio.snapshot.state in listOf(AudioState.Starting, AudioState.Playing)
     private fun playbackActive() = playbackServiceActive || audioActive() || focus.playbackActive
@@ -113,14 +136,14 @@ class AndroidUsbAdapter(
         },
         noFocusChanged = { denied -> main.post { noFocusChanged(denied) } },
         cancelled = { cancellation.isCancelled(launchGeneration) },
-        isPlaying = ::playbackActive) }
+        isPlaying = ::playbackActive, isPlaybackStopping = { playbackStopping }) }
 
     fun openingGeneration(): Long = cancellation.capture()
     fun openApplication(station: TuneTarget?, generation: Long) {
         worker.execute {
             if (cancellation.isCancelled(generation)) return@execute
             launchGeneration = generation
-            launch.open(context.getSharedPreferences("autostart", Context.MODE_PRIVATE).getBoolean("enabled", true), station)
+            launch.open(autostartEnabled(), station)
         }
     }
     fun cancelAutostart() {
@@ -195,13 +218,13 @@ class AndroidUsbAdapter(
         }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
-    fun restoreStation(station: TuneTarget?) { worker.execute { controller.restoreStation(station) } }
-    fun select(band: Band, frequencyKhz: Int) { worker.execute { controller.select(band, frequencyKhz) } }
-    fun seek(direction: Direction) { worker.execute { controller.seek(direction) } }
+    fun select(band: Band, frequencyKhz: Int) { cancelAutostart(); worker.execute { controller.select(band, frequencyKhz) } }
+    fun seek(direction: Direction) { cancelAutostart(); worker.execute { controller.seek(direction) } }
     fun checkConnection() { worker.execute { controller.checkConnection() } }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { controller.error() } } }
     fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) {
         if (closing) { stopped(); return }
+        if (!autostart) cancelAutostart()
         playbackServiceActive = true
         worker.execute {
             val completed = if (autostart) pendingAutostart else null
@@ -218,14 +241,18 @@ class AndroidUsbAdapter(
         }
     }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
+        cancelAutostart()
         if (!closing) worker.execute { controller.select(Band.valueOf(entry.band.name), entry.frequencyKhz) }
     }
-    fun stepStation(direction: Direction) { if (!closing) worker.execute { controller.step(direction) } }
-    fun seekStation(direction: Direction) { if (!closing) worker.execute { controller.seek(direction) } }
+    fun stepStation(direction: Direction) { cancelAutostart(); if (!closing) worker.execute { controller.step(direction) } }
+    fun seekStation(direction: Direction) { cancelAutostart(); if (!closing) worker.execute { controller.seek(direction) } }
     fun reclaimAudioFocus(completed: () -> Unit) {
         if (!closing) main.post { focus.reclaim(); completed() }
     }
-    fun updatePlaybackService(active: Boolean) { playbackServiceActive = active }
+    fun updatePlaybackService(active: Boolean) {
+        playbackServiceActive = active
+        if (!active) worker.execute { playbackStopping = false }
+    }
     fun stopAudio() {
         if (!closing) worker.execute { audio.stop() }
     }

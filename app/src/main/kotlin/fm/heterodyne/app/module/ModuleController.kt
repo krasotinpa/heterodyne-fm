@@ -40,6 +40,7 @@ class ModuleController(
     private val frameObserved: (String, ByteArray) -> Unit = { _, _ -> },
     private val seekLimitMillis: () -> Long = { 20000L },
     private val beforeTick: () -> Unit = {},
+    private val moduleReturning: () -> Unit = {},
     private val changed: (ConnectionState) -> Unit = {},
 ) {
     private var band: Band? = null
@@ -67,8 +68,8 @@ class ModuleController(
     private var seekReply: Long? = null
     private var activeSeekLimit = 20000L
     private var lastCheck: Long? = null
-    private val restart = SessionRestart()
-    fun restoreStation(station: TuneTarget?) { restart.restore(station) }
+    data class ReturnProbe(val sentAt: Long, val revision: Long)
+    var returnProbe: ReturnProbe? = null; private set
     private var returning = false
     private var probeNeeded = false
     private fun radio(next: TransitionState) {
@@ -88,7 +89,6 @@ class ModuleController(
         beforeTick()
         advance(true)
         if (probeNeeded) tryCheckConnection()
-        restart.take(clock())?.let { select(it.band, it.frequencyKhz) }
     }
 
     private fun advance(dispatchPending: Boolean) {
@@ -127,7 +127,6 @@ class ModuleController(
             val b6 = frame[6].toInt() and 0xff
             val cid = ((b6 and 0x0f) shl 8) or (frame[7].toInt() and 0xff)
             band = when ((b6 shr 5) and 3) { 0 -> Band.AM; 1 -> Band.FM; else -> Band.DAB }
-            if (band == Band.AM || band == Band.FM) restart.bandReceived()
             if (bandReply == band) {
                 bandReply = null
                 if (target == null) { started = null; radio(TransitionState.Idle) }
@@ -170,7 +169,6 @@ class ModuleController(
     /** Extra BAND settling is used only by launch autostart; the R26 deadline remains shared. */
     fun select(nextBand: Band, frequencyKhz: Int, bandSettleMillis: Long = 0): TuneResult {
         if (!isSelectableFrequency(nextBand, frequencyKhz)) return TuneResult.InvalidFrequency
-        restart.manualSelection()
         advance(false)
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band == null || band == Band.DAB) return TuneResult.BandNotFM
@@ -272,7 +270,7 @@ class ModuleController(
         val sentAt = clock()
         lastCheck = sentAt; checking = true; started = sentAt
         val result = send(0x85, 7)
-        if (returnProbe && result == TuneResult.Sent) restart.returnProbeSent(sentAt)
+        if (returnProbe && result == TuneResult.Sent) this.returnProbe = ReturnProbe(sentAt, stationRevision)
         return result
     }
     private fun send(vararg payload: Int): TuneResult {
@@ -321,7 +319,6 @@ class ModuleController(
 
     private fun transition(next: ConnectionState) {
         state = next
-        restart.connection(next)
         changed(next)
     }
     fun found(device: DeviceProfile) {
@@ -353,7 +350,7 @@ class ModuleController(
             safeLog("USB open")
             transition(ConnectionState.Open)
             transition(ConnectionState.Observing)
-            if (returning) { returning = false; probeNeeded = true; tick() }
+            if (returning) { returning = false; probeNeeded = true; moduleReturning(); tick() }
         } catch (failure: Exception) { error((failure as? TransportFailure)?.errno) }
     }
     fun detach(id: String) {
@@ -375,6 +372,7 @@ class ModuleController(
     fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
         probeNeeded = false
+        returnProbe = null
         clearAction()
         radio(TransitionState.Disconnected)
         pending = null
