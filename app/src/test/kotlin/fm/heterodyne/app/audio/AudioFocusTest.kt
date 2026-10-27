@@ -29,6 +29,48 @@ class AudioFocusTest {
         override fun release() {}
     }, DiagnosticLog(temporary.newFolder()), focus = AudioFocusController(manager, sink, journal))
 
+    @Test fun autostartChecksGrantAndPlaybackReusesTheGrantedRequest() {
+        val focus = AudioFocusController(manager, sink, journal)
+        manager.granted = false
+        assertFalse(focus.acquireForAutostart()!!.granted)
+        focus.stop()
+        manager.granted = true
+        assertTrue(focus.acquireForAutostart()!!.granted)
+        focus.start()
+        assertEquals(2, manager.requests)
+    }
+
+    @Test fun autostartDoesNotBorrowOrReleasePlaybackFocus() {
+        val focus = AudioFocusController(manager, sink, journal)
+        focus.start()
+        assertTrue(focus.playbackActive)
+        assertNull(focus.acquireForAutostart())
+        assertEquals(1, manager.requests)
+        assertEquals(0, manager.abandons)
+    }
+
+    @Test fun releasingOldAutostartLeaseCannotStopPlaybackOrItsNewFocus() {
+        val focus = AudioFocusController(manager, sink, journal)
+        val lease = focus.acquireForAutostart()!!
+        focus.start() // Playback takes ownership of this session.
+        lease.release()
+        assertEquals(0, manager.abandons)
+        focus.reclaim()
+        lease.release()
+        assertTrue(focus.playbackActive)
+        assertEquals(1, manager.abandons)
+        assertEquals(2, manager.requests)
+    }
+
+    @Test fun leaseReleasesOnlyItsOwnSessionOnce() {
+        val focus = AudioFocusController(manager, sink, journal)
+        val lease = focus.acquireForAutostart()!!
+        assertFalse(focus.playbackActive)
+        lease.release(); lease.release()
+        assertEquals(1, manager.abandons)
+        assertFalse(focus.playbackActive)
+    }
+
     @Test fun journalRecordsFocusSignalsAndActionsInOrder() {
         val focus = AudioFocusController(manager, sink, journal)
         focus.start()

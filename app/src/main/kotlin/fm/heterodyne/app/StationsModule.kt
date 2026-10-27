@@ -42,6 +42,7 @@ class StationsModule(
     private val bandStations = mutableMapOf<Band, Int>()
 
     fun pickStation(entry: StationEntry) {
+        cancelAutostart()
         if (moduleState != ConnectionState.Observing) return
         cursor = entry
         selectStation(entry)
@@ -49,6 +50,7 @@ class StationsModule(
     }
 
     fun nextStation(direction: Direction) {
+        cancelAutostart()
         val state = session.screen.state ?: return
         val entries = state.regions.getValue(state.selectedRegion).active.entries
         if (entries.isEmpty()) return
@@ -64,9 +66,10 @@ class StationsModule(
     }
 
     fun step(direction: Direction) { cursor = null; stepStation(direction) }
-    fun seek(direction: Direction) { cursor = null; usb.seek(direction) }
+    fun seek(direction: Direction) { cancelAutostart(); cursor = null; usb.seek(direction) }
     fun checkConnection() { usb.checkConnection() }
     fun changeBand() {
+        cancelAutostart()
         val current = transition.confirmed ?: return
         val next = if (current.band == Band.FM)
             Band.AM else Band.FM
@@ -78,13 +81,39 @@ class StationsModule(
         usb.select(next, frequency)
     }
 
+    var noFocus by mutableStateOf(false)
+        private set
+    private var opening = 0L
+    private var applicationOpened = false
+    fun openApplication(restoredActivity: Boolean = false) {
+        // A restored Activity in a new process still represents an application opening.
+        if (restoredActivity && applicationOpened) return
+        applicationOpened = true
+        val token = ++opening
+        val generation = usb.openingGeneration()
+        session.readLaunchStation { station -> main.post {
+            if (opening == token) usb.openApplication(station, generation)
+        } }
+    }
+    private fun cancelAutostart() { opening++; noFocus = false; usb.cancelAutostart() }
+
     val audioCounters get() = usb.audioCounters
 
     internal lateinit var usb: AndroidUsbAdapter
         private set
 
     init {
-        usb = AndroidUsbAdapter(context, stationChanged = { band, frequency ->
+        usb = AndroidUsbAdapter(context,
+            autostartPlayback = { completed ->
+                try {
+                    context.startForegroundService(android.content.Intent(context, fm.heterodyne.app.audio.PlaybackService::class.java)
+                        .putExtra(fm.heterodyne.app.audio.PlaybackService.EXTRA_AUTOSTART, true))
+                    completed(true)
+                } catch (_: Exception) {
+                    // Includes ForegroundServiceStartNotAllowedException; the worker logs and releases its lease.
+                    completed(false)
+                }
+            }, noFocusChanged = { noFocus = it }, stationChanged = { band, frequency ->
             main.post {
                 currentStation = if (frequency == null || band == fm.heterodyne.app.module.Band.DAB) null
                 else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), frequency)
@@ -97,7 +126,10 @@ class StationsModule(
         }, changed = { state ->
             main.post {
                 moduleState = state
-                if (state == fm.heterodyne.app.module.ConnectionState.Disconnected) currentStation = null
+                if (state == fm.heterodyne.app.module.ConnectionState.Disconnected) {
+                    currentStation = null
+                    noFocus = false
+                }
             }
         }, audioChanged = { counters -> main.post { audioState = counters.state } },
             transitionObserved = { snapshot -> main.post {
@@ -112,17 +144,20 @@ class StationsModule(
 
     fun retryModulePermission() { usb.retry() }
     fun startAudio() {
+        cancelAutostart()
         session.setLastPlayed(true)
         startPlayback()
     }
     fun userStop() {
+        cancelAutostart()
         session.setLastPlayed(false)
         usb.stopAudio()
     }
-    fun playAudio(stopped: () -> Unit) { usb.playAudio(stopped) }
-    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { usb.selectStation(entry) }
-    fun stepStation(direction: fm.heterodyne.app.module.Direction) { usb.stepStation(direction) }
-    fun seekStation(direction: Direction) { usb.seekStation(direction) }
+    fun updatePlaybackService(active: Boolean) { usb.updatePlaybackService(active) }
+    fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) { usb.playAudio(autostart, started, stopped) }
+    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { cancelAutostart(); usb.selectStation(entry) }
+    fun stepStation(direction: fm.heterodyne.app.module.Direction) { cancelAutostart(); usb.stepStation(direction) }
+    fun seekStation(direction: Direction) { cancelAutostart(); usb.seekStation(direction) }
     fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
     fun stopAudio() { usb.stopAudio() }
 

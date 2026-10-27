@@ -84,6 +84,7 @@ fun EfirScreen(
     actions: EfirActions,
     playing: Boolean = false,
     driving: Boolean = false,
+    noFocus: Boolean = false,
     connectionState: fm.heterodyne.app.module.ConnectionState = if (connected)
         fm.heterodyne.app.module.ConnectionState.Observing else fm.heterodyne.app.module.ConnectionState.Disconnected,
 ) {
@@ -91,7 +92,8 @@ fun EfirScreen(
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
     val selections = state?.regions?.get(state.selectedRegion)
     val entries = selections?.active?.entries.orEmpty()
-    val reason = disabledReason(connectionState, transition.state, transition.confirmed?.band, entries)
+    val reason = if (noFocus && connected) DisabledReason.NoFocus
+        else disabledReason(connectionState, transition.state, transition.confirmed?.band, entries)
     val confirmed = transition.confirmed
     val name = entries.firstOrNull { it.matches(confirmed) }?.name
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
