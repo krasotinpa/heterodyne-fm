@@ -62,6 +62,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   seekLimitSeconds: Int = 20, selectSeekLimit: (Int) -> Unit = {},
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
+                  autostartEnabled: Boolean = true, selectAutostart: (Boolean) -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
     LaunchedEffect(developerEnabled) {
@@ -123,6 +124,12 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                             Control(option.title, true, { selectPalette(option) }, selected = option == palette)
                         }
                     }
+                    Label("Запуск", 24)
+                    Control("Играть последнюю Станцию при запуске", true,
+                        { selectAutostart(!autostartEnabled) }, selected = autostartEnabled)
+                    androidx.compose.foundation.text.BasicText(
+                        "Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.",
+                        style = designTextStyle("body", colors["text"]))
                     Label("Предел Поиска", 24)
                     SeekPreferences.choices.chunked(4).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {

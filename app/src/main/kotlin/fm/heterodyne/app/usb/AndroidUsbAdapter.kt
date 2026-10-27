@@ -30,6 +30,8 @@ class AndroidUsbAdapter(
     val frames = fm.heterodyne.app.DiagnosticFrames()
     // Journal reads wait for the Journal thread; keep them off the Module thread so commands and detach never queue behind disk IO.
     private val journalReader = Executors.newSingleThreadExecutor { task -> Thread(task, "JournalReader").apply { isDaemon = true } }
+    // Probe worker only enqueues; persistent writes belong to AsyncDiagnosticLog. No USB operation.
+    fun probeEvent(text: String) { log.event(text) }
     fun readJournal(done: (String) -> Unit) { journalReader.execute {
         done(try { log.readTail(32768) } catch (_: Exception) { "Не удалось прочитать Журнал" })
     } }

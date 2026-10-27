@@ -9,6 +9,7 @@ import fm.heterodyne.app.stations.Catalog
 import fm.heterodyne.app.stations.initialSelections
 import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
+import fm.heterodyne.app.stations.StationsFile
 import fm.heterodyne.app.stations.StationsState
 import fm.heterodyne.app.stations.Band as StationBand
 import fm.heterodyne.app.stations.SessionStation
@@ -30,10 +31,12 @@ class StationsSession(
     private val context: android.content.Context,
     private val main: Handler,
     private val storage: Executor = Executors.newSingleThreadExecutor(),
+    file: StationsFile = AtomicStationsFile(File(context.filesDir, "stations.json")),
 ) {
-    private val repository = StationsRepository(AtomicStationsFile(File(context.filesDir, "stations.json")))
+    private val repository = StationsRepository(file)
     // Only the storage queue reads or changes these values.
     private var current = StationsScreenState()
+    private var pendingLastPlayed: Boolean? = null
     var screen by mutableStateOf(StationsScreenState())
         private set
     val activeEntries get() = screen.state?.let { it.regions.getValue(it.selectedRegion).active.entries }.orEmpty()
@@ -114,6 +117,14 @@ class StationsSession(
         }
     }
 
+    fun setLastPlayed(value: Boolean) {
+        storage.execute {
+            val state = current.state ?: return@execute
+            pendingLastPlayed = value
+            save(state)
+        }
+    }
+
     fun selectRegion(id: String) {
         storage.execute {
             val state = current.state ?: return@execute
@@ -124,9 +135,11 @@ class StationsSession(
     }
 
     private fun save(state: StationsState): Boolean {
-        if (state == current.state && !current.recovered && current.error == null) return true
-        val saved = repository.save(state)
-        current = if (saved) current.copy(state = state, error = null)
+        val next = pendingLastPlayed?.let { state.copy(lastPlayed = it) } ?: state
+        if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null) return true
+        val saved = repository.save(next)
+        if (saved) pendingLastPlayed = null
+        current = if (saved) current.copy(state = next, error = null)
         else current.copy(error = "Не удалось сохранить состояние")
         publish()
         return saved

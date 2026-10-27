@@ -11,6 +11,7 @@ object StationsJson {
     fun encode(state: StationsState): String = JSONObject().put("schema", 2)
         .put("selectedRegion", state.selectedRegion)
         .put("band", state.band.name)
+        .put("lastPlayed", state.lastPlayed)
         .put("lastStation", state.lastStation?.let {
             JSONObject().put("band", it.band.name).put("frequencyKhz", it.frequencyKhz)
         } ?: JSONObject.NULL)
@@ -70,8 +71,13 @@ object StationsJson {
             SessionStation(Band.valueOf(station.getString("band")), frequency.toInt())
         } else null
         if (schema == 2) require(root.has("lastStation"))
+        val lastPlayed = if (root.isNull("lastPlayed")) false else {
+            val value = root.get("lastPlayed")
+            require(value is Boolean)
+            value
+        }
         return StationsState(root.getString("selectedRegion"), regions, lastStation,
-            if (schema == 2) Band.valueOf(root.getString("band")) else Band.FM)
+            if (schema == 2) Band.valueOf(root.getString("band")) else Band.FM, lastPlayed)
     }
 }
 

@@ -22,6 +22,30 @@ import org.robolectric.annotation.Config
 class BandScaleTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun confirmedStripeAndLoupeTargetHaveDistinctGeometry() {
+        val source = Catalog.parse(File("src/main/assets/catalogs/moskva.json").readText())
+        val snapshot = mutableStateOf(TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 97700)))
+        compose.setContent {
+            BandScale(source.stations, emptyList(), snapshot.value, loupeEnabled = true)
+        }
+        val stripe = compose.onNodeWithTag("band-scale-confirmed-stripe").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        val slider = compose.onNodeWithTag("band-scale-marker").fetchSemanticsNode().boundsInRoot
+        assertTrue(stripe.width > slider.width)
+        assertTrue(stripe.height > with(compose.density) { tokenDp("size.scale.markPreset.1").toPx() })
+        compose.onNodeWithTag("band-scale-preview-target").assertDoesNotExist()
+        val scale = compose.onNodeWithTag("band-scale")
+        scale.performTouchInput { down(androidx.compose.ui.geometry.Offset(width.toFloat() - 1, centerY)) }
+        val target = compose.onNodeWithTag("band-scale-preview-target").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
+        assertTrue(target.height > stripe.height)
+        assertEquals(stripe, compose.onNodeWithTag("band-scale-confirmed-stripe").fetchSemanticsNode().boundsInRoot)
+        scale.performTouchInput { up() }
+        compose.onNodeWithTag("band-scale-preview-target").assertDoesNotExist()
+        compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = TuneTarget(Band.AM, 855)) }
+        compose.onNodeWithTag("band-scale-confirmed-stripe").assertIsDisplayed()
+        compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = null) }
+        compose.onNodeWithTag("band-scale-confirmed-stripe").assertDoesNotExist()
+    }
+
     @Test fun efirShows53StationsAndMarkerOnlyFollowsConfirmation() {
         val source = Catalog.parse(File("src/main/assets/catalogs/moskva.json").readText())
         val catalog = source.copy(stations = source.stations + CatalogStation("test", "Тестовая",

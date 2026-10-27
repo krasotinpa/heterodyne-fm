@@ -18,6 +18,84 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class ParkingSessionTest {
+    @Test fun failedStopWriteIsRetriedWhenRememberingStationAndSurvivesRestart() {
+        val context = RuntimeEnvironment.getApplication()
+        val handler = Handler(Looper.getMainLooper())
+        val queued = java.util.ArrayDeque<Runnable>()
+        val storage = java.util.concurrent.Executor { queued.add(it) }
+        var contents: String? = null
+        var failWrite = false
+        val file = object : StationsFile {
+            override fun read(): String? = contents
+            override fun writeAtomic(text: String) {
+                if (failWrite) throw java.io.IOException("temporary write failure")
+                contents = text
+            }
+        }
+        val session = StationsSession(context, handler, storage, file)
+        session.load {}
+        drain(queued)
+        session.setLastPlayed(true)
+        drain(queued)
+        assertTrue(session.screen.state!!.lastPlayed)
+
+        failWrite = true
+        session.setLastPlayed(false)
+        drain(queued)
+        assertEquals("Не удалось сохранить состояние", session.screen.error)
+        assertTrue(session.screen.state!!.lastPlayed)
+
+        failWrite = false
+        var remembered = false
+        session.rememberStation(fm.heterodyne.app.module.Band.AM, 855) { remembered = true }
+        drain(queued)
+        assertTrue(remembered)
+        assertNull(session.screen.error)
+        val restarted = StationsSession(context, handler, storage, file)
+        restarted.load {}
+        drain(queued)
+        assertEquals(SessionStation(Band.AM, 855), restarted.screen.state!!.lastStation)
+        assertFalse(restarted.screen.state!!.lastPlayed)
+    }
+
+    @Test fun lastPlayedSurvivesRestartAndOtherSessionChangesUntilExplicitStop() {
+        val context = RuntimeEnvironment.getApplication()
+        File(context.filesDir, "stations.json").delete()
+        val handler = Handler(Looper.getMainLooper())
+        val queued = java.util.ArrayDeque<Runnable>()
+        var session = StationsSession(context, handler, java.util.concurrent.Executor { queued.add(it) })
+        session.load {}
+        drain(queued)
+        session.setLastPlayed(true)
+        assertFalse(session.screen.state!!.lastPlayed)
+        drain(queued)
+        fun restartAndCheck(expected: Boolean) {
+            session = StationsSession(context, handler, java.util.concurrent.Executor { queued.add(it) })
+            session.load {}
+            drain(queued)
+            assertEquals(expected, session.screen.state!!.lastPlayed)
+        }
+        restartAndCheck(true)
+        session.rememberStation(fm.heterodyne.app.module.Band.AM, 855) {}
+        drain(queued)
+        restartAndCheck(true)
+        assertEquals(SessionStation(Band.AM, 855), session.screen.state!!.lastStation)
+        session.selectRegion("yaroslavl")
+        drain(queued)
+        restartAndCheck(true)
+        assertEquals("yaroslavl", session.screen.state!!.selectedRegion)
+        session.createSelection("yaroslavl", "Поездка")
+        drain(queued)
+        restartAndCheck(true)
+        session.activateSelection("Поездка")
+        drain(queued)
+        restartAndCheck(true)
+        assertEquals("Поездка", session.screen.state!!.regions.getValue("yaroslavl").activeName)
+        session.setLastPlayed(false)
+        drain(queued)
+        restartAndCheck(false)
+    }
+
     @Test fun selectedRegionAndItsSelectionsSurviveSessionRestart() {
         val context = RuntimeEnvironment.getApplication()
         File(context.filesDir, "stations.json").delete()

@@ -94,6 +94,36 @@ class ParkingScreenTest {
         compose.runOnIdle { assertEquals(35, seconds.value) }
     }
 
+    @Test fun settingsAutostartIsSelectedByDefault() {
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Запуск").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Играть последнюю Станцию при запуске").performScrollTo()
+            .assertIsDisplayed().assertIsSelected().assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
+        compose.onNodeWithText("Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.")
+            .performScrollTo().assertIsDisplayed()
+    }
+
+    @Test fun settingsAutostartClickCallsCallbackAndUpdatesSelection() {
+        val enabled = mutableStateOf(true)
+        val selected = mutableListOf<Boolean>()
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Auto, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {}, autostartEnabled = enabled.value,
+                selectAutostart = { selected.add(it); enabled.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        val toggle = compose.onNodeWithText("Играть последнюю Станцию при запуске")
+        toggle.performScrollTo().assertIsSelected().performClick()
+        toggle.assertIsNotSelected().performClick()
+        toggle.assertIsSelected()
+        compose.runOnIdle { assertEquals(listOf(false, true), selected) }
+    }
+
     @Test fun rejectedRenameKeepsSelectedSelection() {
         val base = StationsState.defaults()
         val state = base.copy(regions = base.regions + ("moskva" to

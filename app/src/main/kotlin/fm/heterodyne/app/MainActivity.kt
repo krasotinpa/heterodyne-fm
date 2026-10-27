@@ -12,12 +12,41 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
+    private val locationPermission = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
+    ) { _ -> /* Denial is represented by the probe as «нет разрешения». */ }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        (application as StationsApplication).diagnostics.updateProbeUiMode(newConfig.uiMode)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val stations = application as StationsApplication
+        stations.diagnostics.updateProbeUiMode(resources.configuration.uiMode)
+        val permissionPreferences = getSharedPreferences("diagnostics", MODE_PRIVATE)
+        val probePermission = fm.heterodyne.app.ui.ProbePermission(
+            permissionPreferences.getBoolean("probe-location-requested", false),
+            { permissionPreferences.edit().putBoolean("probe-location-requested", true).apply() },
+            {
+                // Android 12 can ignore a FINE-only request. GPS still requires FINE if only COARSE is granted.
+                locationPermission.launch(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION,
+                    android.Manifest.permission.ACCESS_COARSE_LOCATION))
+            },
+        )
         setContent {
+            val developerEnabled = stations.diagnostics.developerMode.enabled
+            androidx.compose.runtime.LaunchedEffect(developerEnabled) {
+                probePermission.update(developerEnabled,
+                    checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+                        android.content.pm.PackageManager.PERMISSION_GRANTED)
+            }
             val seekPreferences = remember {
                 fm.heterodyne.app.ui.SeekPreferences(getSharedPreferences("seek", MODE_PRIVATE))
+            }
+            val autostartPreferences = remember {
+                fm.heterodyne.app.ui.AutostartPreferences(getSharedPreferences("autostart", MODE_PRIVATE))
             }
             val appearance = remember {
                 fm.heterodyne.app.ui.AppearancePreferences(getSharedPreferences("appearance", MODE_PRIVATE))
@@ -41,7 +70,7 @@ class MainActivity : ComponentActivity() {
                                 check = stations.module::checkConnection,
                                 play = {
                                     if (stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing))
-                                        stations.module.stopAudio() else stations.module.startAudio()
+                                        stations.module.userStop() else stations.module.startAudio()
                                 },
                                 permission = stations.module::retryModulePermission,
                             ),
@@ -66,6 +95,7 @@ class MainActivity : ComponentActivity() {
                     ), back = { parked = false },
                     theme = appearance.theme, palette = appearance.palette,
                     seekLimitSeconds = seekPreferences.seconds, selectSeekLimit = seekPreferences::selectSeconds,
+                    autostartEnabled = autostartPreferences.enabled, selectAutostart = autostartPreferences::selectEnabled,
                     selectTheme = appearance::selectTheme, selectPalette = appearance::selectPalette,
                     connected = stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing,
                     developerEnabled = stations.diagnostics.developerMode.enabled,

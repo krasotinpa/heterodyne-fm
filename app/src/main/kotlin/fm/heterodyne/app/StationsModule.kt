@@ -111,7 +111,14 @@ class StationsModule(
     }
 
     fun retryModulePermission() { usb.retry() }
-    fun startAudio() { startPlayback() }
+    fun startAudio() {
+        session.setLastPlayed(true)
+        startPlayback()
+    }
+    fun userStop() {
+        session.setLastPlayed(false)
+        usb.stopAudio()
+    }
     fun playAudio(stopped: () -> Unit) { usb.playAudio(stopped) }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) { usb.selectStation(entry) }
     fun stepStation(direction: fm.heterodyne.app.module.Direction) { usb.stepStation(direction) }
