@@ -96,6 +96,8 @@
 | `font.style.loupe` | 18 | 22 | 700 | ui | Соседние Станции в Лупе |
 | `font.style.cardTitle` | 18 | 24 | 600 | ui | Заголовок карточки |
 | `font.style.plate` | 17 | 22 | 600 | ui | Имя на плашке Станции |
+| `font.style.settingsGroup` | 22 | 28 | 700 | ui | Заголовок группы в «Настройках» (#243) |
+| `font.style.settingsBody` | 18 | 24 | 600 | ui | Подписи кнопок и значений в «Настройках» (#243) |
 | `font.style.body` | 16 | 22 | 500 | ui | Строки, кнопки, статус |
 | `font.style.button` | 15 | 20 | 700 | ui | Подписи Старт/Стоп, кнопок |
 | `font.style.label` | 14 | 18 | 600 | ui | Частота на плашке, подписи |
@@ -191,6 +193,14 @@
 | `size.parkMenu.width` | 236 |
 | `size.parkMenu.item` | 52 |
 | `size.parkMenu.back` | 56 |
+| `size.settings.target` | 64 (минимальная высота цели нажатия в «Настройках») |
+| `size.settings.gap` | 12 |
+| `size.settings.groupTop` | 24 (отступ сверху у заголовка группы) |
+| `size.settings.contentWidth` | 816 (864 минус отступы 24) |
+| `size.settings.paletteCard` | 195 (ширина; 4 × 195 + 3 × 12 = 816) |
+| `size.settings.markerCard` | 153 (ширина; 5 × 153 + 4 × 12 = 813) |
+| `size.settings.seekLimitColumns` | 6 (ряды 6 + 5 для 11 значений) |
+| `size.settings.regionRow` | 64 |
 | `size.chip.height` | 48 |
 | `size.segment.width` | 180 |
 | `size.segment.height` | 56 |

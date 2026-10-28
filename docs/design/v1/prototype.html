@@ -85,7 +85,7 @@ class App extends preact.Component {
     this.state = {
       screen:'air', tab:'presets', band:'FM', freq:883, am:612, playing:true, module:'ok', pending:null, error:null, region:'msk',
       sets:{ msk:[{name:'Основная',ids:[891,887,883,903,916,952,976,1001,1017,1034,1062,1074]},{name:'Тест',ids:[875,1034,976]},{name:'Дача',ids:[]}], yar:[{name:'Основная',ids:[880,913]}] },
-      setIdx:{ msk:0, yar:0 }, themeMode:null, hu:'night', palette:null, rds:false, dev:false, parkLabel:true, parkLarge:false,
+      setIdx:{ msk:0, yar:0 }, themeMode:null, hu:'night', palette:null, rds:false, dev:false, parkLabel:true, parkLarge:false, auto:true, sig:'Звук клавиши', seekLim:20, marker:'Булавка', regionList:false,
       loupe:null, toast:null, drag:null, taps:0, exp:'idle', frames: FR.map(function(r){ return r; }), ribX:null, ribKey:null, ribDrag:false
     };
     this.tm = []; this.toastT = null; this.dg = null; this.scaleEl = null; this.rd = null; this.noClick = false;
@@ -316,6 +316,14 @@ class App extends preact.Component {
     var parkSizeOpts = [seg('Обычный', !s.parkLarge, function(){ self.setState({parkLarge:false}); }), seg('Крупный', s.parkLarge, function(){ self.setState({parkLarge:true}); })];
     var rdsOpts = [seg('Выкл', !s.rds, function(){ self.setState({ rds:false }); }), seg('Вкл', s.rds, function(){ self.setState({ rds:true }); })];
     var devOpts = [seg('Выкл', !s.dev, function(){ self.setState({ dev:false }); }), seg('Вкл', s.dev, function(){ self.setState({ dev:true }); })];
+
+    var sigOpts = ['Выключено','Тон','Звук клавиши','Тишина'].map(function(n){ return seg(n, s.sig === n, function(){ self.setState({ sig:n }); }); });
+    var seekOpts = []; for (var q = 10; q <= 60; q += 5) (function(q2){ seekOpts.push(seg(q2 + ' с', s.seekLim === q2, function(){ self.setState({ seekLim:q2 }); })); })(q);
+    var MARK = { 'Булавка':'<line x1="30" y1="14" x2="30" y2="50" stroke="currentColor" stroke-width="4"/><circle cx="30" cy="12" r="9" fill="currentColor"/>', 'Флажок':'<line x1="22" y1="12" x2="22" y2="50" stroke="currentColor" stroke-width="3"/><rect x="22" y="8" width="28" height="16" rx="5" fill="currentColor"/>', 'Игла':'<circle cx="30" cy="24" r="16" fill="none" stroke="currentColor" stroke-width="2" opacity=".5"/><line x1="30" y1="26" x2="30" y2="50" stroke="currentColor" stroke-width="2"/><circle cx="30" cy="24" r="7" fill="currentColor"/>', 'Капля':'<path d="M30 52 L18 30 A14 14 0 1 1 42 30 Z" fill="currentColor"/>', 'Полоска':'<rect x="28" y="8" width="4" height="44" rx="2" fill="currentColor"/>' };
+    var markCards = Object.keys(MARK).map(function(n){ var on = s.marker === n; return { name:n, svg:MARK[n], sel:on, st:'background:' + t.surface2 + ';border:3px solid ' + (on ? t.accent : 'transparent') + ';color:' + (on ? t.accentText : t.text), pick:function(){ self.setState({ marker:n }); } }; });
+    var regionRows = ['Москва','Ярославль'].concat(Array.from({length:50}, function(_, i){ return 'Регион ' + (i + 3) + ' (макет)'; })).sort(function(a, b){ return a.localeCompare(b, 'ru', { numeric:true }); }).map(function(n){ var real = n === 'Москва' || n === 'Ярославль', cur = n === regName;
+      return { name:n, cur:cur, st: cur ? ('background:' + t.accentSoft + ';color:' + t.text) : ('background:' + t.surface2 + ';color:' + (real ? t.text : t.muted)),
+        pick:function(){ if (!real) { self.say('Макет: Справочника этого Региона нет'); return; } self.setState({ region:n === 'Москва' ? 'msk' : 'yar', pending:null, error:null, regionList:false }); } }; });
     var palCards = PAL_ORDER.map(function(p){ var k2 = tok(p, th), sel = p === pal; return { name:ACC[p].name, sel:sel, bg:k2.bg, surf:k2.surface2, acc:k2.accent,
       st:'background:' + t.surface2 + ';border:3px solid ' + (sel ? t.accent : 'transparent'), pick:function(){ self.setState({ palette:p }); } }; });
 
@@ -383,6 +391,7 @@ class App extends preact.Component {
       hasGhost: !!dr, ghostX: dr ? Math.round(dr.gx - 150) : 0, ghostY: dr ? Math.round(dr.gy - 28) : 0,
       ghostName: dr ? (self.nameOf(dr.id) || fmt(dr.id)) : '', ghostFs: dr ? fmt(dr.id) : '',
       regOpts:regOpts, themeOpts:themeOpts, themeCaption:themeCaption, palCards:palCards,
+      sigOpts:sigOpts, seekOpts:seekOpts, markCards:markCards, regionRows:regionRows, regionList:s.regionList, openRegions:function(){ self.setState({ regionList:true }); }, closeRegions:function(){ self.setState({ regionList:false }); }, autoOn:s.auto, autoPick:function(){ self.setState({ auto:!s.auto }); },
       expIdle: s.exp === 'idle', expWait: s.exp === 'wait', expDone: s.exp === 'done',
       expStart: function(){ self.setState({ exp:'wait' }); }, expCancel: function(){ self.setState({ exp:'done' }); },
       dev:s.dev, openDev: function(){ self.setState({ tab:'dev' }); }, devOff: function(){ self.setState({ dev:false, tab:'diag' }); },
@@ -651,53 +660,75 @@ ${(v.hasGhost) ? html`
 </div>
 ` : null}
 
-${(v.tS) ? html`
-<h1 style="margin: 0; font-size: 24px; font-weight: 700">Настройки</h1>
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
-<div style="font-size: 18px; font-weight: 600">Кнопка «Стоянка»</div>
-<div>Подпись</div><div style="display: flex; gap: 8px">
-${(v.parkLabelOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="width: 180px; height: 56px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+${(v.tS && v.regionList) ? html`
+<div style="display: flex; align-items: center; gap: 12px"><button class="b" onClick=${v.closeRegions} style="height: 64px; padding: 0 24px; border: 0; border-radius: 12px; background: ${v.t.surface2}; color: ${v.t.text}; font-size: 18px; font-weight: 600">← Настройки</button><h1 style="margin: 0; font-size: 24px; font-weight: 700">Регион</h1></div>
+<div style="display: flex; flex-direction: column; gap: 0">
+${(v.regionRows || []).map((r) => html`<button class="b" onClick=${r.pick} style="height: 64px; margin-bottom: 0; padding: 0 20px; border: 0; border-bottom: 1px solid ${v.t.edge}; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 600; text-align: left; ${r.st}"><span>${r.name}</span>${(r.cur) ? html`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke=${v.t.accentText} stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>` : null}</button>`)}
 </div>
-<div>Размер пиктограммы</div><div style="display: flex; gap: 8px">
-${(v.parkSizeOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="width: 180px; height: 56px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+` : null}
+${(v.tS && !v.regionList) ? html`
+<h1 style="margin: 0; font-size: 24px; font-weight: 700">Настройки</h1>
+<div style="display: flex; flex-direction: column; gap: 12px">
+<div style="font-size: 22px; font-weight: 700; line-height: 28px">Запуск</div>
+<button class="b" onClick=${v.autoPick} aria-pressed=${v.autoOn} style="height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${v.autoOn ? ('background:' + v.t.accent + ';color:' + v.t.onAccent) : ('background:' + v.t.surface2 + ';color:' + v.t.text)}">Играть последнюю Станцию при запуске: ${v.autoOn ? 'Вкл' : 'Выкл'}</button>
+<div style="font-size: 16px; color: ${v.t.muted}">Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid ${v.t.edge}">
+<div style="font-size: 22px; font-weight: 700; line-height: 28px">Поиск и Переход</div>
+<div style="font-size: 18px; font-weight: 600">Сигнал Перехода</div>
+<div style="display: flex; gap: 12px">
+${(v.sigOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="flex: 1; min-width: 0; height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+</div>
+<div style="font-size: 18px; font-weight: 600">Предел Поиска</div>
+<div style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px">
+${(v.seekOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
 </div>
 </div>
 
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
-<div style="font-size: 18px; font-weight: 600">Регион</div>
-<div style="display: flex; gap: 8px">
-${(v.regOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="width: 180px; height: 56px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; ${o.st}">${o.label}</button>`)}
-</div>
-<div style="font-size: 15px; color: ${v.t.muted}">У каждого Региона свой Справочник и свои Подборки.</div>
-</div>
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid ${v.t.edge}">
+<div style="font-size: 22px; font-weight: 700; line-height: 28px">Вид</div>
 <div style="font-size: 18px; font-weight: 600">Тема</div>
-<div style="display: flex; gap: 8px">
-${(v.themeOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="width: 180px; height: 56px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+<div style="display: flex; gap: 12px">
+${(v.themeOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="flex: 1; min-width: 0; height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
 </div>
-<div style="font-size: 15px; color: ${v.t.muted}">${v.themeCaption}</div>
-</div>
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
-<div style="font-size: 18px; font-weight: 600">RDS</div>
-<div style="display: flex; gap: 8px">
-${(v.rdsOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="width: 180px; height: 56px; border: 0; border-radius: 12px; font-size: 17px; font-weight: 600; ${o.st}">${o.label}</button>`)}
-</div>
-<div style="font-size: 15px; color: ${v.t.muted}">Название и текст от радиостанции под именем Станции в Эфире.</div>
-</div>
-<div style="display: flex; flex-direction: column; gap: 12px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
+<div style="font-size: 16px; color: ${v.t.muted}">${v.themeCaption}</div>
 <div style="font-size: 18px; font-weight: 600">Палитра</div>
-<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px">
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px">
 ${(v.palCards || []).map((c) => html`
 <button class="b" onClick=${c.pick} aria-pressed=${c.sel} style="height: 132px; display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 14px; text-align: left; color: ${v.t.text}; ${c.st}">
 <div style="flex: 1; width: 100%; display: flex; align-items: center; gap: 6px; padding: 8px; border-radius: 8px; background: ${c.bg}">
 <div style="flex: 1; height: 36px; border-radius: 6px; background: ${c.surf}"></div>
 <div style="width: 44px; height: 36px; border-radius: 6px; background: ${c.acc}"></div>
 </div>
-<div style="width: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 16px; font-weight: 600"><span>${c.name}</span>${(c.sel) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=${v.t.accentText} stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>` : null}</div>
+<div style="width: 100%; display: flex; align-items: center; justify-content: space-between; font-size: 18px; font-weight: 600"><span>${c.name}</span>${(c.sel) ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke=${v.t.accentText} stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"></path></svg>` : null}</div>
 </button>
 `)}
 </div>
-<div style="font-size: 15px; color: ${v.t.muted}">У каждой Палитры есть светлая и тёмная версия. Свой цвет выбрать нельзя: контраст гарантирован только для готовых Палитр.</div>
+<div style="font-size: 16px; color: ${v.t.muted}">У каждой Палитры есть светлая и тёмная версия. Свой цвет выбрать нельзя: контраст гарантирован только для готовых Палитр.</div>
+<div style="font-size: 18px; font-weight: 600">Отметка на шкале</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px">
+${(v.markCards || []).map((c) => html`<button class="b" onClick=${c.pick} aria-pressed=${c.sel} style="height: 96px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-radius: 14px; font-size: 18px; font-weight: 600; ${c.st}"><svg width="40" height="40" viewBox="0 0 60 60" aria-hidden="true" dangerouslySetInnerHTML=${{ __html: c.svg }}></svg><span>${c.name}</span></button>`)}
+</div>
+<div style="font-size: 18px; font-weight: 600">Кнопка «Стоянка»: подпись</div>
+<div style="display: flex; gap: 12px">
+${(v.parkLabelOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="flex: 1; min-width: 0; height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+</div>
+<div style="font-size: 18px; font-weight: 600">Кнопка «Стоянка»: размер пиктограммы</div>
+<div style="display: flex; gap: 12px">
+${(v.parkSizeOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="flex: 1; min-width: 0; height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+</div>
+<div style="font-size: 18px; font-weight: 600">RDS (макет)</div>
+<div style="display: flex; gap: 12px">
+${(v.rdsOpts || []).map((o) => html`<button class="b" onClick=${o.pick} aria-pressed=${o.on} style="flex: 1; min-width: 0; height: 64px; border: 0; border-radius: 12px; font-size: 18px; font-weight: 600; ${o.st}">${o.label}</button>`)}
+</div>
+<div style="font-size: 16px; color: ${v.t.muted}">Название и текст от радиостанции под именем Станции в Эфире.</div>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 12px; padding-top: 24px; border-top: 1px solid ${v.t.edge}">
+<div style="font-size: 22px; font-weight: 700; line-height: 28px">Регион</div>
+<button class="b" onClick=${v.openRegions} style="height: 64px; padding: 0 20px; border: 0; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; background: ${v.t.surface2}; color: ${v.t.text}; font-size: 18px; font-weight: 600"><span>Регион: ${v.regName}</span><span aria-hidden="true">›</span></button>
+<div style="font-size: 16px; color: ${v.t.muted}">У каждого Региона свой Справочник и свои Подборки.</div>
 </div>
 ` : null}
 
