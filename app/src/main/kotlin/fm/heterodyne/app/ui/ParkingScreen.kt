@@ -114,74 +114,80 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                 "Меню стоянки" -> Label("Режим стоянки", 24)
                 "Диагностика" -> diagnostics(goBack)
                 "Режим разработчика" -> if (developerEnabled) developerTools()
-                "Настройки" -> Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.section").dp)) {
-                    if (receiverKinds.size > 1) {
-                        Label("Приёмник", 24)
-                        Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                            receiverKinds.forEach { kind ->
-                                Control(receiverName(kind), !driving, { if (!driving) selectReceiver(kind) },
-                                    selected = kind == selectedReceiver, description = receiverName(kind))
+                "Настройки" -> {
+                    var regionsOpen by remember { mutableStateOf(false) }
+                    val gap = tokenDp("size.settings.gap")
+                    if (regionsOpen) {
+                        BackHandler { regionsOpen = false }
+                        Control("← Настройки", true, { regionsOpen = false }, Modifier.fillMaxWidth(), settings = true)
+                        val regions = remember(screen.catalogs) {
+                            val order = java.text.Collator.getInstance(java.util.Locale.forLanguageTag("ru"))
+                            screen.catalogs.sortedWith { a, b -> order.compare(a.region.name, b.region.name) }
+                        }
+                        val selectedIndex = regions.indexOfFirst { it.region.id == state?.selectedRegion }.coerceAtLeast(0)
+                        val listState = remember { androidx.compose.foundation.lazy.LazyListState(selectedIndex) }
+                        LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("settings-regions"), state = listState) {
+                            items(regions, key = { it.region.id }) { option ->
+                                val selected = option.region.id == state?.selectedRegion
+                                Control(option.region.name + if (selected) " ✓" else "", true, {
+                                    actions.region(option.region.id)
+                                    regionsOpen = false
+                                }, Modifier.fillMaxWidth().height(tokenDp("size.settings.regionRow")),
+                                    selected = selected, settings = true)
                             }
                         }
-                    }
-                    Label("Регион", 24)
-                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                        screen.catalogs.forEach { option ->
-                            Control(option.region.name, true, { actions.region(option.region.id) },
-                                selected = option.region.id == state?.selectedRegion)
-                        }
-                    }
-                    Label("Тема", 24)
-                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                        ThemeChoice.entries.forEach { option ->
-                            Control(option.title, true, { selectTheme(option) }, selected = option == theme)
-                        }
-                    }
-                    Label("Палитра", 24)
-                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                        Palette.entries.forEach { option ->
-                            Control(option.title, true, { selectPalette(option) }, selected = option == palette)
-                        }
-                    }
-                    Label("Отметка на шкале", 24)
-                    Row(Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                        ScaleMarker.entries.forEach { option ->
-                            Control(option.title, true, { selectScaleMarker(option) }, selected = option == scaleMarker)
-                        }
-                    }
-                    Label("Кнопка «Стоянка»", 24)
-                    Label("Подпись", 18)
-                    Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                        Control("Вкл", true, { selectParkShowLabel(true) }, selected = parkShowLabel)
-                        Control("Выкл", true, { selectParkShowLabel(false) }, selected = !parkShowLabel)
-                    }
-                    Label("Размер пиктограммы", 18)
-                    Row(horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                        Control("Обычный", true, { selectParkLargeIcon(false) }, selected = !parkLargeIcon)
-                        Control("Крупный", true, { selectParkLargeIcon(true) }, selected = parkLargeIcon)
-                    }
-                    Label("Запуск", 24)
-                    Control("Играть последнюю Станцию при запуске", true,
-                        { selectAutostart(!autostartEnabled) }, selected = autostartEnabled)
-                    androidx.compose.foundation.text.BasicText(
-                        "Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.",
-                        style = designTextStyle("body", colors["text"]))
-                    if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module) {
-                        Label("Сигнал Перехода", 24)
-                        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                            fm.heterodyne.app.audio.TransitionSignalMethod.entries.forEach { method ->
-                                Control(method.label, true, { selectSignal(method) }, selected = method == signalMethod)
+                    } else {
+                        // Keep scroll state only for this visit; rememberScrollState uses rememberSaveable.
+                        val scroll = remember { androidx.compose.foundation.ScrollState(0) }
+                        Column(Modifier.width(tokenDp("size.settings.contentWidth")).weight(1f)
+                            .verticalScroll(scroll), verticalArrangement = Arrangement.spacedBy(gap)) {
+                            if (receiverKinds.size > 1) {
+                                SettingsGroup("Приёмник", first = true)
+                                SettingsOptions(receiverKinds, receiverName, { it == selectedReceiver },
+                                    { if (!driving) selectReceiver(it) }, description = receiverName)
                             }
-                        }
-                        Label("Предел Поиска", 24)
-                        SeekPreferences.choices.chunked(4).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                                row.forEach { seconds ->
-                                    Control("$seconds с", true, { selectSeekLimit(seconds) }, selected = seconds == seekLimitSeconds)
+                            SettingsGroup("Запуск", first = receiverKinds.size <= 1)
+                            Control("Играть последнюю Станцию при запуске", true,
+                                { selectAutostart(!autostartEnabled) }, Modifier.fillMaxWidth(),
+                                selected = autostartEnabled, settings = true)
+                            SettingsText("Радио включится само после запуска приложения или возврата приёмника. Смена действует со следующего запуска.")
+                            if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module) {
+                                SettingsGroup("Поиск и Переход")
+                                SettingsText("Сигнал Перехода")
+                                SettingsOptions(fm.heterodyne.app.audio.TransitionSignalMethod.entries,
+                                    { it.label }, { it == signalMethod }, selectSignal)
+                                SettingsText("Предел Поиска")
+                                val columns = DesignTokens.number("size.settings.seekLimitColumns").toInt()
+                                val cellWidth = (tokenDp("size.settings.contentWidth") - gap * (columns - 1)) / columns
+                                SeekPreferences.choices.chunked(columns).forEach { row ->
+                                    SettingsOptions(row, { "$it с" }, { it == seekLimitSeconds }, selectSeekLimit,
+                                        width = cellWidth)
                                 }
                             }
+                            SettingsGroup("Вид")
+                            SettingsRow("Тема") {
+                                SettingsOptions(ThemeChoice.entries, { it.title }, { it == theme }, selectTheme)
+                            }
+                            SettingsRow("Палитра") {
+                                SettingsOptions(Palette.entries, { it.title }, { it == palette }, selectPalette,
+                                    width = tokenDp("size.settings.paletteCard"), card = true)
+                            }
+                            SettingsRow("Отметка на шкале") {
+                                SettingsOptions(ScaleMarker.entries, { it.title }, { it == scaleMarker }, selectScaleMarker,
+                                    width = tokenDp("size.settings.markerCard"), card = true)
+                            }
+                            SettingsRow("Кнопка «Стоянка»") {
+                                SettingsText("Подпись")
+                                SettingsOptions(listOf(true, false), { if (it) "Вкл" else "Выкл" },
+                                    { it == parkShowLabel }, selectParkShowLabel)
+                            }
+                            SettingsRow("Размер пиктограммы") {
+                                SettingsOptions(listOf(false, true), { if (it) "Крупный" else "Обычный" },
+                                    { it == parkLargeIcon }, selectParkLargeIcon)
+                            }
+                            SettingsGroup("Регион")
+                            Control("Регион: ${catalog?.region?.name.orEmpty()} ›", true, { regionsOpen = true },
+                                Modifier.fillMaxWidth(), settings = true)
                         }
                     }
                 }
@@ -293,6 +299,43 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                 }
                 "О приложении" -> AboutScreen(catalog?.source)
             }
+        }
+    }
+}
+
+@Composable
+private fun SettingsText(text: String) {
+    androidx.compose.foundation.text.BasicText(text,
+        style = designTextStyle("settingsBody", LocalAppearanceColors.current["text"]))
+}
+
+@Composable
+private fun SettingsRow(label: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(tokenDp("size.settings.gap"))) {
+        SettingsText(label)
+        content()
+    }
+}
+
+@Composable
+private fun SettingsGroup(text: String, first: Boolean = false) {
+    val colors = LocalAppearanceColors.current
+    Column(Modifier.fillMaxWidth()) {
+        if (!first) Box(Modifier.fillMaxWidth().height(tokenDp("line.edge")).background(colors["edge"]))
+        Spacer(Modifier.height(tokenDp("size.settings.groupTop")))
+        androidx.compose.foundation.text.BasicText(text, style = designTextStyle("settingsGroup", colors["text"]))
+    }
+}
+
+@Composable
+private fun <T> SettingsOptions(options: List<T>, title: (T) -> String, selected: (T) -> Boolean,
+                                select: (T) -> Unit, width: androidx.compose.ui.unit.Dp? = null,
+                                card: Boolean = false, description: ((T) -> String)? = null) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(tokenDp("size.settings.gap"))) {
+        options.forEach { option ->
+            Control(title(option), true, { select(option) },
+                if (width == null) Modifier.weight(1f) else Modifier.width(width),
+                selected = selected(option), description = description?.invoke(option), settings = true, settingsCard = card)
         }
     }
 }

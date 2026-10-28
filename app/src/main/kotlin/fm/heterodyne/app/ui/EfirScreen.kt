@@ -315,7 +315,8 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
                      waiting: Boolean = false, plate: Boolean = false, outlined: Boolean = false,
                      parkIcon: Boolean = false,
                      parkShowLabel: Boolean = true, parkLargeIcon: Boolean = false,
-                     edge: Boolean = false, playback: Boolean? = null, faded: Boolean = false) {
+                     edge: Boolean = false, playback: Boolean? = null, faded: Boolean = false,
+                     settings: Boolean = false, settingsCard: Boolean = false) {
     val colors = LocalAppearanceColors.current
     val tokens = controlColorTokens(enabled && !faded, selected)
     val shape = RoundedCornerShape(tokenDp("radius.$radius"))
@@ -328,7 +329,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
         val values = DesignTokens.values.getValue("state.pressed.overlay").removePrefix("rgba(").removeSuffix(")").split(',').map { it.toFloat() }
         Color(values[0] / 255f, values[1] / 255f, values[2] / 255f, values[3])
     }
-    Box(modifier.defaultMinSize(minWidth = tokenDp("size.touch.min"), minHeight = tokenDp("size.touch.min"))
+    Box(modifier.defaultMinSize(minWidth = tokenDp("size.touch.min"), minHeight = tokenDp(if (settings) "size.settings.target" else "size.touch.min"))
         .graphicsLayer {
             if (pressed) {
                 scaleX = DesignTokens.number("state.pressed.scale")
@@ -412,7 +413,12 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
         } else if (plate) Column {
             BasicText(text.substringBefore('\n'), style = designTextStyle("plate", foreground), maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicText(text.substringAfter('\n'), style = designTextStyle("label", if (selected || !enabled || faded) foreground else colors["muted"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        } else BasicText(text, style = designTextStyle("button", foreground), maxLines = 3, overflow = TextOverflow.Ellipsis)
+        } else BasicText(text, modifier = if (settings) Modifier.fillMaxWidth() else Modifier,
+            style = designTextStyle(if (settings) "settingsBody" else "button", foreground).let {
+                if (settings) it.copy(textAlign = TextAlign.Center) else it
+            },
+            maxLines = if (settings) { if (settingsCard) 2 else 1 } else 3,
+            softWrap = !settings || settingsCard, overflow = TextOverflow.Ellipsis)
     }
 }
 
