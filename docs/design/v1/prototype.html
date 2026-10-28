@@ -53,7 +53,7 @@ html,body{margin:0;background:#0A0A0B;color:#EDEDF0}
 </script>
 <script>
 var html = htm.bind(preact.h);
-var TOKENS = {"$schema": "heterodyne-fm/tokens/v1", "meta": {"app": "Heterodyne FM", "version": "1.0", "date": "2026-10-18", "units": {"size": "dp", "font": "sp", "color": "sRGB hex"}, "referenceWindow": {"width": 1100, "height": 580, "unit": "dp", "tolerance": "±15 %"}, "note": "Имена совпадают с прототипом: TOKENS.color.palettes.<palette>.<theme>.<name>, TOKENS.size.<group>.<name> и т. д."}, "color": {"defaultPalette": "coral", "themes": {"auto": "по сигналу день/ночь; нет данных — dark", "dark": "dark", "light": "light"}, "doc": {"bg": "Фон окна приложения", "surface": "Шкала, спектр, панели, карточки", "surface2": "Кнопки и плашки Станций", "edge": "Границы, деления шкалы, рамка «Стоп»", "text": "Основной текст и значки", "muted": "Вторичный текст, подписи", "mark": "Отметка Станции на шкале", "disabledText": "Текст и значок выключенного элемента", "danger": "Ошибка: текст и значок", "dangerBg": "Фон баннера ошибки", "accent": "Заливка активного: Старт, FM/AM, играющая Станция, бегунок, отметки Подборки", "onAccent": "Текст и значок на accent", "accentText": "Акцент как текст и значок на фоне", "accentSoft": "Подсветка: Переход, слот вставки, пункт меню", "shadow": "Тень поднятых слоёв: Лупа, перетаскиваемая плашка, уведомление"}, "palettes": {"coral": {"name": "Коралл", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#FF8466", "onAccent": "#200A05", "accentText": "#FF8C70", "accentSoft": "#3D1E17", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#B23A1F", "onAccent": "#FFFFFF", "accentText": "#A8361C", "accentSoft": "#F9DCD3", "shadow": "rgba(40,30,20,0.22)"}}, "amber": {"name": "Янтарь", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#FFB13B", "onAccent": "#1C1206", "accentText": "#FFB13B", "accentSoft": "#3B2A12", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#8F5200", "onAccent": "#FFFFFF", "accentText": "#8A4E00", "accentSoft": "#F6E3C4", "shadow": "rgba(40,30,20,0.22)"}}, "plum": {"name": "Слива", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#D69BFF", "onAccent": "#1B0B26", "accentText": "#D9A3FF", "accentSoft": "#33223F", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#7B2FB5", "onAccent": "#FFFFFF", "accentText": "#7429AD", "accentSoft": "#EEDDF8", "shadow": "rgba(40,30,20,0.22)"}}, "lime": {"name": "Лайм", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#C6E84A", "onAccent": "#141A02", "accentText": "#C6E84A", "accentSoft": "#2A3212", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#4A6600", "onAccent": "#FFFFFF", "accentText": "#476200", "accentSoft": "#E3EDC2", "shadow": "rgba(40,30,20,0.22)"}}}}, "font": {"family": {"ui": {"name": "Golos Text", "license": "SIL OFL 1.1", "fallback": ["Roboto", "sans-serif"]}, "mono": {"name": "JetBrains Mono", "license": "SIL OFL 1.1", "fallback": ["monospace"]}}, "numeric": "tabular-nums для частот и счётчиков", "style": {"freq": {"size": 60, "lineHeight": 60, "weight": 600, "letterSpacing": -0.02, "family": "ui", "use": "Частота в Эфире"}, "band": {"size": 32, "lineHeight": 32, "weight": 800, "family": "ui", "use": "Активный диапазон на кнопке FM/AM"}, "bandBack": {"size": 16, "lineHeight": 16, "weight": 800, "family": "ui", "opacity": 0.85, "blurDp": 0.6, "use": "Неактивный диапазон за знаком"}, "title": {"size": 26, "lineHeight": 32, "weight": 600, "family": "ui", "use": "Имя Станции"}, "heading": {"size": 24, "lineHeight": 30, "weight": 700, "family": "ui", "use": "Заголовок экрана стоянки"}, "loupeSel": {"size": 22, "lineHeight": 26, "weight": 700, "family": "ui", "use": "Выбранная Станция в Лупе"}, "loupe": {"size": 18, "lineHeight": 22, "weight": 700, "family": "ui", "use": "Соседние Станции в Лупе"}, "cardTitle": {"size": 18, "lineHeight": 24, "weight": 600, "family": "ui", "use": "Заголовок карточки"}, "plate": {"size": 17, "lineHeight": 22, "weight": 600, "family": "ui", "use": "Имя на плашке Станции"}, "body": {"size": 16, "lineHeight": 22, "weight": 500, "family": "ui", "use": "Строки, кнопки, статус"}, "button": {"size": 15, "lineHeight": 20, "weight": 700, "family": "ui", "use": "Подписи Старт/Стоп, кнопок"}, "label": {"size": 14, "lineHeight": 18, "weight": 600, "family": "ui", "use": "Частота на плашке, подписи"}, "caption": {"size": 13, "lineHeight": 16, "weight": 500, "family": "ui", "use": "Минимум; только вторичное"}, "indicator": {"size": 12, "lineHeight": 16, "weight": 700, "family": "ui", "letterSpacing": 0.04, "use": "Значок «РАЗРАБОТЧИК»"}, "mono": {"size": 13, "lineHeight": 20, "weight": 400, "family": "mono", "use": "Поток кадров"}, "monoButton": {"size": 14, "lineHeight": 20, "weight": 500, "family": "mono", "use": "Кнопки команд"}}}, "size": {"window": {"width": 1100, "height": 580, "minWidth": 935, "maxWidth": 1265, "minHeight": 493, "maxHeight": 667}, "touch": {"min": 48}, "topBar": {"height": 88}, "sideColumn": {"width": 96}, "startStop": {"width": 96, "height": 72}, "bandButton": {"width": 96, "height": 72}, "stationButton": {"width": 96, "minHeight": 150}, "stepButton": {"width": 96, "height": 112}, "seekButton": {"width": 52, "height": 48}, "seekGroup": {"height": 56, "width": 224}, "parkButton": {"height": 56, "iconBox": 36, "iconBoxLarge": 44}, "spectrum": {"height": 56, "heightCompact": 32, "bars": 56}, "scale": {"height": 84, "inset": 24, "tickMinor": 8, "tickMajor": 14, "tickWidth": 2, "markStation": [3, 24], "markPreset": [5, 36], "slider": 4, "sliderKnob": 16}, "plate": {"height": 64, "heightCompact": 56, "presetWidth": 160, "catalogColumns": 5}, "setSwitcher": {"width": 148, "height": 64}, "loupe": {"height": 96, "gapToScale": 12, "stations": 7, "stationsNarrow": 5, "pointer": 12, "selectedGrow": 1.6}, "rds": {"height": 22}, "editorRow": {"height": 56, "stride": 64, "iconButton": 48}, "parkMenu": {"width": 236, "item": 52, "back": 56}, "chip": {"height": 48}, "segment": {"width": 180, "height": 56}, "paletteCard": {"height": 132}, "banner": {"button": 52}, "iconButton": {"size": 48}, "icon": {"s": 18, "m": 22, "l": 26, "xl": 40}}, "space": {"window": 16, "section": 12, "plateGap": 8, "cardPadding": 18, "parkContent": [20, 24], "ribbonFade": 28}, "radius": {"s": 8, "m": 12, "l": 14, "xl": 16, "pill": 999}, "line": {"edge": 1.5, "stroke": 2, "focus": 3, "focusOffset": 2, "pressedRing": 3, "drop": 4, "tick": 2}, "shadow": {"raised": {"y": 14, "blur": 30, "colorToken": "shadow", "use": "Лупа"}, "drag": {"y": 16, "blur": 32, "colorToken": "shadow", "use": "Перетаскиваемая плашка"}, "toast": {"y": 10, "blur": 24, "colorToken": "shadow", "use": "Уведомление"}}, "state": {"pressed": {"ring": 3, "ringColor": "currentColor", "overlay": "rgba(128,128,128,0.30)", "scale": 0.98, "offsetY": 1, "animationMs": 0}, "disabled": {"background": "surface", "foreground": "disabledText"}, "active": {"background": "accent", "foreground": "onAccent"}, "transition": {"background": "accentSoft", "border": "dashed 2 accentText"}, "drag": {"scale": 1.04, "rotateDeg": -1.5, "border": "solid 2 accent", "shadow": "drag"}}, "motion": {"ribbonMs": 300, "spectrumPeriodMs": [2400, 3600], "rdsMarqueeMs": 18000, "rdsMarqueeRepeat": 2, "transitionDemoMs": 650}, "breakpoint": {"compactHeight": 540, "narrowLoupeWidth": 1000}};
+var TOKENS = {"$schema": "heterodyne-fm/tokens/v1", "meta": {"app": "Heterodyne FM", "version": "1.0", "date": "2026-10-18", "units": {"size": "dp", "font": "sp", "color": "sRGB hex"}, "referenceWindow": {"width": 1100, "height": 580, "unit": "dp", "tolerance": "±15 %"}, "note": "Имена совпадают с прототипом: TOKENS.color.palettes.<palette>.<theme>.<name>, TOKENS.size.<group>.<name> и т. д."}, "color": {"defaultPalette": "coral", "themes": {"auto": "по сигналу день/ночь; нет данных — dark", "dark": "dark", "light": "light"}, "doc": {"bg": "Фон окна приложения", "surface": "Шкала, спектр, панели, карточки", "surface2": "Кнопки и плашки Станций", "edge": "Границы, деления шкалы, рамка «Стоп»", "text": "Основной текст и значки", "muted": "Вторичный текст, подписи", "mark": "Отметка Станции на шкале", "disabledText": "Текст и значок выключенного элемента", "danger": "Ошибка: текст и значок", "dangerBg": "Фон баннера ошибки", "accent": "Заливка активного: Старт, играющая Станция, бегунок, отметки Подборки", "onAccent": "Текст и значок на accent", "accentText": "Акцент как текст и значок на фоне", "accentSoft": "Подсветка: Переход, слот вставки, пункт меню", "shadow": "Тень поднятых слоёв: Лупа, перетаскиваемая плашка, уведомление"}, "palettes": {"coral": {"name": "Коралл", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#FF8466", "onAccent": "#200A05", "accentText": "#FF8C70", "accentSoft": "#3D1E17", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#B23A1F", "onAccent": "#FFFFFF", "accentText": "#A8361C", "accentSoft": "#F9DCD3", "shadow": "rgba(40,30,20,0.22)"}}, "amber": {"name": "Янтарь", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#FFB13B", "onAccent": "#1C1206", "accentText": "#FFB13B", "accentSoft": "#3B2A12", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#8F5200", "onAccent": "#FFFFFF", "accentText": "#8A4E00", "accentSoft": "#F6E3C4", "shadow": "rgba(40,30,20,0.22)"}}, "plum": {"name": "Слива", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#D69BFF", "onAccent": "#1B0B26", "accentText": "#D9A3FF", "accentSoft": "#33223F", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#7B2FB5", "onAccent": "#FFFFFF", "accentText": "#7429AD", "accentSoft": "#EEDDF8", "shadow": "rgba(40,30,20,0.22)"}}, "lime": {"name": "Лайм", "dark": {"bg": "#121110", "surface": "#1E1C1A", "surface2": "#2A2724", "edge": "#797268", "text": "#F3EFE9", "muted": "#B5ADA3", "mark": "#7D766E", "disabledText": "#9A938A", "danger": "#FF7A6B", "dangerBg": "#3A1C18", "accent": "#C6E84A", "onAccent": "#141A02", "accentText": "#C6E84A", "accentSoft": "#2A3212", "shadow": "rgba(0,0,0,0.55)"}, "light": {"bg": "#F4F1EC", "surface": "#FFFFFF", "surface2": "#E6E1D9", "edge": "#857D73", "text": "#191714", "muted": "#57514A", "mark": "#8F877D", "disabledText": "#6A635A", "danger": "#B3261E", "dangerBg": "#FBE4E1", "accent": "#4A6600", "onAccent": "#FFFFFF", "accentText": "#476200", "accentSoft": "#E3EDC2", "shadow": "rgba(40,30,20,0.22)"}}}}, "font": {"family": {"ui": {"name": "Golos Text", "license": "SIL OFL 1.1", "fallback": ["Roboto", "sans-serif"]}, "mono": {"name": "JetBrains Mono", "license": "SIL OFL 1.1", "fallback": ["monospace"]}}, "numeric": "tabular-nums для частот и счётчиков", "style": {"freq": {"size": 60, "lineHeight": 60, "weight": 600, "letterSpacing": -0.02, "family": "ui", "use": "Частота в Эфире"}, "band": {"size": 32, "lineHeight": 32, "weight": 800, "family": "ui", "use": "Не используется: кнопки нет (ADR 0008)"}, "bandBack": {"size": 16, "lineHeight": 16, "weight": 800, "family": "ui", "opacity": 0.85, "blurDp": 0.6, "use": "Не используется: кнопки нет (ADR 0008)"}, "title": {"size": 26, "lineHeight": 32, "weight": 600, "family": "ui", "use": "Имя Станции"}, "heading": {"size": 24, "lineHeight": 30, "weight": 700, "family": "ui", "use": "Заголовок экрана стоянки"}, "loupeSel": {"size": 22, "lineHeight": 26, "weight": 700, "family": "ui", "use": "Выбранная Станция в Лупе"}, "loupe": {"size": 18, "lineHeight": 22, "weight": 700, "family": "ui", "use": "Соседние Станции в Лупе"}, "cardTitle": {"size": 18, "lineHeight": 24, "weight": 600, "family": "ui", "use": "Заголовок карточки"}, "plate": {"size": 17, "lineHeight": 22, "weight": 600, "family": "ui", "use": "Имя на плашке Станции"}, "body": {"size": 16, "lineHeight": 22, "weight": 500, "family": "ui", "use": "Строки, кнопки, статус"}, "settingsBody": {"size": 18, "lineHeight": 24, "weight": 600, "family": "ui", "use": "Подписи кнопок и значений в «Настройках» (#243)"}, "settingsGroup": {"size": 22, "lineHeight": 28, "weight": 700, "family": "ui", "use": "Заголовок группы в «Настройках» (#243)"}, "button": {"size": 15, "lineHeight": 20, "weight": 700, "family": "ui", "use": "Подписи Старт/Стоп, кнопок"}, "label": {"size": 14, "lineHeight": 18, "weight": 600, "family": "ui", "use": "Частота на плашке, подписи"}, "caption": {"size": 13, "lineHeight": 16, "weight": 500, "family": "ui", "use": "Минимум; только вторичное"}, "indicator": {"size": 12, "lineHeight": 16, "weight": 700, "family": "ui", "letterSpacing": 0.04, "use": "Значок «РАЗРАБОТЧИК»"}, "mono": {"size": 13, "lineHeight": 20, "weight": 400, "family": "mono", "use": "Поток кадров"}, "monoButton": {"size": 14, "lineHeight": 20, "weight": 500, "family": "mono", "use": "Кнопки команд"}}}, "size": {"window": {"width": 1100, "height": 580, "minWidth": 935, "maxWidth": 1265, "minHeight": 493, "maxHeight": 667}, "touch": {"min": 48}, "topBar": {"height": 88}, "sideColumn": {"width": 96}, "startStop": {"width": 96, "height": 72}, "bandButton": {"width": 96, "height": 72}, "stationButton": {"width": 96, "minHeight": 150}, "stepButton": {"width": 96, "height": 112}, "seekButton": {"width": 52, "height": 48}, "seekGroup": {"height": 56, "width": 224}, "parkButton": {"height": 56, "iconBox": 36, "iconBoxLarge": 44}, "spectrum": {"height": 56, "heightCompact": 32, "bars": 56}, "scale": {"height": 84, "inset": 24, "tickMinor": 8, "tickMajor": 14, "tickWidth": 2, "markStation": [3, 24], "markPreset": [5, 36], "confirmed": [8, 48], "preview": [8, 56], "slider": 4, "sliderKnob": 16, "marker": {"width": 54, "height": 60, "baselineInset": 22, "outline": 2, "pinStem": 4, "pinStemHeight": 36, "pinHead": 18, "pinHeadCenter": 39, "flagStem": 3, "flagStemHeight": 34, "flagWidth": 54, "flagHeight": 26, "flagBottom": 32, "flagTop": 2, "flagRadius": 8, "flagTip": 6, "needleRing": 48, "needleHead": 14, "needleHeadCenter": 36, "needleStem": 2, "needleStemHeight": 22, "dropWidth": 34, "dropHeight": 52, "dropDot": 11}}, "plate": {"height": 64, "heightCompact": 56, "presetWidth": 160, "catalogColumns": 5}, "setSwitcher": {"width": 148, "height": 64}, "loupe": {"height": 96, "gapToScale": 12, "stations": 7, "stationsNarrow": 5, "pointer": 12, "selectedGrow": 1.6, "neighbourAlpha": 0.65, "selectedShadow": 6}, "rds": {"height": 22}, "editorRow": {"height": 56, "stride": 64, "iconButton": 48}, "parkMenu": {"width": 236, "item": 52, "back": 56}, "settings": {"target": 64, "gap": 12, "groupTop": 24, "contentWidth": 816, "paletteCard": 195, "markerCard": 153, "seekLimitColumns": 6, "regionRow": 64}, "chip": {"height": 48}, "segment": {"width": 180, "height": 56}, "paletteCard": {"height": 132}, "banner": {"button": 52}, "iconButton": {"size": 48}, "icon": {"s": 18, "m": 22, "l": 26, "xl": 40}}, "space": {"window": 16, "section": 12, "plateGap": 8, "cardPadding": 18, "parkContent": [20, 24], "ribbonFade": 28}, "radius": {"s": 8, "m": 12, "l": 14, "xl": 16, "pill": 999}, "line": {"edge": 1.5, "stroke": 2, "focus": 3, "focusOffset": 2, "pressedRing": 3, "drop": 4, "tick": 2}, "shadow": {"raised": {"y": 14, "blur": 30, "colorToken": "shadow", "use": "Лупа"}, "drag": {"y": 16, "blur": 32, "colorToken": "shadow", "use": "Перетаскиваемая плашка"}, "toast": {"y": 10, "blur": 24, "colorToken": "shadow", "use": "Уведомление"}}, "state": {"pressed": {"ring": 3, "ringColor": "currentColor", "overlay": "rgba(128,128,128,0.30)", "scale": 0.98, "offsetY": 1, "animationMs": 0}, "disabled": {"background": "surface", "foreground": "disabledText"}, "active": {"background": "accent", "foreground": "onAccent"}, "transition": {"background": "accentSoft", "border": "dashed 2 accentText"}, "drag": {"scale": 1.04, "rotateDeg": -1.5, "border": "solid 2 accent", "shadow": "drag"}}, "motion": {"ribbonMs": 300, "spectrumPeriodMs": [2400, 3600], "rdsMarqueeMs": 18000, "rdsMarqueeRepeat": 2, "transitionDemoMs": 650}, "breakpoint": {"compactHeight": 540, "narrowLoupeWidth": 1000}};
 var ACC = TOKENS.color.palettes;
 function tok(p, th){ var a = (ACC[p] || ACC[TOKENS.color.defaultPalette])[th], o = {}; for (var k in a) o[k] = a[k]; return o; }
 
@@ -83,7 +83,7 @@ class App extends preact.Component {
   constructor(props){
     super(props);
     this.state = {
-      screen:'air', tab:'presets', band:'FM', freq:883, am:612, playing:true, module:'ok', pending:null, error:null, region:'msk',
+      screen:'air', tab:'presets', freq:883, playing:true, module:'ok', pending:null, error:null, region:'msk',
       sets:{ msk:[{name:'Основная',ids:[891,887,883,903,916,952,976,1001,1017,1034,1062,1074]},{name:'Тест',ids:[875,1034,976]},{name:'Дача',ids:[]}], yar:[{name:'Основная',ids:[880,913]}] },
       setIdx:{ msk:0, yar:0 }, themeMode:null, hu:'night', palette:null, rds:false, dev:false, parkLabel:true, parkLarge:false, auto:true, sig:'Звук клавиши', seekLim:20, marker:'Булавка', regionList:false,
       loupe:null, toast:null, drag:null, taps:0, exp:'idle', frames: FR.map(function(r){ return r; }), ribX:null, ribKey:null, ribDrag:false
@@ -128,36 +128,33 @@ class App extends preact.Component {
     var s = this.state;
     if (this.mod() === 'off') return;
     if (s.pending != null) { this.say('Идёт Переход, подождите'); return; }
-    var band = s.band, reg = s.region, tok = (this.tuneTok || 0) + 1;
+    var reg = s.region, tok = (this.tuneTok || 0) + 1;
     this.tuneTok = tok;
     this.setState({ pending:f, error:null });
     var d = this.mod() === 'slow' ? 2600 : 650;
     this.later(() => {
-      if (this.tuneTok !== tok || this.state.band !== band || this.state.region !== reg) return;
-      if (this.mod() === 'fail') { this.setState({ pending:null, error:{ f:f, band:this.state.band } }); return; }
+      if (this.tuneTok !== tok || this.state.region !== reg) return;
+      if (this.mod() === 'fail') { this.setState({ pending:null, error:{ f:f } }); return; }
       if (this.mod() === 'off') { this.setState({ pending:null }); return; }
-      var u = { pending:null };
-      if (this.state.band === 'FM') u.freq = f; else u.am = f;
+      var u = { pending:null, freq:f };
       if (play) u.playing = true;
       this.setState(u);
     }, d);
   }
   stationStep(dir){
     var s = this.state, ids = this.curSet().ids;
-    if (s.band !== 'FM' || !ids.length) return;
+    if (!ids.length) return;
     var i = ids.indexOf(s.freq);
     var n = i < 0 ? (dir > 0 ? 0 : ids.length - 1) : (i + dir + ids.length) % ids.length;
     this.tuneTo(ids[n], true);
   }
   step(dir){
     var s = this.state;
-    if (s.band === 'FM') this.tuneTo(Math.max(875, Math.min(1080, s.freq + dir)), false);
-    else this.tuneTo(Math.max(531, Math.min(1602, s.am + dir * 9)), false);
+    this.tuneTo(Math.max(875, Math.min(1080, s.freq + dir)), false);
   }
   seek(dir){
     var s = this.state;
     if (this.mod() === 'off') return;
-    if (s.band !== 'FM') { this.say('Поиск: Станций с сигналом не найдено'); return; }
     var c = this.cat().map(function(x){ return x[0]; }).sort(function(a, b){ return a - b; });
     var t = null, i;
     if (dir > 0) { for (i = 0; i < c.length; i++) if (c[i] > s.freq) { t = c[i]; break; } if (t == null) t = c[0]; }
@@ -178,7 +175,7 @@ class App extends preact.Component {
   }
   scDown(e){
     var s = this.state;
-    if (s.band !== 'FM' || this.mod() === 'off' || s.pending != null || s.error) return;
+    if (this.mod() === 'off' || s.pending != null || s.error) return;
     this.scaleEl = e.currentTarget;
     try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) {}
     this.setState({ loupe:this.loupeFrom(e) });
@@ -237,28 +234,24 @@ class App extends preact.Component {
     var pal = s.palette || P.palette || 'amber';
     var t = tok(pal, th);
     var winW = P.winW || 1100, winH = P.winH || 580;
-    var off = this.mod() === 'off', FM = s.band === 'FM';
+    var off = this.mod() === 'off';
     var cat = this.cat(), set = this.curSet(), setIds = set.ids, inSet = {};
     setIds.forEach(function(f){ inSet[f] = 1; });
-    var lo = FM ? 875 : 531, hi = FM ? 1080 : 1602, cur = FM ? s.freq : s.am;
+    var lo = 875, hi = 1080, cur = s.freq;
     function X(f){ return ((f - lo) / (hi - lo) * 100).toFixed(3) + '%'; }
-    function fq(f){ return FM ? fmt(f) : String(f); }
     var regName = s.region === 'msk' ? 'Москва' : 'Ярославль';
     var ctl = { fg: off ? t.disabledText : t.text, sub: off ? t.disabledText : t.muted };
-    var stDis = off || !FM || setIds.length === 0;
+    var stDis = off || setIds.length === 0;
 
     var ticks = [], f;
-    if (FM) { for (f = 875; f <= 1080; f += 5) ticks.push({ st:'left:' + X(f) + ';height:' + (f % 10 === 0 ? 14 : 8) + 'px;margin-left:-1px;background:' + t.edge }); }
-    else { for (f = 550; f <= 1600; f += 50) ticks.push({ st:'left:' + X(f) + ';height:' + (f % 100 === 0 ? 14 : 8) + 'px;margin-left:-1px;background:' + t.edge }); }
+    for (f = 875; f <= 1080; f += 5) ticks.push({ st:'left:' + X(f) + ';height:' + (f % 10 === 0 ? 14 : 8) + 'px;margin-left:-1px;background:' + t.edge });
     var marks = [];
-    if (FM) {
-      cat.forEach(function(c){ if (!inSet[c[0]]) marks.push({ st:'left:' + X(c[0]) + ';width:3px;margin-left:-1.5px;height:24px;background:' + t.mark }); });
-      cat.forEach(function(c){ if (inSet[c[0]]) marks.push({ st:'left:' + X(c[0]) + ';width:5px;margin-left:-2.5px;height:36px;background:' + t.accent }); });
-    }
+    cat.forEach(function(c){ if (!inSet[c[0]]) marks.push({ st:'left:' + X(c[0]) + ';width:3px;margin-left:-1.5px;height:24px;background:' + t.mark }); });
+    cat.forEach(function(c){ if (inSet[c[0]]) marks.push({ st:'left:' + X(c[0]) + ';width:5px;margin-left:-2.5px;height:36px;background:' + t.accent }); });
     var bf = (cur - lo) / (hi - lo);
 
     function plate(f2, name, num){
-      var isCur = FM && f2 === s.freq && !off, isPend = s.pending === f2, dis = off || !FM;
+      var isCur = f2 === s.freq && !off, isPend = s.pending === f2, dis = off;
       var bg = t.surface2, fg = t.text, sub = t.muted, br = '2px solid transparent';
       if (dis) { bg = t.surface; fg = t.disabledText; sub = t.disabledText; }
       else if (isPend) { bg = t.accentSoft; br = '2px dashed ' + t.accentText; }
@@ -285,10 +278,10 @@ class App extends preact.Component {
 
     var metaText, metaColor = t.muted;
     if (off) { metaText = 'Приёмник не подключён'; metaColor = t.danger; }
-    else if (s.pending != null) { metaText = 'Переход на ' + fq(s.pending) + (FM ? ' МГц' : ' кГц') + '…'; metaColor = t.accentText; }
+    else if (s.pending != null) { metaText = 'Переход на ' + fmt(s.pending) + ' МГц…'; metaColor = t.accentText; }
     else if (s.error) { metaText = 'Переход не выполнен'; metaColor = t.danger; }
-    else metaText = s.band + ' · ' + regName + ' · ' + (s.playing ? 'звук включён' : 'пауза');
-    var stName = FM ? (this.nameOf(s.freq) || 'Частота вне Справочника') : 'Частота AM';
+    else metaText = 'FM · ' + regName + ' · ' + (s.playing ? 'звук включён' : 'пауза');
+    var stName = this.nameOf(s.freq) || 'Частота вне Справочника';
 
 
     var tabDefs = [['presets','Подборки','P'],['settings','Настройки','S'],['diag','Диагностика','D'],['about','О приложении','A']];
@@ -340,7 +333,7 @@ class App extends preact.Component {
         var vw = winW - 404, target = s.pending != null ? s.pending : s.freq, n = setIds.length;
         var maxX = Math.max(0, n * 168 - 8 - vw + 28), key = s.region + '|' + s.setIdx[s.region] + '|' + target + '|' + n;
         self.ribMax = maxX; self.ribKeyNow = key;
-        var idx = FM ? setIds.indexOf(target) : -1, x;
+        var idx = setIds.indexOf(target), x;
         if (s.ribKey === key && s.ribX != null) x = s.ribX;
         else if (idx >= 0) x = idx * 168 + 80 - vw / 2;
         else x = s.ribX || 0;
@@ -351,24 +344,22 @@ class App extends preact.Component {
       ribMask: (function(){ var x = self.ribNow || 0, m = self.ribMax || 0, l = x > 1 ? 'transparent 0, #000 28px' : '#000 0', r = x < m - 1 ? '#000 calc(100% - 28px), transparent 100%' : '#000 100%'; return 'linear-gradient(to right, ' + l + ', ' + r + ')'; })(),
       specH: winH < TOKENS.breakpoint.compactHeight ? TOKENS.size.spectrum.heightCompact : TOKENS.size.spectrum.height, rowH: winH < TOKENS.breakpoint.compactHeight ? TOKENS.size.plate.heightCompact : TOKENS.size.plate.height,
       playAria: (s.playing && !off) ? 'Старт: приём включён. Нажмите, чтобы остановить' : 'Стоп: приём выключен. Нажмите, чтобы запустить',
-      bandNow: s.band, bandOther: FM ? 'AM' : 'FM', bandAria: 'Диапазон ' + s.band + '. Переключить на ' + (FM ? 'AM' : 'FM'),
-      toggleBand: function(){ self.setState({ band: self.state.band === 'FM' ? 'AM' : 'FM', pending:null, error:null, loupe:null }); },
       isAir: s.screen === 'air', isPark: s.screen === 'park', off:off, ctl:ctl,
       playing: s.playing && !off, notPlaying: !(s.playing && !off), playLabel: (s.playing && !off) ? 'Старт' : 'Стоп',
       playSt: off ? ('background:transparent;border:2px solid ' + t.disabledText + ';color:' + t.disabledText) : (s.playing ? ('background:' + t.accent + ';border:2px solid ' + t.accent + ';color:' + t.onAccent) : ('background:transparent;border:2px solid ' + t.edge + ';color:' + t.text)),
       togglePlay: function(){ self.setState({ playing:!self.state.playing }); },
-      freqText: fq(cur), unit: FM ? 'МГц' : 'кГц', freqColor: off ? t.disabledText : t.text,
+      freqText: fmt(cur), unit: 'МГц', freqColor: off ? t.disabledText : t.text,
       stName:stName, metaText:metaText, metaColor:metaColor, rds:s.rds,
       driving:P.driving, seekW:TOKENS.size.seekGroup.width, parkFg: P.driving ? t.disabledText : t.text, pause:P.pause && !off, seekL: function(){ self.seek(-1); }, seekR: function(){ self.seek(1); },
       goPark: function(){ if (self.props.driving) return; self.setState({ screen:'park', loupe:null }); }, goAir: function(){ self.setState({ screen:'air', drag:null }); },
       stDis:stDis, stFg: stDis ? t.disabledText : t.text, stPrev: function(){ self.stationStep(-1); }, stNext: function(){ self.stationStep(1); },
-      stepL: function(){ self.step(-1); }, stepR: function(){ self.step(1); }, stepText: FM ? '0,1 МГц' : '9 кГц',
+      stepL: function(){ self.step(-1); }, stepR: function(){ self.step(1); }, stepText: '0,1 МГц',
       scDown: function(e){ self.scDown(e); }, scMove: function(e){ self.scMove(e); }, scUp: function(e){ self.scUp(e); }, scCancel: function(){ self.scCancel(); },
-      scCursor: (FM && !off) ? 'pointer' : 'default',
-      loText: FM ? '87,5' : '531', hiText: FM ? '108,0' : '1602', showLo: bf > 0.08, showHi: bf < 0.92,
-      ticks:ticks, marks:marks, bunX: X(cur), bunLabel: fq(cur), bunColor: off ? t.disabledText : t.accent, bunText: off ? t.disabledText : t.accentText,
+      scCursor: (!off) ? 'pointer' : 'default',
+      loText: '87,5', hiText: '108,0', showLo: bf > 0.08, showHi: bf < 0.92,
+      ticks:ticks, marks:marks, bunX: X(cur), bunLabel: fmt(cur), bunColor: off ? t.disabledText : t.accent, bunText: off ? t.disabledText : t.accentText,
       hasPend: s.pending != null, pendX: s.pending != null ? X(s.pending) : '0%',
-      hasErr: !!s.error && !off, errTitle: s.error ? ('Не удалось перейти на ' + fq(s.error.f) + (FM ? ' МГц' : ' кГц')) : '',
+      hasErr: !!s.error && !off, errTitle: s.error ? ('Не удалось перейти на ' + fmt(s.error.f) + ' МГц') : '',
       retry: function(){ var f3 = self.state.error && self.state.error.f; self.setState({ error:null }); if (f3 != null) self.tuneTo(f3, true); },
       dismissErr: function(){ self.setState({ error:null }); },
       lp: !!lp, lpSlots:lpSlots, lpCancel: !!(lp && lp.cancel), lpBorder: (lp && lp.cancel) ? t.edge : t.accent,
@@ -378,14 +369,14 @@ class App extends preact.Component {
       presetPlates:presetPlates, presetEmpty: setIds.length === 0,
       emptyText: 'Подборка «' + set.name + '» пуста. Станции добавляют на стоянке.',
       openPresets: function(){ self.setState({ screen:'park', tab:'presets' }); },
-      catMeta: regName + ' · ' + s.band + ' · ' + (FM ? cat.length : 0) + ' Станций', catHas: FM, catEmpty: !FM, cat:catPlates,
+      catMeta: regName + ' · FM · ' + cat.length + ' Станций', cat:catPlates,
       tabs:tabs, modDot: off ? t.danger : t.accentText, modShort: off ? 'не подключён' : 'подключён',
       modLong: off ? 'Не подключён' : 'Подключён', modSub: off ? 'USB-приёмник не найден' : ('USB · приём ' + (s.playing ? 'включён' : 'остановлен')),
       tP: s.tab === 'presets', tS: s.tab === 'settings', tD: s.tab === 'diag', tA: s.tab === 'about', tX: s.tab === 'dev' && s.dev,
       edMove: function(e){ self.edMove(e); }, edUp: function(){ self.edUp(); }, stop: function(e){ e.stopPropagation(); },
       setChips:setChips, newSet: function(){ var list = s.sets[s.region].concat([{ name:'Подборка ' + (s.sets[s.region].length + 1), ids:[] }]); var ss = {}; for (var k in s.sets) ss[k] = s.sets[k]; ss[s.region] = list; var si = {}; for (var k2 in s.setIdx) si[k2] = s.setIdx[k2]; si[s.region] = list.length - 1; self.setState({ sets:ss, setIdx:si }); },
       saveCur: function(){ if (inSet[s.freq]) { self.say('Частота уже в Подборке'); return; } self.addTo(s.freq); self.say('Сохранено: ' + fmt(s.freq) + ' → «' + set.name + '»'); },
-      saveDis: !FM, curText: fmt(s.freq) + ' МГц', regName:regName,
+      curText: fmt(s.freq) + ' МГц', regName:regName,
       catRows:catRows, setRows:setRows, setEmptyEd: setIds.length === 0, setBorder: (dr && dr.over) ? t.accent : 'transparent',
       dropShow: !!(dr && dr.over && dr.idx != null), dropTop: dr && dr.idx != null ? (Math.max(2, dr.idx * 64 - 4) + 'px') : '0px',
       hasGhost: !!dr, ghostX: dr ? Math.round(dr.gx - 150) : 0, ghostY: dr ? Math.round(dr.gy - 28) : 0,
@@ -537,7 +528,6 @@ ${(v.presetEmpty) ? html`
 <span>Справочник</span><span>·</span><span>${v.catMeta}</span>
 <span style="margin-left: auto; display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill=${v.t.accentText} aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z"></path></svg>в активной Подборке</span>
 </div>
-${(v.catHas) ? html`
 <div class="sc" style="flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: ${v.rowH}px; gap: 8px; align-content: start">
 ${(v.cat || []).map((p) => html`
 <button class="b" onClick=${p.pick} disabled=${p.dis} style="min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; padding: 0 14px; border-radius: 12px; text-align: left; ${p.st}">
@@ -546,23 +536,11 @@ ${(v.cat || []).map((p) => html`
 </button>
 `)}
 </div>
-` : null}
-${(v.catEmpty) ? html`
-<div style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 16px; border-radius: 14px; background: ${v.t.surface}; padding: 0 24px">
-<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke=${v.t.muted} stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v5"></path><path d="M12 16h.01"></path></svg>
-<div style="display: flex; flex-direction: column; gap: 4px"><span style="font-size: 18px; font-weight: 600">В Справочнике Региона нет AM-станций</span><span style="font-size: 16px; color: ${v.t.muted}">Меняйте частоту кнопками «Шаг ◀ ▶» или «Поиск». Лупы в AM нет.</span></div>
-</div>
-` : null}
 </div>
 </div>
 
 <div style="width: 96px; flex: none; display: flex; flex-direction: column; gap: 12px">
-<button class="b" onClick=${v.toggleBand} aria-label=${v.bandAria} style="width: 96px; height: 72px; flex: none; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 15px; font-weight: 700; background: ${v.t.accent}; border: 2px solid ${v.t.accent}; color: ${v.t.onAccent}">
-<span aria-hidden="true" style="position: relative; display: block; width: 64px; height: 34px">
-<span style="position: absolute; right: -8px; top: -9px; font-size: 16px; font-weight: 800; line-height: 1; opacity: 0.85; filter: blur(0.6px)">${v.bandOther}</span>
-<span style="position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 32px; font-weight: 800; line-height: 1; letter-spacing: 0.02em">${v.bandNow}</span>
-</span>
-</button>
+<div style="height: 72px; flex: none" aria-hidden="true"></div>
 <button class="b" aria-label="Следующая Станция Подборки" disabled=${v.stDis} onClick=${v.stNext} style="flex: 1; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.stFg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
 <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="16.4" y="5" width="2.6" height="14" rx="1"></rect><path d="M5 5.5v13L15 12z"></path></svg>
 <span style="font-size: 16px; font-weight: 600">Станция</span>
@@ -612,7 +590,7 @@ ${(v.setChips || []).map((c) => html`
 <button class="b" onClick=${c.pick} aria-pressed=${c.on} style="height: 48px; padding: 0 16px; border: 0; border-radius: 12px; font-size: 15px; font-weight: 600; ${c.st}">${c.label}</button>
 `)}
 <button class="b" onClick=${v.newSet} style="height: 48px; padding: 0 14px; border-radius: 12px; border: 1.5px dashed ${v.t.edge}; background: transparent; color: ${v.t.text}; font-size: 15px; font-weight: 600">+ Новая</button>
-<button class="b" onClick=${v.saveCur} disabled=${v.saveDis} style="margin-left: auto; height: 48px; padding: 0 16px; border: 0; border-radius: 12px; background: ${v.t.accent}; color: ${v.t.onAccent}; font-size: 15px; font-weight: 700">Сохранить текущую частоту · ${v.curText}</button>
+<button class="b" onClick=${v.saveCur} style="margin-left: auto; height: 48px; padding: 0 16px; border: 0; border-radius: 12px; background: ${v.t.accent}; color: ${v.t.onAccent}; font-size: 15px; font-weight: 700">Сохранить текущую частоту · ${v.curText}</button>
 </div>
 <div style="font-size: 15px; color: ${v.t.muted}">Перетащите Станцию из Справочника в Подборку. Порядок Подборки — это порядок кнопок «Станция ◀ ▶» и кнопок руля.</div>
 <div style="flex: 1; min-height: 300px; display: flex; gap: 12px">
@@ -777,7 +755,7 @@ ${(v.tA) ? html`
 <div style="display: flex; flex-direction: column; gap: 8px; padding: 18px; border-radius: 16px; background: ${v.t.surface}">
 <div style="font-size: 18px; font-weight: 600">Справочник Станций</div>
 <div style="display: flex; align-items: center; gap: 4px; font-size: 16px">Источник данных: <a href="https://vcfm.ru" style="display: inline-flex; align-items: center; min-height: 48px; padding: 0 10px; color: ${v.t.accentText}; font-weight: 600">vcfm.ru</a></div>
-<div style="font-size: 15px; color: ${v.t.muted}">Регион: ${v.regName} · ${v.catCount} Станций FM · 0 Станций AM</div>
+<div style="font-size: 15px; color: ${v.t.muted}">Регион: ${v.regName} · ${v.catCount} Станций FM</div>
 </div>
 ` : null}
 
