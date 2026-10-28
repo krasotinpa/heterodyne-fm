@@ -45,7 +45,7 @@ class StationsModule(
     var driving by mutableStateOf(false)
         private set
 
-    // Источник не измерен, см. #89. Единственная точка установки сигнала.
+    // GNSS с гистерезисом. Главный поток устанавливает сигнал в одной точке.
     fun updateDriving(value: Boolean) {
         moving = value
         driving = value
