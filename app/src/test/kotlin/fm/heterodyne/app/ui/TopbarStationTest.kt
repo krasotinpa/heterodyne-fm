@@ -16,6 +16,10 @@ class TopbarStationTest {
         val state = StationsState.defaults().copy(lastStation = SessionStation(90300), lastPlayed = false)
         assertEquals(TuneTarget(Band.FM, 90300), topbarStation(null, state))
     }
+    @Test fun confirmedNonFmHidesSavedStation() {
+        val state = StationsState.defaults().copy(lastStation = SessionStation(90300))
+        assertNull(topbarStation(TuneTarget(Band.AM, 666), state))
+    }
     @Test fun noStationLeavesPlaceholder() {
         assertNull(topbarStation(null, StationsState.defaults()))
         assertNull(topbarStation(null, null))
