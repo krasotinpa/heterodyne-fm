@@ -1,36 +1,35 @@
 package fm.heterodyne.app.audio
 
 import fm.heterodyne.app.module.Direction
-import fm.heterodyne.app.stations.Band
 import fm.heterodyne.app.stations.StationEntry
 import org.junit.Assert.*
 import org.junit.Test
 
 class WheelControllerTest {
 
-    @Test fun fmOnlyWheelSkipsAmAndLongPressDoesNotSeek() {
+    @Test fun wheelVisitsAllStationsAndUnsupportedLongPressDoesNotSeek() {
         val receiver = fm.heterodyne.app.receiver.FakeReceiver()
         val wheel = wheel(entries[1])
         wheel.update(entries, entries[1], receiver.capabilities)
         wheel.next()
-        assertEquals(entries[0], wheel.cursor)
+        assertEquals(entries[2], wheel.cursor)
         timer.advance(1000)
-        assertEquals(listOf(entries[0]), selected)
+        assertEquals(listOf(entries[2]), selected)
         wheel.longPress(Direction.Up)
         timer.advance(1000)
         assertTrue(seeks.isEmpty())
     }
 
-    @Test fun capabilityChangeCancelsPendingUnsupportedStation() {
+    @Test fun selectionChangeCancelsPendingStation() {
         val wheel = wheel(entries[1])
         wheel.previous()
         wheel.previous()
         assertEquals(entries[2], wheel.cursor)
-        wheel.update(entries, entries[1], fm.heterodyne.app.receiver.FakeReceiver().capabilities)
+        wheel.update(entries.take(2), entries[1], fm.heterodyne.app.receiver.FakeReceiver().capabilities)
         timer.advance(1000)
         assertEquals(listOf(entries[0]), selected)
     }
-    private val entries = listOf(StationEntry(Band.FM, 87500), StationEntry(Band.FM, 90300), StationEntry(Band.AM, 999))
+    private val entries = listOf(StationEntry(87500), StationEntry(90300), StationEntry(99900))
     private val timer = WheelTimerFake()
     private val selected = mutableListOf<StationEntry>()
     private val sentAt = mutableListOf<Long>()
@@ -124,7 +123,7 @@ class WheelControllerTest {
     }
 
     @Test fun wrapsBothWaysAndStartsAtEdgesForUnknownStation() {
-        val wheel = wheel(StationEntry(Band.FM, 100000))
+        val wheel = wheel(StationEntry(100000))
         wheel.previous()
         assertEquals(entries.last(), wheel.cursor)
         wheel.next()
@@ -132,7 +131,7 @@ class WheelControllerTest {
         wheel.previous()
         timer.advance(1000)
         assertEquals(listOf(entries.last(), entries.last()), selected)
-        wheel.update(entries, StationEntry(Band.FM, 99000))
+        wheel.update(entries, StationEntry(99000))
         wheel.next()
         assertEquals(entries.first(), wheel.cursor)
     }

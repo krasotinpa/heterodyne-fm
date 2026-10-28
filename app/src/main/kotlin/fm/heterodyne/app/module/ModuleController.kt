@@ -9,11 +9,8 @@ import fm.heterodyne.app.receiver.Receiver
 import fm.heterodyne.app.receiver.ReceiverKind
 
 enum class Band { AM, FM, DAB }
-fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean = when (band) {
-    Band.FM -> frequencyKhz in 87500..108000 && (frequencyKhz - 87500) % 100 == 0
-    Band.AM -> frequencyKhz in 711..1044 && (frequencyKhz - 522) % 9 == 0
-    else -> false
-}
+fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean =
+    band == Band.FM && frequencyKhz in 87500..108000 && (frequencyKhz - 87500) % 100 == 0
 
 enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, RateLimited, TransportError }
 
@@ -199,11 +196,10 @@ class ModuleController(
         else -> null
     }
 
-    /** Legacy FM-only entry point; select also supports composed AM/FM transitions. */
+    /** A transition always selects FM, including a receiver connected in AM. */
     fun tune(frequencyKhz: Int): TuneResult {
         if (frequencyKhz !in 87500..108000 || (frequencyKhz - 87500) % 100 != 0) return TuneResult.InvalidFrequency
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
-        if (band != Band.FM) return TuneResult.BandNotFM
         return select(Band.FM, frequencyKhz)
     }
 
@@ -221,7 +217,7 @@ class ModuleController(
         this.bandSettleMillis = bandSettleMillis
         if (target == null) transitionStarted(signal)
         signalDispatched = false
-        target = TuneTarget(nextBand, frequencyKhz)
+        target = TuneTarget(Band.FM, frequencyKhz)
         publish()
         selected = false
         return dispatch()
@@ -245,14 +241,14 @@ class ModuleController(
             if (started == null) started = now
             lastBand = now
             selectNotBefore = now + bandSettleMillis
-            bandReply = if (band == Band.FM) Band.AM else Band.FM
+            bandReply = Band.FM
             val result = send(0x84)
             if (result == TuneResult.Sent) notifyTransitionSend(now)
             return result
         }
         if (now < selectNotBefore) return TuneResult.RateLimited
         if (lastSend?.let { now - it < 1000 } == true) return TuneResult.RateLimited
-        val cid = if (goal.band == Band.FM) (goal.frequencyKhz - 87500) / 100 else (goal.frequencyKhz - 522) / 9
+        val cid = (goal.frequencyKhz - 87500) / 100
         if (started == null) started = now
         lastSend = now
         selected = true
@@ -280,7 +276,7 @@ class ModuleController(
     override fun step(direction: Direction): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
-        if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
+        if (band != Band.FM) return TuneResult.BandNotFM
         if (stepStarted != null || started != null || seeking != null || target != null || lastStep?.let { clock() - it < STEP_PAUSE_MILLIS } == true) {
             if (started == null && seeking == null) radio(TransitionState.CommandPause)
             return TuneResult.RateLimited
@@ -297,7 +293,7 @@ class ModuleController(
     override fun seek(direction: Direction): TuneResult {
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
-        if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
+        if (band != Band.FM) return TuneResult.BandNotFM
         if (stepStarted != null || started != null || seeking != null || target != null) return TuneResult.RateLimited
         if (lastSeek?.let { clock() - it < seekPause } == true) {
             pauseUntil = checkNotNull(lastSeek) + seekPause
@@ -306,7 +302,7 @@ class ModuleController(
             return TuneResult.RateLimited
         }
         stepStarted = null
-        lastSeek = clock(); seekPause = if (band == Band.FM) 5000 else 15000
+        lastSeek = clock(); seekPause = 5000
         activeSeekLimit = seekLimitMillis()
         actionPause = CommandPause(PauseKind.Seek, direction, seekPause, seekPause)
         seekCommandPause = actionPause

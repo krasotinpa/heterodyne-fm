@@ -10,10 +10,10 @@ import org.json.JSONObject
 object StationsJson {
     fun encode(state: StationsState): String = JSONObject().put("schema", 2)
         .put("selectedRegion", state.selectedRegion)
-        .put("band", state.band.name)
+        .put("band", "FM")
         .put("lastPlayed", state.lastPlayed)
         .put("lastStation", state.lastStation?.let {
-            JSONObject().put("band", it.band.name).put("frequencyKhz", it.frequencyKhz)
+            JSONObject().put("band", "FM").put("frequencyKhz", it.frequencyKhz)
         } ?: JSONObject.NULL)
         .put("regions", JSONObject().apply {
             state.regions.forEach { (id, region) ->
@@ -21,7 +21,7 @@ object StationsJson {
                     region.selections.forEach { selection ->
                         put(JSONObject().put("name", selection.name).put("entries", JSONArray().apply {
                             selection.entries.forEach { entry ->
-                                put(JSONObject().put("band", entry.band.name).put("frequencyKhz", entry.frequencyKhz)
+                                put(JSONObject().put("band", "FM").put("frequencyKhz", entry.frequencyKhz)
                                     .put("name", entry.name).put("catalogId", entry.catalogId))
                             }
                         }))
@@ -52,10 +52,11 @@ object StationsJson {
                 val entries = selection.getJSONArray("entries")
                 for (entryIndex in 0 until entries.length()) {
                     val entry = entries.getJSONObject(entryIndex)
+                    if (entry.getString("band") != "FM") continue
                     val frequency = entry.get("frequencyKhz")
                     require(frequency is Number && frequency.toDouble() == frequency.toInt().toDouble())
                     populated = requireNotNull(populated.add(StationEntry(
-                        Band.valueOf(entry.getString("band")), frequency.toInt(),
+                        frequency.toInt(),
                         if (entry.has("name") && !entry.isNull("name")) entry.getString("name") else null,
                         if (entry.has("catalogId") && !entry.isNull("catalogId")) entry.getString("catalogId") else null,
                     )).value)
@@ -64,11 +65,11 @@ object StationsJson {
             }
             RegionSelections.restore(restoredSelections, region.getString("activeName"))
         }
-        val lastStation = if (schema == 2 && !root.isNull("lastStation")) {
+        val lastStation = if (schema == 2 && !root.isNull("lastStation") && root.getJSONObject("lastStation").getString("band") == "FM") {
             val station = root.getJSONObject("lastStation")
             val frequency = station.get("frequencyKhz")
             require(frequency is Number && frequency.toDouble() == frequency.toInt().toDouble())
-            SessionStation(Band.valueOf(station.getString("band")), frequency.toInt())
+            SessionStation(frequency.toInt())
         } else null
         if (schema == 2) require(root.has("lastStation"))
         val lastPlayed = if (root.isNull("lastPlayed")) false else {
@@ -77,7 +78,7 @@ object StationsJson {
             value
         }
         return StationsState(root.getString("selectedRegion"), regions, lastStation,
-            if (schema == 2) Band.valueOf(root.getString("band")) else Band.FM, lastPlayed)
+            lastPlayed = lastPlayed && !(schema == 2 && !root.isNull("lastStation") && lastStation == null))
     }
 }
 

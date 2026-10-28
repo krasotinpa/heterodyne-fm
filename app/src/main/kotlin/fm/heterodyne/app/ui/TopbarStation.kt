@@ -5,4 +5,4 @@ import fm.heterodyne.app.module.TuneTarget
 import fm.heterodyne.app.stations.StationsState
 
 fun topbarStation(confirmed: TuneTarget?, state: StationsState?): TuneTarget? =
-    confirmed ?: state?.lastStation?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) }
+    confirmed?.takeIf { it.band == Band.FM } ?: state?.lastStation?.let { TuneTarget(Band.FM, it.frequencyKhz) }

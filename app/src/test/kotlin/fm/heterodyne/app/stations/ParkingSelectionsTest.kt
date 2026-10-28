@@ -5,8 +5,8 @@ import org.junit.Test
 
 class ParkingSelectionsTest {
     @Test fun stationCanBeMovedAndRemovedWithoutChangingOriginal() {
-        val first = StationEntry(Band.FM, 90300)
-        val second = StationEntry(Band.FM, 91000)
+        val first = StationEntry(90300)
+        val second = StationEntry(91000)
         val original = StationSelection.empty("Основной").add(first).value!!.add(second).value!!
         val moved = original.move(0, 1).value!!
         assertEquals(listOf(second, first), moved.entries)
@@ -27,8 +27,8 @@ class ParkingSelectionsTest {
     }
 
     @Test fun duplicateFrequencyIsRejectedRegardlessOfStationName() {
-        val selection = StationSelection.empty("Подборка").add(StationEntry(Band.FM, 90300, "Первая")).value!!
-        assertEquals(ChangeError.DUPLICATE_FREQUENCY, selection.add(StationEntry(Band.FM, 90300, "Другая")).error)
+        val selection = StationSelection.empty("Подборка").add(StationEntry(90300, "Первая")).value!!
+        assertEquals(ChangeError.DUPLICATE_FREQUENCY, selection.add(StationEntry(90300, "Другая")).error)
         assertEquals(1, selection.entries.size)
     }
 }

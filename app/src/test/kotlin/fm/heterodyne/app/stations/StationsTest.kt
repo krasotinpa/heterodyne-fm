@@ -16,9 +16,7 @@ class StationsTest {
             assertEquals(id, catalog.region.id)
             assertEquals(catalog.stations.size, catalog.stations.map { it.id }.toSet().size)
             assertTrue(catalog.stations.isNotEmpty())
-            assertTrue(catalog.stations.none { it.band == Band.AM })
             catalog.stations.forEach {
-                assertEquals(Band.FM, it.band)
                 assertTrue(it.frequencyKhz in 87500..108000)
                 assertEquals(0, it.frequencyKhz % 100)
                 assertTrue((it.frequencyKhz - 87500) / 100 in 0..205)
@@ -51,11 +49,10 @@ class StationSelectionsTest {
         assertEquals(station.name, first.entries.first().name)
         assertNotEquals(renamed.name, first.entries.first().name)
         assertEquals(ChangeError.DUPLICATE_FREQUENCY, first.add(station.copyEntry().copy(name = "Другое")).error)
-        val am = StationEntry(Band.AM, 855, "AM")
+        val am = StationEntry(97700, "Другая")
         val next = first.add(am).value!!
         assertEquals(listOf(station.copyEntry(), am), next.entries)
         assertEquals(1, first.entries.size)
-        assertNotNull(first.add(StationEntry(Band.AM, station.frequencyKhz)).value)
     }
 }
 
@@ -63,7 +60,7 @@ class StationsStorageTest {
     @Test fun roundTripPreservesRegionsActiveSelectionAndEntries() {
         val initial = StationsState.defaults()
         val region = initial.regions.getValue("yaroslavl").createSelection("Дорога").value!!.activate("Дорога").value!!
-        val populated = region.replaceActive(region.active.add(StationEntry(Band.AM, 855)).value!!)
+        val populated = region.replaceActive(region.active.add(StationEntry(97700)).value!!)
         val state = initial.copy(selectedRegion = "yaroslavl", regions = initial.regions + ("yaroslavl" to populated))
         assertEquals(state, StationsJson.decode(StationsJson.encode(state)))
         assertFalse(StationsJson.encode(state).contains("\"cid\""))

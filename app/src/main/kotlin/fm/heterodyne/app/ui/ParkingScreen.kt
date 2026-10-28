@@ -228,7 +228,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                             Modifier.border(DesignTokens.number("line.stroke").dp, colors["accent"]) else Modifier)) {
                             Label("Подборка: ${selection.name}", 22)
                             LazyColumn(verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                                itemsIndexed(selection.entries, key = { _, entry -> "${entry.band}:${entry.frequencyKhz}" }) { index, entry ->
+                                itemsIndexed(selection.entries, key = { _, entry -> "${entry.frequencyKhz}" }) { index, entry ->
                                     val active = dragging == index
                                     Box(Modifier.fillMaxWidth().height(DesignTokens.number("size.editorRow.height").dp)
                                         .zIndex(if (active) 1f else 0f)) {

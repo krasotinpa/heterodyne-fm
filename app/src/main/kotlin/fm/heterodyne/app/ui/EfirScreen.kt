@@ -62,7 +62,6 @@ data class EfirActions(
     val station: (Direction) -> Unit = {},
     val step: (Direction) -> Unit = {},
     val seek: (Direction) -> Unit = {},
-    val band: () -> Unit = {},
     val activate: (String) -> Unit = {},
     val parked: () -> Unit = {},
     val check: () -> Unit = {},
@@ -76,10 +75,10 @@ private val Accent: Color @Composable get() = LocalAppearanceColors.current["acc
 private val Muted: Color @Composable get() = LocalAppearanceColors.current["muted"]
 
 fun frequencyText(target: TuneTarget): String = if (target.band == fm.heterodyne.app.module.Band.FM)
-    "${target.frequencyKhz / 1000},${target.frequencyKhz % 1000 / 100}" else "${target.frequencyKhz}"
+    "${target.frequencyKhz / 1000},${target.frequencyKhz % 1000 / 100}" else "—"
 
 private fun StationEntry.matches(target: TuneTarget?) = target != null &&
-    band.name == target.band.name && frequencyKhz == target.frequencyKhz
+    target.band == fm.heterodyne.app.module.Band.FM && frequencyKhz == target.frequencyKhz
 
 @Composable
 fun EfirScreen(
@@ -106,9 +105,8 @@ fun EfirScreen(
     val displayed = topbarStation(confirmed, state)
     val reason = if (noFocus && connected) DisabledReason.NoFocus
         else disabledReason(connectionState, transition.state,
-            // A saved station only explains itself when the receiver cannot take its band.
-            displayed?.band?.takeIf { confirmed != null || it !in capabilities.bands }, entries, capabilities.bands)
-    val hasSupportedEntries = entries.any { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
+            confirmed?.band, entries)
+    val hasSupportedEntries = entries.isNotEmpty()
     val name = entries.firstOrNull { it.matches(displayed) }?.name
         ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(displayed) }?.name
     val saved = confirmed == null && displayed != null
@@ -138,7 +136,7 @@ fun EfirScreen(
                         TransitionState.Waiting -> "ожидание"
                         TransitionState.Seeking -> "идёт поиск…"
                         TransitionState.SeekIncomplete -> "Поиск не завершён"
-                        else -> "${displayed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
+                        else -> catalog?.region?.name ?: "—"
                     }
                     BasicText(status, Modifier.testTag("efir-status"),
                         style = designTextStyle(if (reason != null) "plate" else "body", when {
@@ -175,7 +173,7 @@ fun EfirScreen(
             }
             Row(Modifier.weight(1f).testTag("efir-body"), horizontalArrangement = Arrangement.spacedBy(gap)) {
                 EdgeControls(Direction.Down, connected, hasSupportedEntries, transition, actions,
-                    Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
+                    Modifier.fillMaxHeight(), playing)
                 Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"),
                     verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
                     Box(Modifier.fillMaxWidth().height(tokenDp(if (compact) "size.spectrum.heightCompact" else "size.spectrum.height"))
@@ -184,7 +182,7 @@ fun EfirScreen(
                         loupeEnabled = connected && transition.state in listOf(TransitionState.Idle, TransitionState.SeekIncomplete) && transition.target == null &&
                             screen.error == null,
                         windowWidth = windowWidth, select = { entry ->
-                            if (fm.heterodyne.app.module.Band.valueOf(entry.band.name) in capabilities.bands) actions.select(entry)
+                            actions.select(entry)
                         },
                         playing = playing, play = actions.play, marker = scaleMarker)
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
@@ -208,22 +206,22 @@ fun EfirScreen(
                             .padding(horizontal = tokenDp("space.section")), verticalArrangement = Arrangement.Center) {
                             BasicText("Подборка пуста — добавьте станции в режиме стоянки", style = designTextStyle("plate", Muted))
                         } else StationRibbon(entries, transition, connected, actions.select, Modifier.weight(1f), plateHeight,
-                            "${state?.selectedRegion}:${selections?.activeName}", capabilities.bands)
+                            "${state?.selectedRegion}:${selections?.activeName}")
                     }
                     BasicText("Справочник", style = designTextStyle("button", Muted))
-                    val visible = catalog?.stations.orEmpty().filter { it.band.name == (confirmed?.band?.name ?: state?.band?.name) }.map { it.copyEntry() }
+                    val visible = catalog?.stations.orEmpty().map { it.copyEntry() }
                     if (visible.isEmpty()) BasicText("Нет Станций", style = designTextStyle("body", Muted))
                     else LazyVerticalGrid(columns = GridCells.Fixed(DesignTokens.number("size.plate.catalogColumns").toInt()),
                         modifier = Modifier.weight(1f).testTag("catalog-grid"),
                         horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap")),
                         verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                        items(visible, key = { "${it.band}:${it.frequencyKhz}" }) { entry ->
-                            StationPlate(entry, null, transition, connected && fm.heterodyne.app.module.Band.valueOf(entry.band.name) in capabilities.bands, actions.select, Modifier.height(plateHeight))
+                        items(visible, key = { "${it.frequencyKhz}" }) { entry ->
+                            StationPlate(entry, null, transition, connected, actions.select, Modifier.height(plateHeight))
                         }
                     }
                 }
                 EdgeControls(Direction.Up, connected, hasSupportedEntries, transition, actions,
-                    Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
+                    Modifier.fillMaxHeight(), playing)
             }
             if (showActions) {
                 // Keep messages beside the actions so the compact catalog retains a full plate row.
@@ -253,14 +251,12 @@ internal fun receiverText(text: String) = text.replace("Модуля", "приё
 
 @Composable
 private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: Boolean, transition: TransitionSnapshot,
-                         actions: EfirActions, modifier: Modifier, playing: Boolean, band: fm.heterodyne.app.module.Band?, showBand: Boolean) {
+                         actions: EfirActions, modifier: Modifier, playing: Boolean) {
     val arrow = direction.arrow()
     Column(modifier.width(tokenDp("size.sideColumn.width")), verticalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
         if (direction == Direction.Down) Control(if (playing) "Стоп" else "Старт", connected, actions.play,
             Modifier.fillMaxWidth().height(tokenDp("size.startStop.height")), selected = playing, radius = "xl", outlined = !playing, playback = playing)
-        else if (!showBand) Spacer(Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")).testTag("band-reserved"))
-        else Control("${band?.name ?: "FM"} / ${if (band == fm.heterodyne.app.module.Band.AM) "FM" else "AM"}",
-            connected && band != null, actions.band, Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")), selected = true, radius = "xl", bandDisplay = band)
+        else Spacer(Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")).testTag("band-reserved"))
         Control("Станция $arrow", connected && hasEntries, { actions.station(direction) },
             Modifier.fillMaxWidth().weight(1f).heightIn(min = tokenDp("size.stationButton.minHeight")), radius = "xl", edge = true)
         Control("Шаг $arrow", connected && transition.pause?.kind != PauseKind.Step,
@@ -271,7 +267,7 @@ private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: B
 @Composable
 private fun StationRibbon(entries: List<StationEntry>, transition: TransitionSnapshot,
                           connected: Boolean, select: (StationEntry) -> Unit, modifier: Modifier,
-                          height: androidx.compose.ui.unit.Dp, selectionKey: String, supportedBands: Set<fm.heterodyne.app.module.Band>) {
+                          height: androidx.compose.ui.unit.Dp, selectionKey: String) {
     val list = rememberLazyListState()
     val target = transition.target ?: transition.confirmed
     val density = LocalDensity.current
@@ -293,8 +289,8 @@ private fun StationRibbon(entries: List<StationEntry>, transition: TransitionSna
         if (list.canScrollBackward) drawRect(Brush.horizontalGradient(listOf(background, background.copy(alpha = 0f)), 0f, fade))
         if (list.canScrollForward) drawRect(Brush.horizontalGradient(listOf(background.copy(alpha = 0f), background), size.width - fade, size.width))
     }, state = list, horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-        itemsIndexed(entries, key = { _, it -> "${it.band}:${it.frequencyKhz}" }) { index, entry ->
-            StationPlate(entry, index + 1, transition, connected && fm.heterodyne.app.module.Band.valueOf(entry.band.name) in supportedBands, select,
+        itemsIndexed(entries, key = { _, it -> "${it.frequencyKhz}" }) { index, entry ->
+            StationPlate(entry, index + 1, transition, connected, select,
                 Modifier.width(tokenDp("size.plate.presetWidth")).height(height))
         }
     }
@@ -306,8 +302,8 @@ private fun StationPlate(entry: StationEntry, number: Int?, transition: Transiti
     val waiting = entry.matches(transition.target) && transition.state == TransitionState.Waiting
     val current = entry.matches(transition.confirmed)
     Control("${number?.let { "$it · " } ?: ""}${entry.name?.takeIf { it.isNotBlank() } ?: "Без имени"}\n" +
-        frequencyText(TuneTarget(fm.heterodyne.app.module.Band.valueOf(entry.band.name), entry.frequencyKhz)) +
-        " ${entry.band}" + if (waiting) " · ожидание" else "", connected, { select(entry) },
+        frequencyText(TuneTarget(fm.heterodyne.app.module.Band.FM, entry.frequencyKhz)) +
+        if (waiting) " · ожидание" else "", connected, { select(entry) },
         modifier, selected = current || entry.matches(transition.target), waiting = waiting, plate = true,
         faded = current && transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected))
 }
@@ -316,7 +312,7 @@ private fun StationPlate(entry: StationEntry, number: Int?, transition: Transiti
 internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier,
                      selected: Boolean = false, description: String? = null, radius: String = "m",
                      waiting: Boolean = false, plate: Boolean = false, outlined: Boolean = false,
-                     bandDisplay: fm.heterodyne.app.module.Band? = null, parkIcon: Boolean = false,
+                     parkIcon: Boolean = false,
                      parkShowLabel: Boolean = true, parkLargeIcon: Boolean = false,
                      edge: Boolean = false, playback: Boolean? = null, faded: Boolean = false) {
     val colors = LocalAppearanceColors.current
@@ -364,7 +360,6 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
         .semantics {
             this.selected = selected
             if (description != null) contentDescription = description
-            if (bandDisplay != null) contentDescription = "FM / AM"
             if (edge || playback != null) this.text = AnnotatedString(text)
         }
         .pointerInput(enabled) {
@@ -382,7 +377,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             }
         }
         .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-        .padding(horizontal = if (bandDisplay != null || parkIcon) 0.dp else tokenDp("space.plateGap")), contentAlignment = Alignment.Center) {
+        .padding(horizontal = if (parkIcon) 0.dp else tokenDp("space.plateGap")), contentAlignment = Alignment.Center) {
         if (edge || playback != null) Column(Modifier.clearAndSetSemantics {}, horizontalAlignment = Alignment.CenterHorizontally) {
             val icon = if (playback != null) { if (playback) "■" else "▶" } else if (text.contains("◀")) "◀" else "▶"
             val iconSize = if (playback != null) "size.icon.l" else if (text.startsWith("Станция")) "size.icon.xl" else "font.style.band.size"
@@ -391,13 +386,6 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             BasicText(if (edge) text.substringBefore(' ') else text, style = designTextStyle("button", foreground).let {
                 if (text.startsWith("Шаг")) it.copy(fontSize = DesignTokens.number("font.style.body.size").sp) else it
             })
-        } else if (bandDisplay != null) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            listOf(fm.heterodyne.app.module.Band.FM, fm.heterodyne.app.module.Band.AM).forEach { band ->
-                val active = band == bandDisplay
-                Box(Modifier.weight(1f).fillMaxHeight().background(colors[if (active && enabled) "accent" else "surface2"]), contentAlignment = Alignment.Center) {
-                    BasicText(band.name, style = designTextStyle(if (active) "band" else "bandBack", colors[if (!enabled) "disabledText" else if (active) "onAccent" else "text"]))
-                }
-            }
         } else if (parkIcon) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center) {
             androidx.compose.foundation.Canvas(Modifier.size(tokenDp(

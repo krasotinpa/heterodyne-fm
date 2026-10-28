@@ -81,7 +81,7 @@ class MainActivity : ComponentActivity() {
                             seekHint = stations.module.seekHint,
                             actions = fm.heterodyne.app.ui.EfirActions(
                                 select = stations.module::pickStation, station = stations.module::nextStation,
-                                step = stations.module::step, seek = stations.module::seek, band = stations.module::changeBand,
+                                step = stations.module::step, seek = stations.module::seek,
                                 activate = stations.module::activateSelection, parked = { if (!stations.module.driving) parked = true },
                                 check = stations.module::checkConnection,
                                 play = {
@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
                     stations.module.currentStation?.takeIf {
                         stations.module.moduleState == fm.heterodyne.app.module.ConnectionState.Observing &&
                             fm.heterodyne.app.module.isSelectableFrequency(
-                                fm.heterodyne.app.module.Band.valueOf(it.band.name), it.frequencyKhz)
+                                fm.heterodyne.app.module.Band.FM, it.frequencyKhz)
                     },
                     fm.heterodyne.app.ui.ParkingActions(
                         region = stations.module::selectRegion, activate = stations.module::activateSelection,

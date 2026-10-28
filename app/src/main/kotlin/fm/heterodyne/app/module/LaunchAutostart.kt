@@ -38,7 +38,7 @@ class LaunchAutostart(
         cancel()
         this.reason = reason
         noFocusChanged(false)
-        this.station = station?.takeIf { enabled && module != null && it.band in module.capabilities.bands && isSelectableFrequency(it.band, it.frequencyKhz) }
+        this.station = station?.takeIf { enabled && module != null && isSelectableFrequency(it.band, it.frequencyKhz) }
         if (this.station == null) { event("skipped"); return }
         if (lastAttempt?.let { clock() - it < 30000 } == true) { event("rate-limited"); return }
         openedAt = clock()

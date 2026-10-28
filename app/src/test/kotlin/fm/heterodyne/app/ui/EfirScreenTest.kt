@@ -16,7 +16,6 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import fm.heterodyne.app.StationsScreenState
 import fm.heterodyne.app.module.*
 import fm.heterodyne.app.stations.*
-import fm.heterodyne.app.stations.Band as StationBand
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
@@ -40,7 +39,7 @@ class EfirScreenTest {
         compose.setContent {
             disabled = LocalAppearanceColors.current["disabledText"]
             normal = LocalAppearanceColors.current["text"]
-            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.FM, 90300),
+            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(90300),
                 lastPlayed = false), listOf(catalog)), snapshot.value, false, EfirActions())
         }
         compose.onNodeWithTag("efir-frequency").assertTextEquals("90,3")
@@ -55,23 +54,9 @@ class EfirScreenTest {
         assertEquals(0, fake.sendCount)
     }
 
-    @Test fun savedAmStationRemainsVisibleOnFmOnlyReceiver() {
-        var disabled = Color.Unspecified
-        compose.setContent {
-            disabled = LocalAppearanceColors.current["disabledText"]
-            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.AM, 801)), listOf(catalog)),
-                TransitionSnapshot(TransitionState.Idle, null, null), true, EfirActions(),
-                capabilities = fm.heterodyne.app.receiver.FakeReceiver().capabilities)
-        }
-        compose.onNodeWithTag("efir-frequency").assertTextEquals("801")
-        compose.onNodeWithTag("efir-name").assertTextEquals("Частота вне Подборки")
-        compose.onNodeWithTag("efir-status").assertTextEquals("Приёмник не принимает AM")
-        listOf("efir-frequency", "efir-name").forEach { assertTextColor(it, disabled) }
-    }
-
     @Test fun savedFmStationKeepsConnectingReasonUntilConfirmed() {
         compose.setContent {
-            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.FM, 90300)), listOf(catalog)),
+            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(90300)), listOf(catalog)),
                 TransitionSnapshot(TransitionState.Idle, null, null), true, EfirActions())
         }
         compose.onNodeWithTag("efir-status").assertTextEquals("Подключение идёт")
@@ -123,19 +108,6 @@ class EfirScreenTest {
         compose.onNodeWithContentDescription("FM / AM").assertDoesNotExist()
     }
 
-    @Test fun unsupportedAmPlateStaysVisibleAndDisabled() {
-        val am = StationEntry(StationBand.AM, 801, "AM тест")
-        val state = initial.copy(regions = initial.regions.mapValues { (_, region) ->
-            region.replaceActive(region.active.add(am).value!!)
-        })
-        compose.setContent {
-            EfirScreen(StationsScreenState(state, listOf(catalog)),
-                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
-                true, EfirActions(), capabilities = fm.heterodyne.app.receiver.FakeReceiver().capabilities)
-        }
-        compose.onNodeWithTag("efir-status").assertTextEquals("Приёмник не принимает AM")
-        compose.onNode(hasText("AM тест", substring = true) and hasClickAction()).assertIsDisplayed().assertIsNotEnabled()
-    }
     @get:Rule val compose = createComposeRule()
 
     @Test fun drivingSeekHintAppearsInStatusAndKeepsControlsEnabled() {
@@ -373,7 +345,7 @@ class EfirScreenTest {
 
     @Test fun disconnectedConnectButtonHasLargeTargetAndDoesNotCoverCatalog() {
         val many = catalog.copy(stations = (0 until 20).map {
-            CatalogStation("s$it", "Станция $it", StationBand.FM, 88000 + it * 100)
+            CatalogStation("s$it", "Станция $it", 88000 + it * 100)
         })
         compose.setContent {
             Box(Modifier.requiredSize(935.dp, 493.dp)) {
@@ -463,7 +435,7 @@ class EfirScreenTest {
     @Test fun referenceLayoutAndCompactBreakpointKeepGridScrollable() {
         val window = mutableStateOf(1100.dp to 580.dp)
         val many = catalog.copy(stations = (0 until 20).map {
-            CatalogStation("s$it", "Станция $it", StationBand.FM, 88000 + it * 100)
+            CatalogStation("s$it", "Станция $it", 88000 + it * 100)
         })
         compose.setContent {
             Box(Modifier.requiredSize(window.value.first, window.value.second)) {
@@ -531,7 +503,7 @@ class EfirScreenTest {
         fun neighborBounds() = listOf(
             compose.onAllNodesWithText("87,5").onFirst(),
             compose.onNodeWithText("Первая"),
-            compose.onNodeWithContentDescription("FM / AM"),
+            compose.onNodeWithTag("band-reserved"),
             compose.onNodeWithText("Стоянка"),
         ).map { it.fetchSemanticsNode().boundsInRoot }
         val parkedBounds = neighborBounds()
@@ -598,14 +570,14 @@ class EfirScreenTest {
     @Test fun catalogSelectionRequestsStationWithoutChangingConfirmedFrequency() {
         val selected = mutableListOf<StationEntry>()
         val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),
-            listOf(CatalogStation("a", "Авторадио", StationBand.FM, 90300)))
+            listOf(CatalogStation("a", "Авторадио", 90300)))
         compose.setContent {
             EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)),
                 TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)),
                 connected = true, actions = EfirActions(select = { selected.add(it) }))
         }
         compose.onNodeWithText("Авторадио", substring = true).performClick()
-        assertEquals(listOf(StationEntry(StationBand.FM, 90300, "Авторадио", "a")), selected)
+        assertEquals(listOf(StationEntry(90300, "Авторадио", "a")), selected)
         compose.onAllNodesWithText("87,5").onFirst().assertIsDisplayed()
     }
 
@@ -623,7 +595,7 @@ class EfirScreenTest {
         listOf("Старт", "Станция ◀", "Станция ▶", "Шаг ◀", "Шаг ▶").forEach {
             compose.onNodeWithText(it).assertIsNotEnabled()
         }
-        listOf("Поиск ◀", "Поиск ▶", "FM / AM").forEach {
+        listOf("Поиск ◀", "Поиск ▶").forEach {
             compose.onNodeWithContentDescription(it).assertIsNotEnabled()
         }
         compose.onNodeWithText("Справочная", substring = true).assertIsNotEnabled()
@@ -645,14 +617,14 @@ class EfirScreenTest {
         listOf("Старт", "Шаг ◀", "Шаг ▶").forEach { compose.onNodeWithText(it).assertIsEnabled() }
         compose.onNodeWithText("Справочная", substring = true).assertIsEnabled()
         compose.runOnIdle { screen.value = initial }
-        compose.onNodeWithTag("efir-status").assertTextEquals("FM · Москва")
+        compose.onNodeWithTag("efir-status").assertTextEquals("Москва")
         compose.runOnIdle { connection.value = ConnectionState.Disconnected }
         compose.onNodeWithText("1 · Первая", substring = true).assertIsNotEnabled()
     }
 
     private val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),
-        listOf(CatalogStation("b", "Справочная", StationBand.FM, 90300)))
-    private val first = StationEntry(StationBand.FM, 87500, "Первая")
+        listOf(CatalogStation("b", "Справочная", 90300)))
+    private val first = StationEntry(87500, "Первая")
     private val initial = StationsState.defaults().let { state ->
         val region = state.regions.getValue("moskva")
         val populated = region.replaceActive(region.active.add(first).value!!)
@@ -665,18 +637,18 @@ class EfirScreenTest {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
                 TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500)), true,
                 EfirActions(station = { events.add("station:$it") }, step = { events.add("step:$it") },
-                    seek = { events.add("seek:$it") }, band = { events.add("band") },
+                    seek = { events.add("seek:$it") },
                     parked = { events.add("parked") }, activate = { events.add("selection:$it") },
                     play = { events.add("play") }))
         }
         listOf("Станция ◀", "Станция ▶", "Шаг ◀", "Шаг ▶", "Поиск ◀", "Поиск ▶",
-            "FM / AM", "Подборка: Дорога", "Старт", "Стоянка").forEach {
+            "Подборка: Дорога", "Старт", "Стоянка").forEach {
             if (it == "Подборка: Дорога") compose.onNodeWithText("Подборка: Основной").performClick()
-            val node = if (it == "FM / AM" || it.startsWith("Поиск")) compose.onNodeWithContentDescription(it) else compose.onNodeWithText(it)
+            val node = if (it.startsWith("Поиск")) compose.onNodeWithContentDescription(it) else compose.onNodeWithText(it)
             node.assertWidthIsAtLeast(tokenDp("size.touch.min")).assertHeightIsAtLeast(tokenDp("size.touch.min")).performClick()
         }
         assertEquals(listOf("station:Down", "station:Up", "step:Down", "step:Up", "seek:Down", "seek:Up",
-            "band", "selection:Дорога", "play", "parked"), events)
+            "selection:Дорога", "play", "parked"), events)
         compose.onNodeWithText("Сохранить текущую частоту").assertDoesNotExist()
         compose.onNodeWithText("Отменить поиск").assertDoesNotExist()
     }
@@ -687,8 +659,8 @@ class EfirScreenTest {
                 TransitionSnapshot(TransitionState.Disconnected, null, TuneTarget(Band.FM, 87500)), false, EfirActions())
         }
         compose.onNodeWithText("Приёмник отключён").assertIsDisplayed()
-        listOf("Станция ▶", "Шаг ◀", "Поиск ▶", "FM / AM", "Старт").forEach {
-            val node = if (it == "FM / AM" || it.startsWith("Поиск")) compose.onNodeWithContentDescription(it) else compose.onNodeWithText(it)
+        listOf("Станция ▶", "Шаг ◀", "Поиск ▶", "Старт").forEach {
+            val node = if (it.startsWith("Поиск")) compose.onNodeWithContentDescription(it) else compose.onNodeWithText(it)
             node.assertIsNotEnabled()
         }
         compose.onNodeWithText("Справочная", substring = true).assertIsNotEnabled()
@@ -718,7 +690,7 @@ class EfirScreenTest {
         listOf(
             TransitionState.Unconfirmed to "Нет ответа от приёмника",
             TransitionState.Unresponsive to "Модуль не отвечает, переподключите USB",
-            TransitionState.CommandPause to "FM · Москва",
+            TransitionState.CommandPause to "Москва",
             TransitionState.Seeking to "идёт поиск…",
         ).forEach { (state, banner) ->
             compose.runOnIdle { snapshot.value = snapshot.value.copy(state = state, target = null) }

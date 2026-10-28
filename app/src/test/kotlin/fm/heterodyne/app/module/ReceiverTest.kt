@@ -15,7 +15,6 @@ class ReceiverTest {
     @Test fun moduleDeclaresOnlyAcceptedCapabilities() {
         val receiver: Receiver = ModuleController(FakeTransport(), journal)
         assertEquals(ReceiverKind.Module, receiver.kind)
-        assertEquals(setOf(Band.FM, Band.AM), receiver.capabilities.bands)
         assertTrue(receiver.capabilities.seek)
         assertFalse(receiver.capabilities.cancelSeek)
         assertFalse(receiver.capabilities.rds)

@@ -38,11 +38,11 @@ fun BandScale(
     playing: Boolean = false,
     play: () -> Unit = {},
 ) {
-    val confirmed = transition.confirmed
-    val band = confirmed?.band ?: transition.target?.band?.takeIf { marker != ScaleMarker.Stripe }
+    val confirmed = transition.confirmed?.takeIf { it.band == Band.FM }
+    val band = confirmed?.band ?: transition.target?.band?.takeIf { it == Band.FM && marker != ScaleMarker.Stripe }
     val colors = LocalAppearanceColors.current
     val density = LocalDensity.current
-    val enabled = loupeEnabled && confirmed?.band == Band.FM && stations.any { it.band.name == "FM" }
+    val enabled = loupeEnabled && confirmed?.band == Band.FM && stations.isNotEmpty()
     val currentSelect by rememberUpdatedState(select)
     val currentPlaying by rememberUpdatedState(playing)
     val currentPlay by rememberUpdatedState(play)
@@ -71,7 +71,7 @@ fun BandScale(
                             val selection = loupeRelease(preview, cancelled, transition.confirmed)
                             if (selection != null) currentSelect(selection)
                             else if (!cancelled && !currentPlaying && preview?.let {
-                                it.band.name == confirmed?.band?.name && it.frequencyKhz == confirmed.frequencyKhz
+                                confirmed?.band == Band.FM && it.frequencyKhz == confirmed.frequencyKhz
                             } == true) currentPlay()
                             break
                         }
@@ -89,7 +89,7 @@ fun BandScale(
         BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = tokenDp("size.scale.inset"))) {
             val width = constraints.maxWidth.toFloat()
             val visiblePreview = preview?.takeUnless { cancelled }
-            val frequencies = (stations.filter { it.band.name == band?.name }.map { it.frequencyKhz } +
+            val frequencies = (stations.map { it.frequencyKhz } +
                 listOfNotNull(confirmed?.frequencyKhz, visiblePreview?.frequencyKhz)).distinct()
             fun markWidth(frequency: Int, preferred: Float, highlighted: Boolean): Float =
                 scaleMarkWidth(band ?: Band.FM, frequency, frequencies, width, preferred, highlighted)
@@ -103,16 +103,16 @@ fun BandScale(
             Canvas(Modifier.fillMaxSize()) {
                 val baseline = if (marker == ScaleMarker.Stripe) size.height / 2 else size.height - tokenDp("size.scale.marker.baselineInset").toPx()
                 drawLine(colors["edge"], Offset(0f, baseline), Offset(size.width, baseline), tokenDp("line.tick").toPx())
-                if (band != null && band != Band.DAB) {
-                    val ticks = if (band == Band.FM) 41 else 61
+                if (band == Band.FM) {
+                    val ticks = 41
                     repeat(ticks + 1) { index ->
                         val x = index * size.width / ticks
                         val height = tokenDp(if (index % 5 == 0) "size.scale.tickMajor" else "size.scale.tickMinor").toPx()
                         drawLine(colors["edge"], Offset(x, baseline - height / 2), Offset(x, baseline + height / 2), tokenDp("size.scale.tickWidth").toPx())
                     }
-                    stations.filter { it.band.name == band.name }.forEach { station ->
+                    stations.forEach { station ->
                         if (station.frequencyKhz == confirmed?.frequencyKhz) return@forEach
-                        val preset = entries.any { it.band == station.band && it.frequencyKhz == station.frequencyKhz }
+                        val preset = entries.any { it.frequencyKhz == station.frequencyKhz }
                         val prefix = if (preset) "size.scale.markPreset" else "size.scale.markStation"
                         val x = bandFraction(band, station.frequencyKhz) * size.width
                         val height = tokenDp("$prefix.1").toPx()
@@ -122,11 +122,11 @@ fun BandScale(
                 }
             }
             if (confirmed == null && marker != ScaleMarker.Stripe) {
-                transition.target?.takeIf { it.band != Band.DAB }?.let {
+                transition.target?.takeIf { it.band == Band.FM }?.let {
                     ScaleMarkerShape(marker, it, true, false, markerPosition(it).testTag("band-scale-preview-target"))
                 }
             }
-            if (confirmed != null && band != Band.DAB) {
+            if (confirmed != null && band == Band.FM) {
                 val labels = scaleFrequencyLabels(confirmed.band, confirmed.frequencyKhz)
                 val fraction = bandFraction(confirmed.band, confirmed.frequencyKhz)
                 val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)

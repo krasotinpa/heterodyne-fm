@@ -10,14 +10,14 @@ import org.junit.Test
 import kotlin.math.pow
 
 class PauseRingTest {
-    @Test fun returningAfterTenSecondsUsesPublicationTime() {
-        val pause = CommandPause(PauseKind.Seek, Direction.Up, 15000, 15000)
+    @Test fun returningAfterThreeSecondsUsesPublicationTime() {
+        val pause = CommandPause(PauseKind.Seek, Direction.Up, 5000, 5000)
         var now = 0L
         PauseRingClock(pause) { now }
-        now = 10000
+        now = 3000
         val returned = PauseRingClock(pause) { now }
-        assertEquals("Поиск ▶, пауза, осталось 5 с", returned.description())
-        assertEquals(1f / 3f, returned.fraction(), .0001f)
+        assertEquals("Поиск ▶, пауза, осталось 2 с", returned.description())
+        assertEquals(.4f, returned.fraction(), .0001f)
     }
 
     @Test fun greyControlsAndAccentRingMeetContrastInAllThemesAndPalettes() {
@@ -36,8 +36,8 @@ class PauseRingTest {
         }
     }
 
-    @Test fun seekCountdownDecreasesLinearlyOnMonotonicClockInBothBands() {
-        for (duration in listOf(5000L, 15000L)) {
+    @Test fun seekCountdownDecreasesLinearlyOnMonotonicClock() {
+        for (duration in listOf(5000L)) {
             var now = 100L
             val ring = PauseRingClock(CommandPause(PauseKind.Seek, Direction.Up, duration, duration, now), { now })
             assertEquals(1f, ring.fraction(), 0f)

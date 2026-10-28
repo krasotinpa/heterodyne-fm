@@ -70,7 +70,7 @@ class BandScaleTest {
         scale.performTouchInput { up() }
         compose.onNodeWithTag("band-scale-preview-target").assertDoesNotExist()
         compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = TuneTarget(Band.AM, 855)) }
-        compose.onNodeWithTag("band-scale-confirmed-stripe").assertIsDisplayed()
+        compose.onNodeWithTag("band-scale-confirmed-stripe").assertDoesNotExist()
         compose.runOnIdle { snapshot.value = snapshot.value.copy(confirmed = null) }
         compose.onNodeWithTag("band-scale-confirmed-stripe").assertDoesNotExist()
     }
@@ -78,7 +78,7 @@ class BandScaleTest {
     @Test fun efirShows53StationsAndMarkerOnlyFollowsConfirmation() {
         val source = Catalog.parse(File("src/main/assets/catalogs/moskva.json").readText())
         val catalog = source.copy(stations = source.stations + CatalogStation("test", "Тестовая",
-            fm.heterodyne.app.stations.Band.FM, 108000))
+            108000))
         val snapshot = mutableStateOf(TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 97750)))
         compose.setContent {
             EfirScreen(StationsScreenState(StationsState.defaults(), listOf(catalog)), snapshot.value, true, EfirActions())

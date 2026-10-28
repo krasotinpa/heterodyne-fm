@@ -31,7 +31,7 @@ class StationsModule(
             ?.takeIf { it in profiles.kinds } ?: profiles.kinds.singleOrNull())
         private set
     var capabilities by mutableStateOf(if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module)
-        fm.heterodyne.app.receiver.moduleCapabilities else fm.heterodyne.app.receiver.ReceiverCapabilities(emptySet(), false, false, false, false, false))
+        fm.heterodyne.app.receiver.moduleCapabilities else fm.heterodyne.app.receiver.ReceiverCapabilities(false, false, false, false, false))
         private set
     @Volatile private var parked = false
     @Volatile private var moving = false
@@ -77,11 +77,10 @@ class StationsModule(
         TransitionState.Disconnected, null, null))
         private set
     private var cursor: StationEntry? = null
-    private val bandStations = mutableMapOf<Band, Int>()
 
     fun pickStation(entry: StationEntry) {
         cancelAutostart()
-        if (moduleState != ConnectionState.Observing || Band.valueOf(entry.band.name) !in capabilities.bands) return
+        if (moduleState != ConnectionState.Observing) return
         cursor = entry
         selectStation(entry)
         startAudio()
@@ -91,12 +90,11 @@ class StationsModule(
         cancelAutostart()
         val state = session.screen.state ?: return
         val entries = state.regions.getValue(state.selectedRegion).active.entries
-            .filter { Band.valueOf(it.band.name) in capabilities.bands }
         if (entries.isEmpty()) return
         val confirmed = transition.confirmed
         val index = entries.indexOfFirst {
-            if (cursor != null) it.band == cursor?.band && it.frequencyKhz == cursor?.frequencyKhz
-            else it.band.name == confirmed?.band?.name && it.frequencyKhz == confirmed?.frequencyKhz
+            if (cursor != null) it.frequencyKhz == cursor?.frequencyKhz
+            else confirmed?.band == Band.FM && it.frequencyKhz == confirmed?.frequencyKhz
         }
         val next = if (index < 0) {
             if (direction == Direction.Up) 0 else entries.lastIndex
@@ -107,20 +105,6 @@ class StationsModule(
     fun step(direction: Direction) { cursor = null; stepStation(direction) }
     fun seek(direction: Direction) { if (!capabilities.seek) return; cancelAutostart(); cursor = null; usb.seek(direction) }
     fun checkConnection() { usb.checkConnection() }
-    fun changeBand() {
-        if (capabilities.bands.size < 2) return
-        cancelAutostart()
-        val current = transition.confirmed ?: return
-        val next = if (current.band == Band.FM)
-            Band.AM else Band.FM
-        // select composes BAND and playSelect; no separate UI command or timing policy.
-        val frequency = bandStations[next]?.takeIf {
-            if (next == Band.AM) it in 711..1044 else it in 87500..108000
-        } ?: if (next == Band.AM) 711 else 87500
-        cursor = null
-        usb.select(next, frequency)
-    }
-
     var noFocus by mutableStateOf(false)
         private set
     private var opening = 0L
@@ -146,9 +130,8 @@ class StationsModule(
         usb = AndroidUsbAdapter(context, profiles = profiles, additionalReceivers = additionalReceivers,
             selectionChanged = { kind, features ->
                 selectedReceiver = kind
-                capabilities = features ?: fm.heterodyne.app.receiver.ReceiverCapabilities(emptySet(), false, false, false, false, false)
+                capabilities = features ?: fm.heterodyne.app.receiver.ReceiverCapabilities(false, false, false, false, false)
                 cursor = null
-                bandStations.clear()
                 currentStation = null
             },
             readLaunchStation = session::readLaunchStation,
@@ -163,8 +146,8 @@ class StationsModule(
                 }
             }, noFocusChanged = { noFocus = it }, stationChanged = { band, frequency ->
             main.post {
-                currentStation = if (frequency == null || band == fm.heterodyne.app.module.Band.DAB) null
-                else fm.heterodyne.app.stations.StationEntry(fm.heterodyne.app.stations.Band.valueOf(band.name), frequency)
+                currentStation = if (frequency == null || band != Band.FM) null
+                else fm.heterodyne.app.stations.StationEntry(frequency)
             }
             if (frequency != null && isSelectableFrequency(band, frequency)) {
                 session.rememberStation(band, frequency) {}
@@ -180,11 +163,10 @@ class StationsModule(
         }, audioChanged = { counters -> main.post { audioState = counters.state } },
             seekPaused = ::onSeekPaused, transitionObserved = { snapshot -> main.post {
                 if (snapshot.target == null && cursor?.let {
-                    it.band.name == snapshot.confirmed?.band?.name && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
+                    snapshot.confirmed?.band == Band.FM && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
                 } == true) cursor = null
                 if (snapshot.state == TransitionState.Disconnected) cursor = null
                 transition = snapshot
-                snapshot.confirmed?.let { bandStations[it.band] = it.frequencyKhz }
             } })
     }
 
@@ -202,7 +184,6 @@ class StationsModule(
     fun updatePlaybackService(active: Boolean) { usb.updatePlaybackService(active) }
     fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) { usb.playAudio(autostart, started, stopped) }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
-        if (Band.valueOf(entry.band.name) !in capabilities.bands) return
         cancelAutostart(); usb.selectStation(entry)
     }
     fun stepStation(direction: fm.heterodyne.app.module.Direction) { cancelAutostart(); usb.stepStation(direction) }
