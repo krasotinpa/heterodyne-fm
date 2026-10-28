@@ -208,6 +208,14 @@ class EfirScreenTest {
         compose.onAllNodesWithText("пауза", substring = true).assertCountEquals(0)
     }
 
+    @Test fun disabledParkingBackgroundDiffersFromEnabledAndUsesSurface() {
+        val disabledBackground = controlBackgroundToken(enabled = false)
+        val enabledBackground = controlBackgroundToken(enabled = true)
+        assertEquals("surface", disabledBackground)
+        assertEquals("surface2", enabledBackground)
+        assertTrue("Disabled background must differ from enabled", disabledBackground != enabledBackground)
+    }
+
     @Test fun drivingParkingTextAndIconUseDisabledText() {
         var expected = Color.Unspecified
         compose.setContent {

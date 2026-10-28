@@ -58,6 +58,6 @@ class DesignTokensTest {
                 } }
             }
         }
-        assertEquals(240, checked)
+        assertEquals(232, checked)
     }
 }

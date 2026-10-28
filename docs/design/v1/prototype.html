@@ -422,11 +422,11 @@ ${(v.rds) ? html`
 </div>
 </div>
 <div style="width: ${v.seekW}px; height: 56px; flex: none; display: flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: 14px; background: ${v.t.surface}; visibility: ${v.driving ? 'hidden' : 'visible'}">
-<button class="b" aria-label="Поиск назад" disabled=${v.off} onClick=${v.seekL} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 6l-7 6 7 6"></path><path d="M20 6l-7 6 7 6"></path></svg></button>
+<button class="b" aria-label="Поиск назад" disabled=${v.off} onClick=${v.seekL} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.off ? v.t.surface : v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 6l-7 6 7 6"></path><path d="M20 6l-7 6 7 6"></path></svg></button>
 <span style="flex: 1; min-width: 0; white-space: nowrap; text-align: center; font-size: 14px; font-weight: 600; color: ${v.ctl.sub}">Поиск${v.pause ? ' · пауза' : ''}</span>
-<button class="b" aria-label="Поиск вперёд" disabled=${v.off} onClick=${v.seekR} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 6l7 6-7 6"></path><path d="M4 6l7 6-7 6"></path></svg></button>
+<button class="b" aria-label="Поиск вперёд" disabled=${v.off} onClick=${v.seekR} style="width: 52px; height: 48px; border: 0; border-radius: 10px; background: ${v.off ? v.t.surface : v.t.surface2}; color: ${v.ctl.fg}; display: flex; align-items: center; justify-content: center"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 6l7 6-7 6"></path><path d="M4 6l7 6-7 6"></path></svg></button>
 </div>
-<button class="b" aria-label="Стоянка" disabled=${v.driving} onClick=${v.goPark} style="width: 138px; height: 56px; flex: none; display: flex; align-items: center; justify-content: center; gap: 0; padding: 0; border: 0; border-radius: 14px; background: ${v.t.surface2}; color: ${v.parkFg}; font-size: 15px; font-weight: 700; white-space: nowrap">
+<button class="b" aria-label="Стоянка" disabled=${v.driving} onClick=${v.goPark} style="width: 138px; height: 56px; flex: none; display: flex; align-items: center; justify-content: center; gap: 0; padding: 0; border: 0; border-radius: 14px; background: ${v.driving ? v.t.surface : v.t.surface2}; color: ${v.parkFg}; font-size: 15px; font-weight: 700; white-space: nowrap">
 <svg width=${v.parkIconSize} height=${v.parkIconSize} viewBox="0 0 36 36" fill="none" stroke="currentColor" style="flex: none" aria-hidden="true"><rect x="1" y="1" width="34" height="34" rx="8" stroke-width="2"></rect><path d="M14 26V10H20C28 10 28 20 20 20H14" stroke-width="3"></path></svg>${v.parkLabel ? html`<span style="flex: 1; text-align: center">Стоянка</span>` : ''}
 </button>
 </div>
@@ -438,11 +438,11 @@ ${(v.playing) ? html`<svg width="26" height="26" viewBox="0 0 24 24" fill="curre
 ${(v.notPlaying) ? html`<svg width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>` : null}
 <span>${v.playLabel}</span>
 </button>
-<button class="b" aria-label="Предыдущая Станция Подборки" disabled=${v.stDis} onClick=${v.stPrev} style="flex: 1; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.stFg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+<button class="b" aria-label="Предыдущая Станция Подборки" disabled=${v.stDis} onClick=${v.stPrev} style="flex: 1; border: 0; border-radius: 16px; background: ${v.stDis ? v.t.surface : v.t.surface2}; color: ${v.stFg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
 <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="5" y="5" width="2.6" height="14" rx="1"></rect><path d="M19 5.5v13L9 12z"></path></svg>
 <span style="font-size: 16px; font-weight: 600">Станция</span>
 </button>
-<button class="b" aria-label="Шаг вниз" disabled=${v.off} onClick=${v.stepL} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+<button class="b" aria-label="Шаг вниз" disabled=${v.off} onClick=${v.stepL} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.off ? v.t.surface : v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg>
 <span style="font-size: 16px; font-weight: 600">Шаг</span>
 <span class="tn" style="font-size: 13px; color: ${v.ctl.sub}">${v.pause ? 'пауза' : v.stepText}</span>
@@ -541,11 +541,11 @@ ${(v.cat || []).map((p) => html`
 
 <div style="width: 96px; flex: none; display: flex; flex-direction: column; gap: 12px">
 <div style="height: 72px; flex: none" aria-hidden="true"></div>
-<button class="b" aria-label="Следующая Станция Подборки" disabled=${v.stDis} onClick=${v.stNext} style="flex: 1; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.stFg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
+<button class="b" aria-label="Следующая Станция Подборки" disabled=${v.stDis} onClick=${v.stNext} style="flex: 1; border: 0; border-radius: 16px; background: ${v.stDis ? v.t.surface : v.t.surface2}; color: ${v.stFg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px">
 <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="16.4" y="5" width="2.6" height="14" rx="1"></rect><path d="M5 5.5v13L15 12z"></path></svg>
 <span style="font-size: 16px; font-weight: 600">Станция</span>
 </button>
-<button class="b" aria-label="Шаг вверх" disabled=${v.off} onClick=${v.stepR} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
+<button class="b" aria-label="Шаг вверх" disabled=${v.off} onClick=${v.stepR} style="height: 112px; flex: none; border: 0; border-radius: 16px; background: ${v.off ? v.t.surface : v.t.surface2}; color: ${v.ctl.fg}; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px">
 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
 <span style="font-size: 16px; font-weight: 600">Шаг</span>
 <span class="tn" style="font-size: 13px; color: ${v.ctl.sub}">${v.pause ? 'пауза' : v.stepText}</span>
