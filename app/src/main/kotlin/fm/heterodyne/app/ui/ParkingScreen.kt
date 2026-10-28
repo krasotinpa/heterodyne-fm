@@ -41,6 +41,7 @@ data class ParkingActions(
     val add: (String, String, StationEntry) -> Unit = { _, _, _ -> },
     val remove: (String, String, StationEntry) -> Unit = { _, _, _ -> },
     val move: (String, String, StationEntry, Int) -> Unit = { _, _, _, _ -> },
+    val clearNameError: () -> Unit = {},
 )
 
 fun dragTargetIndex(from: Int, distance: Float, rowHeight: Float, count: Int): Int {
@@ -192,12 +193,15 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     var name by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(selection.name) }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         items(region.selections, key = { it.name }) { option ->
-                            Control(option.name, true, { editing = option.name; renamedTo = null }, selected = selection.name == option.name)
+                            Control(option.name, true, { if (selection.name != option.name) actions.clearNameError(); editing = option.name; renamedTo = null }, selected = selection.name == option.name)
                         }
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
-                        BasicTextField(name, { name = it }, Modifier.width(DesignTokens.number("size.segment.width").dp).heightIn(min = DesignTokens.number("size.segment.height").dp)
+                        Column(Modifier.width(DesignTokens.number("size.segment.width").dp)) {
+                            BasicTextField(name, { name = it; actions.clearNameError() }, Modifier.width(DesignTokens.number("size.segment.width").dp).heightIn(min = DesignTokens.number("size.segment.height").dp)
                             .background(colors["surface2"]).padding(DesignTokens.number("space.section").dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
+                            screen.nameError?.let { Label(it, 18, colors["danger"]) }
+                        }
                         Control("Создать", true, { actions.create(state.selectedRegion, name) })
                         Control("Переименовать", true, { editing = selection.name; renamedTo = name; actions.rename(state.selectedRegion, selection.name, name) })
                         Control("Удалить Подборку", region.selections.size > 1, { renamedTo = null; actions.delete(state.selectedRegion, selection.name) })
