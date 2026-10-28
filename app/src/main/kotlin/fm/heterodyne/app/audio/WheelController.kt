@@ -12,12 +12,14 @@ class WheelController(
     private val scheduler: WheelScheduler,
     private val select: (StationEntry) -> Unit,
     private val seek: (Direction) -> Unit,
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
 ) {
     private var entries = emptyList<StationEntry>()
     private var current: StationEntry? = null
     private var generation = 0L
     private var held = false
     private var seekEnabled = true
+    private var lastSent: Long? = null
     private var cancel: (() -> Unit)? = null
     var cursor: StationEntry? = null
         private set
@@ -73,9 +75,19 @@ class WheelController(
         generation++
         cancel?.invoke()
         val target = checkNotNull(cursor)
+        val last = lastSent
+        if (cancel == null && (last == null || clock() - last >= 1000)) {
+            select(target)
+            lastSent = clock()
+            return
+        }
         val token = generation
         cancel = scheduler.after(1000) {
-            if (token == generation) { cancel = null; select(target) }
+            if (token == generation) {
+                cancel = null
+                select(target)
+                lastSent = clock()
+            }
         }
     }
 }
