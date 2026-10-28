@@ -127,11 +127,9 @@ data class StationsState(
     val lastStation: SessionStation? = null,
     val lastPlayed: Boolean = false,
 ) {
-    init {
-        require(regions.keys == setOf("moskva", "yaroslavl"))
-        require(selectedRegion in regions)
-    }
+    fun regionSelections(id: String): RegionSelections = regions[id] ?: RegionSelections.defaults()
+
     companion object {
-        fun defaults() = StationsState("moskva", mapOf("moskva" to RegionSelections.defaults(), "yaroslavl" to RegionSelections.defaults()))
+        fun defaults() = StationsState("moskva", emptyMap())
     }
 }

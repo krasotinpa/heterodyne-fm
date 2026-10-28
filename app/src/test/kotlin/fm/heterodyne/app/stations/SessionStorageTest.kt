@@ -54,7 +54,7 @@ class SessionStorageTest {
     @Test fun newRepositoryRestoresEverySessionChangeFromSameFile() {
         val file = File(temporary.newFolder(), "stations.json")
         var state = StationsState.defaults()
-        val region = state.regions.getValue("yaroslavl").createSelection("Дорога").value!!
+        val region = state.regionSelections("yaroslavl").createSelection("Дорога").value!!
             .activate("Дорога").value!!
         val changes = listOf(
             state.copy(selectedRegion = "yaroslavl"),
@@ -65,7 +65,7 @@ class SessionStorageTest {
             state = StationsRepository(AtomicStationsFile(file)).load().state
             assertEquals(next, state)
         }
-        assertEquals("Дорога", state.regions.getValue("yaroslavl").activeName)
+        assertEquals("Дорога", state.regionSelections("yaroslavl").activeName)
         assertEquals(SessionStation(97700), state.lastStation)
     }
 
@@ -87,10 +87,10 @@ class SessionStorageTest {
         assertEquals(LoadStatus.LOADED, loaded.status)
         assertEquals("yaroslavl", loaded.state.selectedRegion)
         assertNull(loaded.state.lastStation)
-        val region = loaded.state.regions.getValue("yaroslavl")
+        val region = loaded.state.regionSelections("yaroslavl")
         assertEquals("Поездка", region.activeName)
         assertEquals(listOf("Основной", "Поездка"), region.selections.map { it.name })
-        assertEquals("Основной", loaded.state.regions.getValue("moskva").activeName)
+        assertEquals("Основной", loaded.state.regionSelections("moskva").activeName)
         assertEquals(listOf(
             StationEntry(90300, "Моя станция", "custom"),
         ), region.active.entries)
@@ -110,14 +110,14 @@ class SessionStorageTest {
         assertEquals(LoadStatus.LOADED, repository.load().status)
         assertEquals(StationsState.defaults(), repository.load().state)
         assertTrue(repository.save(repository.load().state))
-        assertEquals(2, org.json.JSONObject(file.readText()).getInt("schema"))
+        assertEquals(3, org.json.JSONObject(file.readText()).getInt("schema"))
     }
 
     @Test fun corruptOrIncompleteSessionUsesDefaultsAndPreservesOriginal() {
         val valid = StationsJson.encode(StationsState.defaults().copy(
             lastStation = SessionStation(90300)))
-        val invalid = listOf("garbage", "", valid.replace("\"schema\":2", "\"schema\":99"),
-            valid.replace("\"schema\":2", "\"schema\":2.5"),
+        val invalid = listOf("garbage", "", valid.replace("\"schema\":3", "\"schema\":99"),
+            valid.replace("\"schema\":3", "\"schema\":2.5"),
             valid.replace("90300", "90301"), valid.replace("90300", "108100"),
             valid.replace("90300", "null"),
             org.json.JSONObject(valid).apply { remove("lastStation") }.toString())

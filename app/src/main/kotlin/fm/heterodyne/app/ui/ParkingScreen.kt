@@ -192,7 +192,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     }
                 }
                 "Подборки" -> if (state != null) {
-                    val region = state.regions.getValue(state.selectedRegion)
+                    val region = state.regionSelections(state.selectedRegion)
                     var editing by rememberSaveable(state.selectedRegion) { mutableStateOf(region.activeName) }
                     var renamedTo by rememberSaveable(state.selectedRegion) { mutableStateOf<String?>(null) }
                     val selection = region.selections.firstOrNull { it.name == editing }

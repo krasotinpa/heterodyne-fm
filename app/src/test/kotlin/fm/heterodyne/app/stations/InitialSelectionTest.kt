@@ -22,6 +22,7 @@ class InitialSelectionTest {
 
     @Test fun missingSeedsExactlyTheChosenStationsInFrequencyOrder() {
         val state = initialSelections(StationsLoad(StationsState.defaults(), LoadStatus.MISSING), catalogs)
+        assertEquals(expected.keys, state.regions.keys)
         for ((id, ids) in expected) {
             val entries = state.regions.getValue(id).active.entries
             assertEquals(ids, entries.map { it.catalogId })

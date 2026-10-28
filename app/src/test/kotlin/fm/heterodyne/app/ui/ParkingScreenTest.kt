@@ -27,7 +27,7 @@ class ParkingScreenTest {
     @Test fun nameErrorAppearsBelowFieldAndClearsOnInputAndSelectionChange() {
         val base = StationsState.defaults()
         val state = base.copy(regions = base.regions + ("moskva" to
-            base.regions.getValue("moskva").createSelection("Дорога").value!!))
+            base.regionSelections("moskva").createSelection("Дорога").value!!))
         val screen = mutableStateOf(StationsScreenState(state))
         compose.setContent {
             ParkingScreen(screen.value, false, null,
@@ -261,7 +261,7 @@ class ParkingScreenTest {
     @Test fun rejectedRenameKeepsSelectedSelection() {
         val base = StationsState.defaults()
         val state = base.copy(regions = base.regions + ("moskva" to
-            base.regions.getValue("moskva").createSelection("Дорога").value!!))
+            base.regionSelections("moskva").createSelection("Дорога").value!!))
         val deleted = mutableListOf<Pair<String, String>>()
         compose.setContent {
             ParkingScreen(StationsScreenState(state), false, null,
@@ -311,7 +311,7 @@ class ParkingScreenTest {
         val first = StationEntry(90300, "Первая")
         val second = StationEntry(91000, "Вторая")
         val base = StationsState.defaults()
-        val region = base.regions.getValue("moskva")
+        val region = base.regionSelections("moskva")
         val state = base.copy(regions = base.regions + ("moskva" to
             region.replaceActive(region.active.add(first).value!!.add(second).value!!)))
         val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),

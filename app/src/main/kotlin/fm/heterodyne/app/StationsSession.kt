@@ -39,12 +39,12 @@ class StationsSession(
     private var pendingLastPlayed: Boolean? = null
     var screen by mutableStateOf(StationsScreenState())
         private set
-    val activeEntries get() = screen.state?.let { it.regions.getValue(it.selectedRegion).active.entries }.orEmpty()
+    val activeEntries get() = screen.state?.let { it.regionSelections(it.selectedRegion).active.entries }.orEmpty()
 
     fun activateSelection(name: String) {
         storage.execute {
             val state = current.state ?: return@execute
-            val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
+            val region = state.regionSelections(state.selectedRegion).activate(name).value ?: return@execute
             save(state.copy(regions = state.regions + (state.selectedRegion to region)))
         }
     }
@@ -82,7 +82,7 @@ class StationsSession(
         storage.execute {
             val state = current.state ?: return@execute
             if (regionId != state.selectedRegion) return@execute
-            val result = change(state.regions.getValue(regionId))
+            val result = change(state.regionSelections(regionId))
             val region = result.value
             if (region != null) save(state.copy(regions = state.regions + (regionId to region)))
             else {
@@ -110,7 +110,9 @@ class StationsSession(
                     context.assets.open("catalogs/$id.json").bufferedReader().use { Catalog.parse(it.readText()) }
                 }
                 val loaded = repository.load()
-                current = StationsScreenState(loaded.state, catalogs, loaded.status == LoadStatus.RECOVERED)
+                val state = if (catalogs.any { it.region.id == loaded.state.selectedRegion }) loaded.state
+                    else loaded.state.copy(selectedRegion = "moskva")
+                current = StationsScreenState(state, catalogs, loaded.status == LoadStatus.RECOVERED)
                 if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded, catalogs))
             } catch (_: Exception) {
                 current = current.copy(error = "Не удалось прочитать Справочники")
@@ -153,7 +155,7 @@ class StationsSession(
     fun selectRegion(id: String) {
         storage.execute {
             val state = current.state ?: return@execute
-            if (id !in state.regions) return@execute
+            if (current.catalogs.none { it.region.id == id }) return@execute
             val next = state.copy(selectedRegion = id)
             save(next)
         }

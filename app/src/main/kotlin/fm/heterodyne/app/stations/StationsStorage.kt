@@ -8,7 +8,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object StationsJson {
-    fun encode(state: StationsState): String = JSONObject().put("schema", 2)
+    fun encode(state: StationsState): String = JSONObject().put("schema", 3)
         .put("selectedRegion", state.selectedRegion)
         .put("band", "FM")
         .put("lastPlayed", state.lastPlayed)
@@ -36,10 +36,9 @@ object StationsJson {
         val schemaValue = root.get("schema")
         require(schemaValue is Number && schemaValue.toDouble() == schemaValue.toInt().toDouble())
         val schema = schemaValue.toInt()
-        require(schema == 1 || schema == 2)
+        require(schema in 1..3)
         val regionsJson = root.getJSONObject("regions")
-        require(regionsJson.keys().asSequence().toSet() == setOf("moskva", "yaroslavl"))
-        val regions = listOf("moskva", "yaroslavl").associateWith { id ->
+        val regions = regionsJson.keys().asSequence().associateWith { id ->
             val region = regionsJson.getJSONObject(id)
             val selections = region.getJSONArray("sets")
             require(selections.length() > 0)
@@ -65,20 +64,20 @@ object StationsJson {
             }
             RegionSelections.restore(restoredSelections, region.getString("activeName"))
         }
-        val lastStation = if (schema == 2 && !root.isNull("lastStation") && root.getJSONObject("lastStation").getString("band") == "FM") {
+        val lastStation = if (schema >= 2 && !root.isNull("lastStation") && root.getJSONObject("lastStation").getString("band") == "FM") {
             val station = root.getJSONObject("lastStation")
             val frequency = station.get("frequencyKhz")
             require(frequency is Number && frequency.toDouble() == frequency.toInt().toDouble())
             SessionStation(frequency.toInt())
         } else null
-        if (schema == 2) require(root.has("lastStation"))
+        if (schema >= 2) require(root.has("lastStation"))
         val lastPlayed = if (root.isNull("lastPlayed")) false else {
             val value = root.get("lastPlayed")
             require(value is Boolean)
             value
         }
         return StationsState(root.getString("selectedRegion"), regions, lastStation,
-            lastPlayed = lastPlayed && !(schema == 2 && !root.isNull("lastStation") && lastStation == null))
+            lastPlayed = lastPlayed && !(schema >= 2 && !root.isNull("lastStation") && lastStation == null))
     }
 }
 

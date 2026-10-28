@@ -29,7 +29,7 @@ class StationSelectionsTest {
     @Test fun defaultsAndRegionInvariants() {
         val state = StationsState.defaults()
         assertEquals("moskva", state.selectedRegion)
-        val region = state.regions.getValue("moskva")
+        val region = state.regionSelections("moskva")
         assertEquals("Основной", region.active.name)
         val added = region.createSelection("Дорога").value!!
         assertEquals(listOf("Основной", "Дорога"), added.selections.map { it.name })
@@ -37,7 +37,7 @@ class StationSelectionsTest {
         assertEquals(ChangeError.INVALID_NAME, added.createSelection("  ").error)
         assertEquals("Дорога", added.activate("Дорога").value!!.active.name)
         assertEquals(ChangeError.NOT_FOUND, added.activate("Нет").error)
-        assertEquals("Основной", state.regions.getValue("yaroslavl").active.name)
+        assertEquals("Основной", state.regionSelections("yaroslavl").active.name)
     }
 
     @Test fun entriesAreIndependentOrderedCopiesAndRejectDuplicatePairs() {
@@ -59,7 +59,7 @@ class StationSelectionsTest {
 class StationsStorageTest {
     @Test fun roundTripPreservesRegionsActiveSelectionAndEntries() {
         val initial = StationsState.defaults()
-        val region = initial.regions.getValue("yaroslavl").createSelection("Дорога").value!!.activate("Дорога").value!!
+        val region = initial.regionSelections("yaroslavl").createSelection("Дорога").value!!.activate("Дорога").value!!
         val populated = region.replaceActive(region.active.add(StationEntry(97700)).value!!)
         val state = initial.copy(selectedRegion = "yaroslavl", regions = initial.regions + ("yaroslavl" to populated))
         assertEquals(state, StationsJson.decode(StationsJson.encode(state)))
@@ -67,7 +67,7 @@ class StationsStorageTest {
     }
 
     @Test fun corruptOrIncompleteStorageFallsBack() {
-        val valid = StationsJson.encode(StationsState.defaults())
+        val valid = StationsJson.encode(StationsState.defaults().copy(regions = mapOf("moskva" to RegionSelections.defaults())))
         val duplicate = valid.replace("\"sets\":[", "\"sets\":[{\"name\":\"Основной\",\"entries\":[]},")
         for (raw in listOf("garbage", "", "{}", "{\"schema\":1}", duplicate)) {
             val repository = StationsRepository(object : StationsFile {
@@ -84,8 +84,8 @@ class StationsStorageTest {
     }
 
     @Test fun duplicateEntriesAndMissingActiveSelectionRejectEntireDocument() {
-        val state = StationsState.defaults()
-        for (case in listOf("duplicate", "active", "region", "entries")) {
+        val state = StationsState.defaults().copy(regions = mapOf("moskva" to RegionSelections.defaults()))
+        for (case in listOf("duplicate", "active", "entries")) {
             val root = JSONObject(StationsJson.encode(state))
             val regions = root.getJSONObject("regions")
             val region = regions.getJSONObject("moskva")
@@ -103,7 +103,8 @@ class StationsStorageTest {
                 override fun read() = root.toString()
                 override fun writeAtomic(text: String) = Unit
             })
-            assertEquals(state, repository.load().state)
+            assertEquals(LoadStatus.RECOVERED, repository.load().status)
+            assertEquals(StationsState.defaults(), repository.load().state)
         }
     }
 
