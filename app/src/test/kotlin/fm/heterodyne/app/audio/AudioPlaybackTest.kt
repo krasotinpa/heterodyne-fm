@@ -9,6 +9,100 @@ import org.junit.rules.TemporaryFolder
 class AudioPlaybackTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun longPauseLogsContextAndCountsBlockingReceiveTimePerSession() {
+        val calls = mutableListOf<String>()
+        var now = 0L
+        val source = FakeSource(calls)
+        val log = DiagnosticLog(temporary.newFolder())
+        val contexts = mutableListOf<Long>()
+        val playback = AudioPlayback({ true }, source, FakeSink(calls), FakePort(calls), log,
+            nanoTime = { now }, pauseContext = {
+                contexts.add(it)
+                "последняя команда 0x85 300 мс назад, состояние Waiting, фокус=granted, громкость=0.3"
+            })
+        repeat(2) {
+            assertTrue(playback.play())
+            assertEquals(0, playback.snapshot.longPauses)
+            while (playback.snapshot.state != AudioState.Playing) playback.receive()
+            playback.receive() // First read started in Playing, even when nanoTime is zero.
+            source.afterRead = { now += 300_000_000L }
+            playback.receive()
+            source.afterRead = {}
+            playback.receive()
+            assertEquals(1, playback.snapshot.longPauses)
+            assertTrue(log.readTail(32768).contains("audio pause: 300 мс, с начала Playing 0.3 с, последняя команда 0x85 300 мс назад, состояние Waiting, фокус=granted, громкость=0.3"))
+            assertEquals(now / 1_000_000, contexts.last())
+            playback.stop()
+        }
+        assertEquals(2, contexts.size)
+    }
+
+    @Test fun audioThreadLeavesPauseLoggingToModuleWorker() {
+        val calls = java.util.Collections.synchronizedList(mutableListOf<String>())
+        val entered = java.util.concurrent.Semaphore(0)
+        val resume = java.util.concurrent.Semaphore(0)
+        val now = java.util.concurrent.atomic.AtomicLong(0)
+        val contextThread = java.util.concurrent.atomic.AtomicReference<String>()
+        val source = FakeSource(calls)
+        source.afterRead = { entered.release(); check(resume.tryAcquire(2, java.util.concurrent.TimeUnit.SECONDS)) }
+        val log = DiagnosticLog(temporary.newFolder())
+        val playback = AudioPlayback({ true }, source, FakeSink(calls), FakePort(calls), log,
+            threadFactory = { Thread(it, "pause-audio-test") }, nanoTime = now::get,
+            pauseContext = { contextThread.set(Thread.currentThread().name); "контекст потока" })
+        fun awaitRead() { assertTrue(entered.tryAcquire(2, java.util.concurrent.TimeUnit.SECONDS)) }
+        try {
+            assertTrue(playback.play())
+            awaitRead()
+            while (playback.snapshot.state != AudioState.Playing) { resume.release(); awaitRead() }
+            now.set(300_000_000L)
+            resume.release()
+            awaitRead()
+            assertEquals(1, playback.snapshot.longPauses)
+            assertEquals("pause-audio-test", contextThread.get())
+            assertFalse(log.readTail(32768).contains("audio pause:"))
+            playback.receive()
+            assertTrue(log.readTail(32768).contains("audio pause: 300 мс, с начала Playing 0.3 с, контекст потока"))
+        } finally {
+            source.afterRead = {}
+            resume.release()
+            playback.stop()
+        }
+    }
+
+    @Test fun pausesWithinOneSecondKeepLatestRecordUntilLoggingIsAllowed() {
+        val calls = mutableListOf<String>()
+        var now = 0L
+        val log = DiagnosticLog(temporary.newFolder())
+        val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls), log,
+            nanoTime = { now }, pauseContext = { "контекст $it" })
+        playback.play()
+        while (playback.snapshot.state != AudioState.Playing) playback.receive()
+        playback.receive()
+        repeat(3) { now += 200_000_000L; playback.receive() }
+        assertEquals(3, playback.snapshot.longPauses)
+        assertEquals(1, log.readTail(32768).lines().count { "audio pause:" in it })
+        repeat(6) { now += 100_000_000L; playback.receive() }
+        val events = log.readTail(32768).lines().filter { "audio pause:" in it }
+        assertEquals(2, events.size)
+        assertTrue(events.last().contains("контекст 600"))
+        playback.stop()
+    }
+
+    @Test fun pausesUpToOneHundredMillisecondsDoNotLogOrRequestContext() {
+        val calls = mutableListOf<String>()
+        var now = 0L
+        val log = DiagnosticLog(temporary.newFolder())
+        val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls), log,
+            nanoTime = { now }, pauseContext = { fail("Unexpected pause context"); "" })
+        playback.play()
+        while (playback.snapshot.state != AudioState.Playing) playback.receive()
+        playback.receive()
+        for (gap in listOf(0L, 99L, 100L)) { now += gap * 1_000_000; playback.receive() }
+        assertEquals(0, playback.snapshot.longPauses)
+        assertFalse(log.readTail(32768).contains("audio pause:"))
+        playback.stop()
+    }
+
     @Test fun stopReleasesResourcesInOrderExactlyOnce() {
         val calls = mutableListOf<String>()
         val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls),
@@ -262,11 +356,12 @@ class AudioPlaybackTest {
 }
 
 private class FakeSource(private val calls: MutableList<String>, var failure: String? = null) : AudioSource {
+    var afterRead: () -> Unit = {}
     var bad = 0L
     var readError = 0
     var empty = false
     override fun open() { calls.add("source open"); check(failure != "source open") }
-    override fun read(out: ByteArray): Int { calls.add("read"); check(failure != "read"); if (readError < 0) return readError; if (empty) return 0; out.fill(0); return out.size }
+    override fun read(out: ByteArray): Int { calls.add("read"); afterRead(); check(failure != "read"); if (readError < 0) return readError; if (empty) return 0; out.fill(0); return out.size }
     override fun badPackets() = bad
     override fun close() { calls.add("discard/reap"); check(failure != "discard/reap") }
 }

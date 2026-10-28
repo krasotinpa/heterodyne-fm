@@ -1,6 +1,7 @@
 package fm.heterodyne.app.audio
 
 import fm.heterodyne.app.Journal
+import java.util.concurrent.atomic.AtomicReference
 
 enum class AudioState { Stopped, Starting, Playing, Failed }
 
@@ -12,6 +13,7 @@ data class AudioCounters(
     val state: AudioState = AudioState.Stopped,
     val maxReadGapMs: Long = 0,
     val minBufferedFrames: Long = 0,
+    val longPauses: Int = 0,
     val lostLogRecords: Long = 0,
     val logWriteFailures: Long = 0,
 )
@@ -52,6 +54,8 @@ class AudioPlayback(
     private val threadFactory: ((Runnable) -> Thread)? = null,
     private val onMain: (() -> Unit) -> Unit = { it() },
     private val nanoTime: () -> Long = System::nanoTime,
+    // Runs on the audio thread: no locks or Journal calls are allowed.
+    private val pauseContext: (nowMs: Long) -> String = { "" },
     private val changed: (AudioCounters) -> Unit = {},
 ) {
     @Volatile var snapshot = AudioCounters(); private set
@@ -68,6 +72,12 @@ class AudioPlayback(
     private var timedOut = false
     private var lastRead = 0L
     private var lastReadStartedPlaying = false
+    private data class PauseRecord(val gapMs: Long, val elapsedMs: Long, val context: String)
+    // A one-slot bounded ring is enough: diagnostics need the latest context, while
+    // longPauses counts every violation. Replacing old records never blocks audio.
+    private val pendingPause = AtomicReference<PauseRecord?>(null)
+    private var playingSince: Long? = null
+    private var lastPauseLog: Long? = null
     private var minimum = Long.MAX_VALUE
     private var notified = AudioState.Stopped
 
@@ -79,6 +89,9 @@ class AudioPlayback(
         moduleDetached = false
         lastRead = 0
         lastReadStartedPlaying = false
+        playingSince = null
+        lastPauseLog = null
+        pendingPause.set(null)
         minimum = Long.MAX_VALUE
         safeLog("Audio start")
         publish(AudioCounters(state = AudioState.Starting))
@@ -120,6 +133,12 @@ class AudioPlayback(
         val gap = if (lastReadStartedPlaying && loop.playing) (now - lastRead) / 1_000_000 else 0
         lastRead = now
         lastReadStartedPlaying = loop.playing
+        if (loop.playing && playingSince == null) playingSince = now
+        if (gap > 100) {
+            snapshot = snapshot.copy(longPauses = snapshot.longPauses + 1)
+            pendingPause.set(PauseRecord(gap, (now - checkNotNull(playingSince)) / 1_000_000,
+                pauseContext(now / 1_000_000)))
+        }
         val count = loop.receive()
         val maxGap = maxOf(snapshot.maxReadGapMs, gap)
         if (count < 0) {
@@ -143,15 +162,25 @@ class AudioPlayback(
         if (!active || timedOut) return
         val running = thread
         if (running != null) {
+            logPause()
             if (!running.isAlive) finish(detached = moduleDetached, failed = failed)
             else notifyState(snapshot)
             return
         }
         try {
             readAudio()
+            logPause()
             if (stopRequested) finish(detached = moduleDetached, failed = failed)
             else publish(snapshot)
         } catch (_: Throwable) { finish(failed = true) }
+    }
+
+    private fun logPause() {
+        val now = nanoTime()
+        if (lastPauseLog?.let { now - it < 1_000_000_000L } == true) return
+        val pause = pendingPause.getAndSet(null) ?: return
+        lastPauseLog = now
+        safeLog("audio pause: ${pause.gapMs} мс, с начала Playing ${pause.elapsedMs / 1000.0} с, ${pause.context}")
     }
 
     fun acknowledgeDetach() { moduleDetached = false }

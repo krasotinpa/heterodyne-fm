@@ -26,7 +26,8 @@ class AudioFocusController(
     private val signalVolume: (Float) -> Unit = {},
 ) {
     private var session: Any? = null
-    private var focusLevel = 1f
+    @Volatile private var focusLevel = 1f
+    @Volatile private var effectiveVolume = 1f
     private var silenced = false
 
     @Synchronized fun setTransitionSilence(value: Boolean) {
@@ -35,8 +36,10 @@ class AudioFocusController(
     }
 
     private fun applyVolume() {
+        val volume = if (silenced || focusLevel == 0f) 0f else focusLevel
         if (focusLevel == 0f) sink.mute()
-        else sink.setVolume(if (silenced) 0f else focusLevel)
+        else sink.setVolume(volume)
+        effectiveVolume = volume
     }
 
     private fun setFocusLevel(value: Float) {
@@ -45,7 +48,10 @@ class AudioFocusController(
         signalVolume(value)
     }
 
-    private var granted = false
+    @Volatile private var granted = false
+
+    /** Safe to read on the audio thread without acquiring the controller monitor. */
+    val status: String get() = "фокус=${if (granted) "granted" else "denied"}, громкость=$effectiveVolume"
 
     private var automaticSession: Any? = null
 
