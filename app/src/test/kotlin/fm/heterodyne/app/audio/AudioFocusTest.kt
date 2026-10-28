@@ -30,6 +30,20 @@ class AudioFocusTest {
         override fun release() {}
     }, DiagnosticLog(temporary.newFolder()), focus = focus, nanoTime = nanoTime)
 
+    @Test fun statusReportsFocusAndVolumeWithoutWritingJournal() {
+        val focus = AudioFocusController(manager, sink, journal)
+        assertEquals("фокус=denied, громкость=1.0", focus.status)
+        focus.start()
+        manager.signal(AudioFocusChange.Duck)
+        val before = events.toList()
+        assertEquals("фокус=granted, громкость=0.3", focus.status)
+        assertEquals(before, events)
+        manager.signal(AudioFocusChange.Transient)
+        assertEquals("фокус=granted, громкость=0.0", focus.status)
+        focus.stop()
+        assertTrue(focus.status.contains("фокус=denied"))
+    }
+
     @Test fun silenceKeepsReadingAndDoesNotChangeAudioMetrics() {
         var nanos = 0L
         val focus = AudioFocusController(manager, sink, journal)
@@ -55,10 +69,13 @@ class AudioFocusTest {
         focus.start()
         focus.setTransitionSilence(true)
         assertEquals(0f, sink.level)
+        assertEquals("фокус=granted, громкость=0.0", focus.status)
         manager.signal(AudioFocusChange.Duck)
         assertEquals(0f, sink.level)
+        assertEquals("фокус=granted, громкость=0.0", focus.status)
         focus.setTransitionSilence(false)
         assertEquals(0.3f, sink.level)
+        assertEquals("фокус=granted, громкость=0.3", focus.status)
         focus.setTransitionSilence(true)
         manager.signal(AudioFocusChange.Transient)
         focus.setTransitionSilence(false)

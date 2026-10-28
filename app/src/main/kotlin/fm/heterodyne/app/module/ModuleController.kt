@@ -60,9 +60,10 @@ class ModuleController(
     override fun playAudio() = onStartAudio()
     override fun stopAudio() = onStopAudio()
     private var band: Band? = null
+    @Volatile private var lastTx: Pair<Int, Long>? = null
     private var lastSend: Long? = null
     private var sequence = 0
-    override var transitionState = TransitionState.Disconnected; private set
+    @Volatile override var transitionState = TransitionState.Disconnected; private set
     var target: TuneTarget? = null; private set
     private var confirmed: TuneTarget? = null
     override var stationRevision = 0L; private set
@@ -302,6 +303,14 @@ class ModuleController(
         if (returnProbe && result == TuneResult.Sent) this.returnProbe = ConnectionProbe(sentAt, stationRevision)
         return result
     }
+    /** Called by the audio thread: only volatile reads, no locks or Journal calls. */
+    fun pauseContext(nowMs: Long): String {
+        val tx = lastTx
+        val command = if (tx == null) "команд не было"
+            else "последняя команда 0x${tx.first.toString(16).padStart(2, '0')} ${nowMs - tx.second} мс назад"
+        return "$command, состояние $transitionState"
+    }
+
     private fun send(vararg payload: Int): TuneResult {
         // Host SEQ starts at 1 and wraps FF -> 00; RX SEQ is independent.
         sequence = (sequence + 1) and 0xff
@@ -310,7 +319,9 @@ class ModuleController(
             body + (-body.sumOf { it.toInt() and 255 }).toByte()
         return try {
             observeFrame("TX", frame)
-            safeLog { log.tx(frame) }; transport.send(frame); TuneResult.Sent
+            safeLog { log.tx(frame) }
+            lastTx = payload[0] to clock()
+            transport.send(frame); TuneResult.Sent
         } catch (failure: Exception) { error((failure as? TransportFailure)?.errno); TuneResult.TransportError }
     }
 

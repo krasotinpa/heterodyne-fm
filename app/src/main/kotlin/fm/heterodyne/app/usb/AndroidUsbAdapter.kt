@@ -227,7 +227,8 @@ class AndroidUsbAdapter(
             threadFactory = { task -> Thread({
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 task.run()
-            }, "Audio") }, onMain = { task -> main.post { task() } }) { counters ->
+            }, "Audio") }, onMain = { task -> main.post { task() } },
+            pauseContext = { controller.pauseContext(android.os.SystemClock.elapsedRealtime()) + ", " + focus.status }) { counters ->
             main.post {
                 if (counters.state != AudioState.Playing) transitionSignal.stop()
                 audioChanged(counters)
