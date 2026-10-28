@@ -60,7 +60,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   theme: ThemeChoice, palette: Palette,
                   selectTheme: (ThemeChoice) -> Unit, selectPalette: (Palette) -> Unit,
                   seekLimitSeconds: Int = 20, selectSeekLimit: (Int) -> Unit = {},
-                  signalMethod: fm.heterodyne.app.audio.TransitionSignalMethod = fm.heterodyne.app.audio.TransitionSignalMethod.Tone,
+                  signalMethod: fm.heterodyne.app.audio.TransitionSignalMethod = fm.heterodyne.app.audio.TransitionSignalMethod.KeyClick,
                   selectSignal: (fm.heterodyne.app.audio.TransitionSignalMethod) -> Unit = {},
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
