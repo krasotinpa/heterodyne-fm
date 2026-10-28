@@ -18,3 +18,6 @@ local.properties
 # graphify code graph: rebuilt locally with `graphify update .`, never tracked
 /graphify-out/
 /research-tools/g2-probe/build/
+
+# Playwright MCP: logs and page snapshots written by the browser tool
+/.playwright-mcp/
