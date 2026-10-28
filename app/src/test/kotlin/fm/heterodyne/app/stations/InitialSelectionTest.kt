@@ -37,4 +37,23 @@ class InitialSelectionTest {
             assertEquals(StationsState.defaults(), initialSelections(StationsLoad(StationsState.defaults(), status), catalogs))
         }
     }
+    @Test fun missingSeedsOnlyStationsPresentInActiveSet() {
+        val catalog = catalogs.first().copy(stations = catalogs.first().stations.filter { it.id == "moskva-biznes-fm" })
+        val state = initialSelections(StationsLoad(StationsState.defaults(), LoadStatus.MISSING), listOf(catalog))
+        assertEquals(listOf("moskva-biznes-fm"), state.regions.getValue("moskva").active.entries.map { it.catalogId })
+        assertFalse(state.regions.containsKey("yaroslavl"))
+    }
+
+    @Test fun missingCanStartWithAnEntirelyNewRegion() {
+        val catalog = catalogs.first().copy(region = Region("test", "Тест"), stations = emptyList())
+        val initial = StationsState.defaults().copy(selectedRegion = "test")
+        val state = initialSelections(StationsLoad(initial, LoadStatus.MISSING), listOf(catalog))
+        assertEquals("test", state.selectedRegion)
+        assertTrue(state.regionSelections("test").active.entries.isEmpty())
+    }
+    @Test fun missingSeedsOnlyOneStationPerFrequency() {
+        val catalog = catalogs.first().copy(stations = catalogs.first().stations.map { it.copy(frequencyKhz = 90300) })
+        val state = initialSelections(StationsLoad(StationsState.defaults(), LoadStatus.MISSING), listOf(catalog))
+        assertEquals(listOf("moskva-biznes-fm"), state.regions.getValue("moskva").active.entries.map { it.catalogId })
+    }
 }

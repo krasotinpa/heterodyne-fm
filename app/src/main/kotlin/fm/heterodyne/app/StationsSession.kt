@@ -2,18 +2,20 @@ package fm.heterodyne.app
 
 import android.os.Handler
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import fm.heterodyne.app.module.Band
+import fm.heterodyne.app.module.TuneTarget
+import fm.heterodyne.app.stations.AssetsCatalogReader
 import fm.heterodyne.app.stations.AtomicStationsFile
 import fm.heterodyne.app.stations.Catalog
-import fm.heterodyne.app.stations.initialSelections
+import fm.heterodyne.app.stations.CatalogStore
 import fm.heterodyne.app.stations.LoadStatus
-import fm.heterodyne.app.stations.StationsRepository
-import fm.heterodyne.app.stations.StationsFile
-import fm.heterodyne.app.stations.StationsState
 import fm.heterodyne.app.stations.SessionStation
-import fm.heterodyne.app.module.TuneTarget
-import fm.heterodyne.app.module.Band
+import fm.heterodyne.app.stations.StationsFile
+import fm.heterodyne.app.stations.StationsRepository
+import fm.heterodyne.app.stations.StationsState
+import fm.heterodyne.app.stations.initialSelections
 import java.io.File
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
@@ -34,6 +36,8 @@ class StationsSession(
     file: StationsFile = AtomicStationsFile(File(context.filesDir, "stations.json")),
 ) {
     private val repository = StationsRepository(file)
+    private val catalogStore = CatalogStore(File(context.filesDir, "catalog"),
+        AssetsCatalogReader { context.assets.open("catalogs/$it") })
     // Only the storage queue reads or changes these values.
     private var current = StationsScreenState()
     private var pendingLastPlayed: Boolean? = null
@@ -112,14 +116,13 @@ class StationsSession(
     fun load(loaded: (TuneTarget?) -> Unit) {
         storage.execute {
             try {
-                val catalogs = listOf("moskva", "yaroslavl").map { id ->
-                    context.assets.open("catalogs/$id.json").bufferedReader().use { Catalog.parse(it.readText()) }
-                }
+                val catalogs = catalogStore.active().catalogs
                 val loaded = repository.load()
                 val state = if (catalogs.any { it.region.id == loaded.state.selectedRegion }) loaded.state
-                    else loaded.state.copy(selectedRegion = "moskva")
+                    else loaded.state.copy(selectedRegion = catalogs.firstOrNull { it.region.id == "moskva" }?.region?.id
+                        ?: catalogs.first().region.id)
                 current = StationsScreenState(state, catalogs, loaded.status == LoadStatus.RECOVERED)
-                if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded, catalogs))
+                if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded.copy(state = state), catalogs))
             } catch (_: Exception) {
                 current = current.copy(error = "Не удалось прочитать Справочники")
             }

@@ -2,3 +2,4 @@
 *.bin binary
 # Windows-agent result files keep their CRLF bytes so SHA-256 matches raw/.
 evidence/**/*-exit.txt -text
+app/src/test/resources/catalog-fixtures/invalid/crlf/test.json -text
