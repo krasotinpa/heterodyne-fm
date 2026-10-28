@@ -37,6 +37,28 @@ class AudioPlaybackTest {
         assertEquals(2, contexts.size)
     }
 
+    @Test fun throwingPauseContextDoesNotStopPlaybackOrPauseCounting() {
+        val calls = mutableListOf<String>()
+        var now = 0L
+        val log = DiagnosticLog(temporary.newFolder())
+        val playback = AudioPlayback({ true }, FakeSource(calls), FakeSink(calls), FakePort(calls), log,
+            nanoTime = { now }, pauseContext = { throw AssertionError("Context failure") })
+        try {
+            assertTrue(playback.play())
+            while (playback.snapshot.state != AudioState.Playing) playback.receive()
+            playback.receive()
+            repeat(2) { index ->
+                val before = playback.snapshot.bytes
+                now += 300_000_000L
+                playback.receive()
+                assertEquals(AudioState.Playing, playback.snapshot.state)
+                assertTrue(playback.snapshot.bytes > before)
+                assertEquals(index + 1, playback.snapshot.longPauses)
+            }
+            assertTrue(log.readTail(32768).contains("audio pause: 300 мс, с начала Playing 0.3 с, контекст недоступен"))
+        } finally { playback.stop() }
+    }
+
     @Test fun audioThreadLeavesPauseLoggingToModuleWorker() {
         val calls = java.util.Collections.synchronizedList(mutableListOf<String>())
         val entered = java.util.concurrent.Semaphore(0)

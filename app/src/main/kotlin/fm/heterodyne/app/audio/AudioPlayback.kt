@@ -73,7 +73,7 @@ class AudioPlayback(
     private var lastRead = 0L
     private var lastReadStartedPlaying = false
     private data class PauseRecord(val gapMs: Long, val elapsedMs: Long, val context: String)
-    // A one-slot bounded ring is enough: diagnostics need the latest context, while
+    // A latest-wins slot is enough: diagnostics need the latest context, while
     // longPauses counts every violation. Replacing old records never blocks audio.
     private val pendingPause = AtomicReference<PauseRecord?>(null)
     private var playingSince: Long? = null
@@ -136,8 +136,10 @@ class AudioPlayback(
         if (loop.playing && playingSince == null) playingSince = now
         if (gap > 100) {
             snapshot = snapshot.copy(longPauses = snapshot.longPauses + 1)
-            pendingPause.set(PauseRecord(gap, (now - checkNotNull(playingSince)) / 1_000_000,
-                pauseContext(now / 1_000_000)))
+            val context = try { pauseContext(now / 1_000_000) }
+                catch (_: Throwable) { "контекст недоступен" }
+            pendingPause.set(PauseRecord(gap, (now - (playingSince ?: now)) / 1_000_000,
+                context))
         }
         val count = loop.receive()
         val maxGap = maxOf(snapshot.maxReadGapMs, gap)
