@@ -36,7 +36,7 @@ data class Catalog(
     }
 }
 
-enum class ChangeError { DUPLICATE_NAME, INVALID_NAME, DUPLICATE_FREQUENCY, NOT_FOUND, LAST_SELECTION }
+enum class ChangeError { DUPLICATE_NAME, INVALID_NAME, INVALID_FREQUENCY, DUPLICATE_FREQUENCY, NOT_FOUND, LAST_SELECTION }
 data class Change<out T>(val value: T? = null, val error: ChangeError? = null)
 
 // Private construction keeps duplicate entries out of every aggregate instance.
@@ -54,6 +54,16 @@ data class StationSelection private constructor(val name: String, val entries: L
     }
     fun rename(name: String): Change<StationSelection> = if (name.isBlank()) Change(error = ChangeError.INVALID_NAME)
         else Change(StationSelection(name, entries))
+
+    fun editStation(entry: StationEntry, name: String): Change<StationSelection> {
+        val trimmed = name.trim()
+        if (trimmed.isEmpty() || trimmed.length > 32) return Change(error = ChangeError.INVALID_NAME)
+        val index = entries.indexOfFirst { it.frequencyKhz == entry.frequencyKhz }
+        if (index < 0) return Change(error = ChangeError.NOT_FOUND)
+        return Change(StationSelection(this.name, Collections.unmodifiableList(entries.mapIndexed { i, existing ->
+            if (i == index) existing.copy(name = trimmed) else existing
+        })))
+    }
 
     fun remove(entry: StationEntry): Change<StationSelection> {
         val index = entries.indexOfFirst { it.frequencyKhz == entry.frequencyKhz }

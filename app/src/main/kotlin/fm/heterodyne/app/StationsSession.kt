@@ -24,6 +24,7 @@ data class StationsScreenState(
     val recovered: Boolean = false,
     val error: String? = null,
     val nameError: String? = null,
+    val frequencyError: String? = null,
 )
 
 /** Owns the repository and its single storage queue for this process. */
@@ -53,8 +54,8 @@ class StationsSession(
 
     fun clearNameError() {
         storage.execute {
-            if (current.nameError == null) return@execute
-            current = current.copy(nameError = null)
+            if (current.nameError == null && current.frequencyError == null) return@execute
+            current = current.copy(nameError = null, frequencyError = null)
             publish()
         }
     }
@@ -62,7 +63,17 @@ class StationsSession(
     fun createSelection(regionId: String, name: String) = changeRegion(regionId) { it.createSelection(name) }
     fun renameSelection(regionId: String, name: String, newName: String) = changeRegion(regionId) { it.rename(name, newName) }
     fun deleteSelection(regionId: String, name: String) = changeRegion(regionId) { it.delete(name) }
-    fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.add(entry) }
+    fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) {
+        val trimmed = entry.name?.trim().orEmpty()
+        when {
+            trimmed.isEmpty() || trimmed.length > 32 -> fm.heterodyne.app.stations.Change(error = fm.heterodyne.app.stations.ChangeError.INVALID_NAME)
+            !fm.heterodyne.app.module.isSelectableFrequency(Band.FM, entry.frequencyKhz) ->
+                fm.heterodyne.app.stations.Change(error = fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY)
+            else -> it.add(entry.copy(name = trimmed))
+        }
+    }
+    fun editStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry, newName: String) =
+        changeSelection(regionId, name) { it.editStation(entry, newName) }
     fun removeStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.remove(entry) }
     fun moveStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry, to: Int) = changeSelection(regionId, name) { selection ->
         val from = selection.entries.indexOfFirst { it.frequencyKhz == entry.frequencyKhz }
@@ -70,7 +81,7 @@ class StationsSession(
     }
 
     private fun changeSelection(regionId: String, name: String, change: (fm.heterodyne.app.stations.StationSelection) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.StationSelection>) =
-        changeRegion(regionId) { region ->
+        changeRegion(regionId, station = true) { region ->
             val selection = region.selections.firstOrNull { it.name == name }
             val result = selection?.let(change)
             fm.heterodyne.app.stations.Change(result?.value?.let { updated ->
@@ -80,7 +91,7 @@ class StationsSession(
             }, result?.error ?: if (selection == null) fm.heterodyne.app.stations.ChangeError.NOT_FOUND else null)
         }
 
-    private fun changeRegion(regionId: String, change: (fm.heterodyne.app.stations.RegionSelections) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSelections>) {
+    private fun changeRegion(regionId: String, station: Boolean = false, change: (fm.heterodyne.app.stations.RegionSelections) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSelections>) {
         storage.execute {
             // Молчаливые выходы, сообщения пользователю нет:
             // 1. state == null бывает только при загрузке; экран показывает «Загрузка…», кнопок правки нет.
@@ -93,7 +104,8 @@ class StationsSession(
             if (region != null) save(state.copy(regions = state.regions + (regionId to region)))
             else {
                 val message = when (result.error) {
-                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME -> "Введите имя Подборки"
+                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME -> if (station) "Введите имя Станции: от 1 до 32 символов" else "Введите имя Подборки"
+                    fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY -> "Введите FM-частоту 87,5–108,0 МГц с шагом 0,1"
                     fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> "Подборка с таким именем уже есть"
                     fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY -> "Частота уже есть в Подборке"
                     fm.heterodyne.app.stations.ChangeError.LAST_SELECTION -> "Нельзя удалить последнюю Подборку"
@@ -101,7 +113,9 @@ class StationsSession(
                 }
                 current = when (result.error) {
                     fm.heterodyne.app.stations.ChangeError.INVALID_NAME,
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> current.copy(nameError = message)
+                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> current.copy(nameError = message, frequencyError = null)
+                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY,
+                    fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY -> current.copy(frequencyError = message, nameError = null)
                     else -> current.copy(error = message)
                 }
                 publish()
@@ -169,10 +183,10 @@ class StationsSession(
 
     private fun save(state: StationsState): Boolean {
         val next = pendingLastPlayed?.let { state.copy(lastPlayed = it) } ?: state
-        if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null && current.nameError == null) return true
+        if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null && current.nameError == null && current.frequencyError == null) return true
         val saved = repository.save(next)
         if (saved) pendingLastPlayed = null
-        current = if (saved) current.copy(state = next, error = null, nameError = null)
+        current = if (saved) current.copy(state = next, error = null, nameError = null, frequencyError = null)
         else current.copy(error = "Не удалось сохранить состояние")
         publish()
         return saved

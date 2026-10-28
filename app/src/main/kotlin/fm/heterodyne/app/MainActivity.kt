@@ -108,6 +108,7 @@ class MainActivity : ComponentActivity() {
                         create = stations.session::createSelection, rename = stations.session::renameSelection,
                         delete = stations.session::deleteSelection, add = stations.session::addStation,
                         remove = stations.session::removeStation, move = stations.session::moveStation,
+                        editStation = stations.session::editStation,
                         clearNameError = stations.session::clearNameError,
                     ), back = { parked = false },
                     receiverName = stations.module::receiverName, receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
