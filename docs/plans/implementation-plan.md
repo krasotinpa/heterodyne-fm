@@ -97,6 +97,7 @@ Gradle modules можно объединить пакетами при сохр�
 - [ ] Проверь Unknown/Disconnected и disabled unsupported controls.
 - [ ] Сделай крупные controls, confirmed frequency, band/seek/cancel/presets.
 - [ ] Проверь экран ГУ, landscape, доступность и реакцию.
+- [ ] На ГУ проверь «Настройки» (#264): группа «Вид» выше 580 dp, прокрутка и размеры целей. Затем реши, менять ли требование «каждая группа умещается на экране» (components.md §7а).
 - [ ] RDS добавь только по verified contract; очисти stale text при tune/loss.
 - [ ] Добавь bounded local diagnostics с ручным экспортом.
 
