@@ -20,3 +20,11 @@ fun controlColorTokens(enabled: Boolean, selected: Boolean): ControlColorTokens 
     selected -> ControlColorTokens("accent", "onAccent")
     else -> ControlColorTokens("surface2", "text")
 }
+
+internal fun controlBackgroundToken(enabled: Boolean, selected: Boolean = false,
+                                    waiting: Boolean = false, outlined: Boolean = false,
+                                    faded: Boolean = false): String = when {
+    outlined -> "bg"
+    waiting && enabled -> "accentSoft"
+    else -> controlColorTokens(enabled && !faded, selected).background
+}

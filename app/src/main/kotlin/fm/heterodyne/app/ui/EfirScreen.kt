@@ -338,7 +338,7 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
         }
         .clip(shape)
         .then(if (outlined) Modifier.border(tokenDp("line.stroke"), colors[if (enabled) "edge" else "disabledText"], shape) else Modifier)
-        .background(if (outlined) colors["bg"] else colors[if (waiting && enabled) "accentSoft" else if (!enabled && !plate) "surface2" else tokens.background], shape)
+        .background(colors[controlBackgroundToken(enabled, selected, waiting, outlined, faded)], shape)
         .drawWithContent {
             drawContent()
             if (waiting && enabled) {
