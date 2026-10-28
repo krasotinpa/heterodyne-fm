@@ -44,6 +44,8 @@ class StationsSession(
     fun activateSelection(name: String) {
         storage.execute {
             val state = current.state ?: return@execute
+            // Молчаливый выход при NOT_FOUND: в Режиме движения Подборки не правят, значит случай недостижим.
+            // В Режиме стоянки это гонка быстрых нажатий («Удалить», сразу «Сделать активной»); экран уже обновился.
             val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
             save(state.copy(regions = state.regions + (state.selectedRegion to region)))
         }
@@ -80,6 +82,10 @@ class StationsSession(
 
     private fun changeRegion(regionId: String, change: (fm.heterodyne.app.stations.RegionSelections) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSelections>) {
         storage.execute {
+            // Молчаливые выходы, сообщения пользователю нет:
+            // 1. state == null бывает только при загрузке; экран показывает «Загрузка…», кнопок правки нет.
+            // 2. Устаревший Регион — гонка двух быстрых нажатий в Режиме стоянки; экран уже показывает новый Регион,
+            //    и сообщение лишь запутало бы пользователя.
             val state = current.state ?: return@execute
             if (regionId != state.selectedRegion) return@execute
             val result = change(state.regions.getValue(regionId))
@@ -153,7 +159,7 @@ class StationsSession(
     fun selectRegion(id: String) {
         storage.execute {
             val state = current.state ?: return@execute
-            if (id !in state.regions) return@execute
+            if (id !in state.regions) return@execute // устаревшее действие UI отбрасывается молча, как в changeRegion
             val next = state.copy(selectedRegion = id)
             save(next)
         }
