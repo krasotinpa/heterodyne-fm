@@ -23,6 +23,52 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
+    @Test fun stationFormClosesAfterSuccessfulAddCurrentFrequencyAndRename() {
+        val screen = mutableStateOf(StationsScreenState(StationsState.defaults()))
+        fun update(change: (StationSelection) -> StationSelection) {
+            val state = screen.value.state!!
+            val region = state.regionSelections(state.selectedRegion)
+            screen.value = screen.value.copy(state = state.copy(regions = state.regions +
+                (state.selectedRegion to region.replaceActive(change(region.active)))))
+        }
+        compose.setContent {
+            ParkingScreen(screen.value, false, StationEntry(102000),
+                ParkingActions(add = { _, _, entry -> update { it.add(entry).value!! } },
+                    editStation = { _, _, entry, name -> update { it.editStation(entry, name).value!! } }), {}, {})
+        }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Добавить Станцию").performClick()
+        compose.onNodeWithTag("station-name").performTextReplacement("Новая")
+        compose.onNodeWithTag("station-frequency").performTextReplacement("101,7")
+        compose.onNodeWithText("Сохранить Станцию").performClick()
+        compose.onNodeWithTag("station-name").assertDoesNotExist()
+        compose.onNodeWithText("Сохранить текущую частоту").performClick()
+        compose.onNodeWithTag("station-name").performTextReplacement("Текущая")
+        compose.onNodeWithText("Сохранить Станцию").performClick()
+        compose.onNodeWithTag("station-name").assertDoesNotExist()
+        compose.onNodeWithTag("station:101700").performClick()
+        compose.onNodeWithTag("station-name").performTextReplacement("Новое имя")
+        compose.onNodeWithText("Сохранить Станцию").performClick()
+        compose.onNodeWithTag("station-name").assertDoesNotExist()
+        compose.onNodeWithText("Новое имя · 101700 кГц").assertExists()
+    }
+
+    @Test fun currentFrequencyPreservesKhzAndRejectsFrequencyOutsideStep() {
+        val added = mutableListOf<StationEntry>()
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, StationEntry(101750),
+                ParkingActions(add = { _, _, entry -> added.add(entry) }), {}, {})
+        }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Сохранить текущую частоту").performClick()
+        compose.onNodeWithTag("station-frequency").assertTextEquals("101,750")
+        compose.onNodeWithTag("station-name").performTextReplacement("Моя")
+        compose.onNodeWithText("Сохранить Станцию").performClick()
+        compose.onNodeWithText("Введите FM-частоту 87,5–108,0 МГц с шагом 0,1").assertIsDisplayed()
+        compose.onNodeWithTag("station-name").assertIsDisplayed()
+        assertEquals(emptyList<StationEntry>(), added)
+    }
+
     @Test fun stationFormAddsNamedMhzFrequencyAndEditsOnlyName() {
         val entry = StationEntry(90300, "Прежнее", "source")
         val region = RegionSelections.defaults().let { it.replaceActive(it.active.add(entry).value!!) }
@@ -81,6 +127,7 @@ class ParkingScreenTest {
         compose.onNodeWithTag("station-name").performTextReplacement("Моя")
         compose.onNodeWithText("Сохранить Станцию").performClick()
         compose.onNodeWithText("Частота уже есть в Подборке").assertIsDisplayed()
+        compose.onNodeWithTag("station-name").assertIsDisplayed()
         compose.onNodeWithTag("station-frequency").performTextReplacement("102,0")
         compose.onNodeWithText("Частота уже есть в Подборке").assertDoesNotExist()
         assertEquals(listOf(StationEntry(101700, "Моя")), added)

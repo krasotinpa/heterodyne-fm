@@ -207,6 +207,14 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     var targetSelection by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(selection.name) }
                     var localNameError by remember(state.selectedRegion, selection.name) { mutableStateOf<String?>(null) }
                     var localFrequencyError by remember(state.selectedRegion, selection.name) { mutableStateOf<String?>(null) }
+                    val targetEntries = region.selections.firstOrNull { it.name == targetSelection }?.entries
+                    var previousTargetEntries by remember(state.selectedRegion, targetSelection) {
+                        mutableStateOf(targetEntries)
+                    }
+                    LaunchedEffect(targetEntries) {
+                        if (previousTargetEntries != targetEntries) formOpen = false
+                        previousTargetEntries = targetEntries
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         items(region.selections, key = { it.name }) { option ->
                             Control(option.name, true, { if (selection.name != option.name) actions.clearNameError(); editing = option.name; renamedTo = null }, selected = selection.name == option.name)
@@ -401,8 +409,11 @@ private fun <T> SettingsOptions(options: List<T>, title: (T) -> String, selected
     }
 }
 
-private fun formatStationFrequency(frequencyKhz: Int): String =
-    "${frequencyKhz / 1000},${frequencyKhz % 1000 / 100}"
+private fun formatStationFrequency(frequencyKhz: Int): String {
+    val fraction = if (frequencyKhz % 100 == 0) (frequencyKhz % 1000 / 100).toString()
+        else (frequencyKhz % 1000).toString().padStart(3, '0')
+    return "${frequencyKhz / 1000},$fraction"
+}
 
 private fun parseStationFrequency(text: String): Int? {
     val normalized = text.trim().replace(',', '.')
