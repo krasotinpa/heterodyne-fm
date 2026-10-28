@@ -29,6 +29,68 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class EfirScreenTest {
 
+    @get:Rule val temporary = org.junit.rules.TemporaryFolder()
+
+    @Test fun savedStationIsMutedUntilConfirmedWithoutSendingCommands() {
+        val fake = FakeTransport()
+        val module = ModuleController(fake, fm.heterodyne.app.DiagnosticLog(temporary.newFolder()))
+        val snapshot = mutableStateOf(module.snapshot)
+        var disabled = Color.Unspecified
+        var normal = Color.Unspecified
+        compose.setContent {
+            disabled = LocalAppearanceColors.current["disabledText"]
+            normal = LocalAppearanceColors.current["text"]
+            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.FM, 90300),
+                lastPlayed = false), listOf(catalog)), snapshot.value, false, EfirActions())
+        }
+        compose.onNodeWithTag("efir-frequency").assertTextEquals("90,3")
+        compose.onNodeWithTag("efir-name").assertTextEquals("Справочная")
+        listOf("efir-frequency", "efir-name").forEach { assertTextColor(it, disabled) }
+        compose.runOnIdle {
+            snapshot.value = TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500))
+        }
+        compose.onNodeWithTag("efir-frequency").assertTextEquals("87,5")
+        compose.onNodeWithTag("efir-name").assertTextEquals("Первая")
+        listOf("efir-frequency", "efir-name").forEach { assertTextColor(it, normal) }
+        assertEquals(0, fake.sendCount)
+    }
+
+    @Test fun savedAmStationRemainsVisibleOnFmOnlyReceiver() {
+        var disabled = Color.Unspecified
+        compose.setContent {
+            disabled = LocalAppearanceColors.current["disabledText"]
+            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.AM, 801)), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, null), true, EfirActions(),
+                capabilities = fm.heterodyne.app.receiver.FakeReceiver().capabilities)
+        }
+        compose.onNodeWithTag("efir-frequency").assertTextEquals("801")
+        compose.onNodeWithTag("efir-name").assertTextEquals("Частота вне Подборки")
+        compose.onNodeWithTag("efir-status").assertTextEquals("Приёмник не принимает AM")
+        listOf("efir-frequency", "efir-name").forEach { assertTextColor(it, disabled) }
+    }
+
+    @Test fun savedFmStationKeepsConnectingReasonUntilConfirmed() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial.copy(lastStation = SessionStation(StationBand.FM, 90300)), listOf(catalog)),
+                TransitionSnapshot(TransitionState.Idle, null, null), true, EfirActions())
+        }
+        compose.onNodeWithTag("efir-status").assertTextEquals("Подключение идёт")
+    }
+
+    @Test fun noSavedOrConfirmedStationShowsDash() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Disconnected, null, null), false, EfirActions())
+        }
+        compose.onNodeWithTag("efir-frequency").assertTextEquals("—")
+    }
+
+    private fun assertTextColor(tag: String, expected: Color) {
+        val results = mutableListOf<TextLayoutResult>()
+        compose.onNodeWithTag(tag).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+        assertEquals(expected, results.single().layoutInput.style.color)
+    }
+
     @Test fun disconnectedReceiverDoesNotDrawPauseRing() {
         compose.setContent {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),

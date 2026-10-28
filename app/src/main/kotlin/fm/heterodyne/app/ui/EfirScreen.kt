@@ -102,13 +102,17 @@ fun EfirScreen(
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
     val selections = state?.regions?.get(state.selectedRegion)
     val entries = selections?.active?.entries.orEmpty()
-    val reason = if (noFocus && connected) DisabledReason.NoFocus
-        else disabledReason(connectionState, transition.state, transition.confirmed?.band, entries, capabilities.bands)
-    val hasSupportedEntries = entries.any { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
     val confirmed = transition.confirmed
-    val name = entries.firstOrNull { it.matches(confirmed) }?.name
-        ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(confirmed) }?.name
-    val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
+    val displayed = topbarStation(confirmed, state)
+    val reason = if (noFocus && connected) DisabledReason.NoFocus
+        else disabledReason(connectionState, transition.state,
+            // A saved station only explains itself when the receiver cannot take its band.
+            displayed?.band?.takeIf { confirmed != null || it !in capabilities.bands }, entries, capabilities.bands)
+    val hasSupportedEntries = entries.any { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
+    val name = entries.firstOrNull { it.matches(displayed) }?.name
+        ?: catalog?.stations?.firstOrNull { it.copyEntry().matches(displayed) }?.name
+    val saved = confirmed == null && displayed != null
+    val faded = saved || transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
     BoxWithConstraints(Modifier.fillMaxSize().background(Background)) {
         val windowWidth = maxWidth.value
         val compact = maxHeight.value < DesignTokens.number("breakpoint.compactHeight")
@@ -120,20 +124,21 @@ fun EfirScreen(
             verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
             Row(Modifier.fillMaxWidth().height(tokenDp("size.topBar.height")).testTag("efir-topbar"),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(tokenDp(if (compact) "space.plateGap" else "space.window"))) {
-                BasicText(confirmed?.let(::frequencyText) ?: "—",
-                    Modifier.widthIn(min = tokenDp("size.plate.presetWidth")), style = designTextStyle("freq", LocalAppearanceColors.current[if (faded) "disabledText" else "text"]))
+                BasicText(displayed?.let(::frequencyText) ?: "—",
+                    Modifier.testTag("efir-frequency").widthIn(min = tokenDp("size.plate.presetWidth")), style = designTextStyle("freq", LocalAppearanceColors.current[if (faded) "disabledText" else "text"]))
                 Column(Modifier.weight(1f)) {
                   // The RDS row is measured first (fixed), so the name and status share what is left.
                   Column(Modifier.weight(1f).clipToBounds()) {
                     BasicText(name?.takeIf { it.isNotBlank() } ?: "Частота вне Подборки",
-                        style = designTextStyle("title", LocalAppearanceColors.current["text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Modifier.testTag("efir-name"),
+                        style = designTextStyle("title", LocalAppearanceColors.current[if (saved) "disabledText" else "text"]), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     val status = reason?.takeUnless {
                         it == DisabledReason.EmptySelection && transition.state in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete)
                     }?.text ?: seekHint?.takeIf { transition.state != TransitionState.Seeking } ?: when (transition.state) {
                         TransitionState.Waiting -> "ожидание"
                         TransitionState.Seeking -> "идёт поиск…"
                         TransitionState.SeekIncomplete -> "Поиск не завершён"
-                        else -> "${confirmed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
+                        else -> "${displayed?.band?.name ?: "—"} · ${catalog?.region?.name ?: "—"}"
                     }
                     BasicText(status, Modifier.testTag("efir-status"),
                         style = designTextStyle(if (reason != null) "plate" else "body", when {
