@@ -89,7 +89,7 @@ class StationsModule(
     fun nextStation(direction: Direction) {
         cancelAutostart()
         val state = session.screen.state ?: return
-        val entries = state.regions.getValue(state.selectedRegion).active.entries
+        val entries = state.regionSelections(state.selectedRegion).active.entries
         if (entries.isEmpty()) return
         val confirmed = transition.confirmed
         val index = entries.indexOfFirst {

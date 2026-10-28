@@ -430,7 +430,7 @@ class EfirScreenTest {
 
     @Test fun nonEmptyActiveSelectionDoesNotShowEmptySelectionLabel() {
         val state = StationsState.defaults().let { state ->
-            val region = state.regions.getValue("moskva")
+            val region = state.regionSelections("moskva")
             state.copy(regions = state.regions + ("moskva" to region.replaceActive(region.active.add(first).value!!)))
         }
         compose.setContent {
@@ -634,7 +634,7 @@ class EfirScreenTest {
         listOf(CatalogStation("b", "Справочная", 90300)))
     private val first = StationEntry(87500, "Первая")
     private val initial = StationsState.defaults().let { state ->
-        val region = state.regions.getValue("moskva")
+        val region = state.regionSelections("moskva")
         val populated = region.replaceActive(region.active.add(first).value!!)
         state.copy(regions = state.regions + ("moskva" to populated.createSelection("Дорога").value!!))
     }

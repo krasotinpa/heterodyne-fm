@@ -16,7 +16,7 @@ class FmOnlyStorageTest {
     }
 
     @Test fun legacyAmEntriesAndLastPlayedAreDiscardedWithoutRecovery() {
-        val root = JSONObject(StationsJson.encode(StationsState.defaults()))
+        val root = JSONObject(StationsJson.encode(StationsState.defaults().copy(regions = mapOf("moskva" to RegionSelections.defaults()))))
         val entries = root.getJSONObject("regions").getJSONObject("moskva")
             .getJSONArray("sets").getJSONObject(0).getJSONArray("entries")
         entries.put(JSONObject("""{"band":"FM","frequencyKhz":90300,"name":"FM"}"""))
@@ -30,7 +30,7 @@ class FmOnlyStorageTest {
         }
         val loaded = StationsRepository(file).load()
         assertEquals(LoadStatus.LOADED, loaded.status)
-        assertEquals(listOf(90300), loaded.state.regions.getValue("moskva").active.entries.map { it.frequencyKhz })
+        assertEquals(listOf(90300), loaded.state.regionSelections("moskva").active.entries.map { it.frequencyKhz })
         assertNull(loaded.state.lastStation)
         assertFalse(loaded.state.lastPlayed)
     }

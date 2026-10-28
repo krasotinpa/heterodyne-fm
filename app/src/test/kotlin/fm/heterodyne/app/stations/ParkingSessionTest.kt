@@ -156,8 +156,8 @@ class ParkingSessionTest {
         load(restarted)
         val state = restarted.screen.state!!
         assertEquals("yaroslavl", state.selectedRegion)
-        assertEquals("Поездка", state.regions.getValue(state.selectedRegion).activeName)
-        assertEquals(listOf(StationEntry(90300)), state.regions.getValue(state.selectedRegion).active.entries)
+        assertEquals("Поездка", state.regionSelections(state.selectedRegion).activeName)
+        assertEquals(listOf(StationEntry(90300)), state.regionSelections(state.selectedRegion).active.entries)
         assertEquals("Ярославль", restarted.screen.catalogs.first { it.region.id == state.selectedRegion }.region.name)
     }
 
@@ -199,6 +199,39 @@ class ParkingSessionTest {
         session.moveStation("moskva", "Основной", second, 0)
         drain(queued)
         assertEquals(listOf(second, third), session.screen.state!!.regions.getValue("moskva").active.entries)
+    }
+
+    @Test fun unknownSelectedRegionFallsBackWithoutLosingItsSelections() {
+        for (schema in listOf(1, 2, 3)) {
+            val context = RuntimeEnvironment.getApplication()
+            val region = RegionSelections.defaults().createSelection("Дорога").value!!
+            val initial = StationsState("unknown-region", mapOf("unknown-region" to region))
+            var contents = org.json.JSONObject(StationsJson.encode(initial)).put("schema", schema).toString()
+            val file = object : StationsFile {
+                override fun read() = contents
+                override fun writeAtomic(text: String) { contents = text }
+            }
+            val queued = java.util.ArrayDeque<Runnable>()
+            val session = StationsSession(context, Handler(Looper.getMainLooper()),
+                java.util.concurrent.Executor { queued.add(it) }, file)
+            session.load {}
+            drain(queued)
+            assertFalse(session.screen.recovered)
+            assertEquals("moskva", session.screen.state!!.selectedRegion)
+            assertEquals(initial.regions, session.screen.state!!.regions)
+            assertTrue(session.activeEntries.isEmpty())
+            session.selectRegion("yaroslavl")
+            drain(queued)
+            assertEquals("yaroslavl", session.screen.state!!.selectedRegion)
+            session.createSelection("yaroslavl", "Поездка")
+            drain(queued)
+            assertEquals(listOf("Основной", "Поездка"),
+                session.screen.state!!.regionSelections("yaroslavl").selections.map { it.name })
+            assertEquals(region, StationsJson.decode(contents).regions.getValue("unknown-region"))
+            session.selectRegion("unknown-region")
+            drain(queued)
+            assertEquals("yaroslavl", session.screen.state!!.selectedRegion)
+        }
     }
 
     private fun drain(queued: java.util.ArrayDeque<Runnable>) {

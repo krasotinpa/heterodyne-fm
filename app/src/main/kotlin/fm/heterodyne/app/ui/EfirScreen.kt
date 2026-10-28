@@ -99,7 +99,7 @@ fun EfirScreen(
 ) {
     val state = screen.state
     val catalog = screen.catalogs.firstOrNull { it.region.id == state?.selectedRegion }
-    val selections = state?.regions?.get(state.selectedRegion)
+    val selections = state?.regionSelections(state.selectedRegion)
     val entries = selections?.active?.entries.orEmpty()
     val confirmed = transition.confirmed
     val displayed = topbarStation(confirmed, state)
