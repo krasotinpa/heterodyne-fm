@@ -70,7 +70,7 @@ class TransitionSignalTest {
         }
     }
 
-    @Test fun systemKeyClickUsesPlatformDefaultVolumeUnlessDucked() {
+    @Test fun defaultKeyClickUsesPlatformDefaultVolumeUnlessDucked() {
         val volumes = mutableListOf<Float>()
         val output = object : TransitionToneOutput {
             override fun play(volume: Float, finished: () -> Unit) { error("Unexpected PCM") }
@@ -80,7 +80,6 @@ class TransitionSignalTest {
         val signal = TransitionSignal(output, DiagnosticLog(temporary.newFolder()), { true },
             schedule = { _, _ -> error("Unexpected timer") },
             systemKeyClick = { volumes.add(it) }, keyClickUsesSystemEffect = true)
-        signal.begin(TransitionSignalMethod.KeyClick)
         signal.setFocusVolume(1f)
         signal.confirm()
         signal.setFocusVolume(0.3f)
