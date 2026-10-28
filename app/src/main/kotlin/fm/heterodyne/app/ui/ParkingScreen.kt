@@ -165,28 +165,23 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                                 }
                             }
                             SettingsGroup("Вид")
-                            Column {
-                                SettingsText("Тема")
+                            SettingsRow("Тема") {
                                 SettingsOptions(ThemeChoice.entries, { it.title }, { it == theme }, selectTheme)
                             }
-                            Column {
-                                SettingsText("Палитра")
+                            SettingsRow("Палитра") {
                                 SettingsOptions(Palette.entries, { it.title }, { it == palette }, selectPalette,
                                     width = tokenDp("size.settings.paletteCard"), card = true)
                             }
-                            Column {
-                                SettingsText("Отметка на шкале")
+                            SettingsRow("Отметка на шкале") {
                                 SettingsOptions(ScaleMarker.entries, { it.title }, { it == scaleMarker }, selectScaleMarker,
                                     width = tokenDp("size.settings.markerCard"), card = true)
                             }
-                            Column {
-                                SettingsText("Кнопка «Стоянка»")
+                            SettingsRow("Кнопка «Стоянка»") {
                                 SettingsText("Подпись")
                                 SettingsOptions(listOf(true, false), { if (it) "Вкл" else "Выкл" },
                                     { it == parkShowLabel }, selectParkShowLabel)
                             }
-                            Column {
-                                SettingsText("Размер пиктограммы")
+                            SettingsRow("Размер пиктограммы") {
                                 SettingsOptions(listOf(false, true), { if (it) "Крупный" else "Обычный" },
                                     { it == parkLargeIcon }, selectParkLargeIcon)
                             }
@@ -315,10 +310,18 @@ private fun SettingsText(text: String) {
 }
 
 @Composable
+private fun SettingsRow(label: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(tokenDp("size.settings.gap"))) {
+        SettingsText(label)
+        content()
+    }
+}
+
+@Composable
 private fun SettingsGroup(text: String, first: Boolean = false) {
     val colors = LocalAppearanceColors.current
     Column(Modifier.fillMaxWidth()) {
-        if (!first) Box(Modifier.fillMaxWidth().height(1.dp).background(colors["edge"]))
+        if (!first) Box(Modifier.fillMaxWidth().height(tokenDp("line.edge")).background(colors["edge"]))
         Spacer(Modifier.height(tokenDp("size.settings.groupTop")))
         androidx.compose.foundation.text.BasicText(text, style = designTextStyle("settingsGroup", colors["text"]))
     }
