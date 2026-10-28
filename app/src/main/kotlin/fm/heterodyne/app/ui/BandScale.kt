@@ -39,10 +39,10 @@ fun BandScale(
     play: () -> Unit = {},
 ) {
     val confirmed = transition.confirmed
-    val band = confirmed?.band ?: transition.target?.band
+    val band = confirmed?.band ?: transition.target?.band?.takeIf { marker != ScaleMarker.Stripe }
     val colors = LocalAppearanceColors.current
     val density = LocalDensity.current
-    val enabled = loupeEnabled && band == Band.FM && stations.any { it.band.name == "FM" }
+    val enabled = loupeEnabled && confirmed?.band == Band.FM && stations.any { it.band.name == "FM" }
     val currentSelect by rememberUpdatedState(select)
     val currentPlaying by rememberUpdatedState(playing)
     val currentPlay by rememberUpdatedState(play)
