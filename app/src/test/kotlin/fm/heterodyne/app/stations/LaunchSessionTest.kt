@@ -117,7 +117,7 @@ class LaunchSessionTest {
             lastStation = SessionStation(90300), lastPlayed = true)))
         val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() }, AtomicStationsFile(file))
         session.load {}
-        session.createSelection("moskva", "Основной") // A duplicate name is a temporary UI message.
+        session.deleteSelection("moskva", "Основной") // Refusing to delete the last Selection is a temporary UI message.
         org.robolectric.Shadows.shadowOf(Looper.getMainLooper()).idle()
         assertNotNull(session.screen.error)
         var target: TuneTarget? = null

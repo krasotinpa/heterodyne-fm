@@ -18,6 +18,50 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class ParkingSessionTest {
+    @Test fun invalidAndDuplicateNamesStayAtFieldAndSuccessfulSaveClearsThem() {
+        val context = RuntimeEnvironment.getApplication()
+        File(context.filesDir, "stations.json").delete()
+        val queued = java.util.ArrayDeque<Runnable>()
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), java.util.concurrent.Executor { queued.add(it) })
+        session.load {}
+        drain(queued)
+        session.createSelection("moskva", "Дорога")
+        drain(queued)
+        for (rename in listOf(false, true)) {
+            for ((name, message) in listOf(" " to "Введите имя Подборки", "Основной" to "Подборка с таким именем уже есть")) {
+                if (rename) session.renameSelection("moskva", "Дорога", name)
+                else session.createSelection("moskva", name)
+                drain(queued)
+                assertEquals(message, session.screen.nameError)
+                assertNull(session.screen.error)
+                // Even a save of the unchanged state clears the field error.
+                session.selectRegion("moskva")
+                drain(queued)
+                assertNull(session.screen.nameError)
+            }
+        }
+        session.createSelection("moskva", "")
+        drain(queued)
+        session.createSelection("moskva", "Новая")
+        drain(queued)
+        assertNull(session.screen.nameError)
+        session.renameSelection("moskva", "Дорога", "Основной")
+        drain(queued)
+        assertEquals("Подборка с таким именем уже есть", session.screen.nameError)
+        session.renameSelection("moskva", "Дорога", "Поездка")
+        drain(queued)
+        assertNull(session.screen.nameError)
+        session.createSelection("moskva", "")
+        drain(queued)
+        session.clearNameError()
+        drain(queued)
+        assertNull(session.screen.nameError)
+        session.deleteSelection("moskva", "missing")
+        drain(queued)
+        assertEquals("Подборка или Станция не найдены", session.screen.error)
+        assertNull(session.screen.nameError)
+    }
+
     @Test fun failedStopWriteIsRetriedWhenRememberingStationAndSurvivesRestart() {
         val context = RuntimeEnvironment.getApplication()
         val handler = Handler(Looper.getMainLooper())

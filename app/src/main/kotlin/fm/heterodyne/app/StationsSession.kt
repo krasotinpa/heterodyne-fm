@@ -23,6 +23,7 @@ data class StationsScreenState(
     val catalogs: List<Catalog> = emptyList(),
     val recovered: Boolean = false,
     val error: String? = null,
+    val nameError: String? = null,
 )
 
 /** Owns the repository and its single storage queue for this process. */
@@ -45,6 +46,14 @@ class StationsSession(
             val state = current.state ?: return@execute
             val region = state.regions.getValue(state.selectedRegion).activate(name).value ?: return@execute
             save(state.copy(regions = state.regions + (state.selectedRegion to region)))
+        }
+    }
+
+    fun clearNameError() {
+        storage.execute {
+            if (current.nameError == null) return@execute
+            current = current.copy(nameError = null)
+            publish()
         }
     }
 
@@ -84,7 +93,11 @@ class StationsSession(
                     fm.heterodyne.app.stations.ChangeError.LAST_SELECTION -> "Нельзя удалить последнюю Подборку"
                     else -> "Подборка или Станция не найдены"
                 }
-                current = current.copy(error = message)
+                current = when (result.error) {
+                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME,
+                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> current.copy(nameError = message)
+                    else -> current.copy(error = message)
+                }
                 publish()
             }
         }
@@ -148,10 +161,10 @@ class StationsSession(
 
     private fun save(state: StationsState): Boolean {
         val next = pendingLastPlayed?.let { state.copy(lastPlayed = it) } ?: state
-        if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null) return true
+        if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null && current.nameError == null) return true
         val saved = repository.save(next)
         if (saved) pendingLastPlayed = null
-        current = if (saved) current.copy(state = next, error = null)
+        current = if (saved) current.copy(state = next, error = null, nameError = null)
         else current.copy(error = "Не удалось сохранить состояние")
         publish()
         return saved

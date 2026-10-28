@@ -24,6 +24,52 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
 
+    @Test fun nameErrorAppearsBelowFieldAndClearsOnInputAndSelectionChange() {
+        val base = StationsState.defaults()
+        val state = base.copy(regions = base.regions + ("moskva" to
+            base.regions.getValue("moskva").createSelection("Дорога").value!!))
+        val screen = mutableStateOf(StationsScreenState(state))
+        compose.setContent {
+            ParkingScreen(screen.value, false, null,
+                ParkingActions(
+                    rename = { _, _, _ -> screen.value = screen.value.copy(nameError = "Подборка с таким именем уже есть") },
+                    clearNameError = { screen.value = screen.value.copy(nameError = null) },
+                ), {}, {})
+        }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Дорога").performClick()
+        compose.onNode(hasSetTextAction()).performTextReplacement("Основной")
+        compose.onNodeWithText("Переименовать").performClick()
+        val error = compose.onNodeWithText("Подборка с таким именем уже есть")
+        error.assertIsDisplayed()
+        val fieldBounds = compose.onNode(hasSetTextAction()).fetchSemanticsNode().boundsInRoot
+        assertEquals(true, error.fetchSemanticsNode().boundsInRoot.top >= fieldBounds.bottom)
+        compose.onNode(hasSetTextAction()).performTextReplacement("Новое имя")
+        error.assertDoesNotExist()
+        compose.onNodeWithText("Переименовать").performClick()
+        error.assertIsDisplayed()
+        compose.onNodeWithText("Основной").performClick()
+        error.assertDoesNotExist()
+    }
+
+    @Test fun nameErrorClearsWhenLeavingSelections() {
+        val screen = mutableStateOf(StationsScreenState(StationsState.defaults()))
+        compose.setContent {
+            ParkingScreen(screen.value, false, null,
+                ParkingActions(
+                    rename = { _, _, _ -> screen.value = screen.value.copy(nameError = "Подборка с таким именем уже есть") },
+                    clearNameError = { screen.value = screen.value.copy(nameError = null) },
+                ), {}, {})
+        }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Переименовать").performClick()
+        compose.onNodeWithText("Подборка с таким именем уже есть").assertIsDisplayed()
+        compose.onNodeWithText("Настройки").performClick()
+        compose.runOnIdle { assertEquals(null, screen.value.nameError) }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Подборка с таким именем уже есть").assertDoesNotExist()
+    }
+
     @Test fun scaleMarkerSettingSelectsEveryShapeImmediately() {
         val marker = mutableStateOf(ScaleMarker.Pin)
         compose.setContent {
