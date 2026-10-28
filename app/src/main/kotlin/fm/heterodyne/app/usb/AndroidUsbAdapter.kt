@@ -134,7 +134,7 @@ class AndroidUsbAdapter(
             frames.resetConnection()
         }
         if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) main.post { changed(state) }
-    }, transitionObserved = { snapshot -> if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) main.post { transitionObserved(snapshot) } },
+    }, transitionObserved = { if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) publishSelection() },
         seekPaused = { remaining -> main.post { seekPaused(remaining) } }) }
     private val cancellation = AutostartGeneration()
     @Volatile private var launchGeneration = cancellation.capture()
@@ -227,7 +227,8 @@ class AndroidUsbAdapter(
             threadFactory = { task -> Thread({
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 task.run()
-            }, "Audio") }, onMain = { task -> main.post { task() } }) { counters ->
+            }, "Audio") }, onMain = { task -> main.post { task() } },
+            pauseContext = { controller.pauseContext(android.os.SystemClock.elapsedRealtime()) + ", " + focus.status }) { counters ->
             main.post {
                 if (counters.state != AudioState.Playing) transitionSignal.stop()
                 audioChanged(counters)
@@ -380,6 +381,7 @@ class AndroidUsbAdapter(
         val counters = selected?.audioCounters ?: AudioCounters()
         val selectionChangedNow = !published || publishedKind != kind
         if (!selectionChangedNow && state == publishedState && snapshot == publishedSnapshot && counters == publishedAudio) return
+        val snapshotChangedNow = selectionChangedNow || snapshot != publishedSnapshot
         published = true
         publishedKind = kind
         publishedState = state
@@ -390,7 +392,7 @@ class AndroidUsbAdapter(
         main.post {
             if (selectionChangedNow) selectionChanged(kind, capabilities)
             changed(state)
-            transitionObserved(snapshot)
+            if (snapshotChangedNow) transitionObserved(snapshot)
             if (kind != fm.heterodyne.app.receiver.ReceiverKind.Module) {
                 stationChanged(snapshot.confirmed?.band ?: Band.FM, snapshot.confirmed?.frequencyKhz)
                 audioChanged(counters)

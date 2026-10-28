@@ -60,6 +60,12 @@ class StationsModule(
         private set
     private val clearSeekHint = Runnable { seekHint = null }
 
+    internal fun onSeekPaused(remainingMillis: Long) {
+        main.removeCallbacks(clearSeekHint)
+        seekHint = seekPauseHint(driving, remainingMillis)
+        if (seekHint != null) main.postDelayed(clearSeekHint, 2000L)
+    }
+
     var moduleState by mutableStateOf(ConnectionState.Disconnected)
         private set
     var audioState by mutableStateOf(AudioState.Stopped)
@@ -172,11 +178,7 @@ class StationsModule(
                 }
             }
         }, audioChanged = { counters -> main.post { audioState = counters.state } },
-            seekPaused = { remaining ->
-                main.removeCallbacks(clearSeekHint)
-                seekHint = seekPauseHint(driving, remaining)
-                if (seekHint != null) main.postDelayed(clearSeekHint, 2000L)
-            }, transitionObserved = { snapshot -> main.post {
+            seekPaused = ::onSeekPaused, transitionObserved = { snapshot -> main.post {
                 if (snapshot.target == null && cursor?.let {
                     it.band.name == snapshot.confirmed?.band?.name && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
                 } == true) cursor = null

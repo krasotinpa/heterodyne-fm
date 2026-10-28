@@ -15,6 +15,19 @@ class ModuleTest {
         UsbInterfaceDescription(3, 10, endpoints = listOf(UsbEndpointDescription(3, 2, 64), UsbEndpointDescription(0x83, 2, 64))),
     ))
 
+    @Test fun pauseContextReportsLastCommandAgeAndTransitionWithoutSending() {
+        val fake = FakeTransport()
+        var now = 1000L
+        val controller = ModuleController(fake, DiagnosticLog(temporary.newFolder()), clock = { now })
+        assertEquals("команд не было, состояние Disconnected", controller.pauseContext(now))
+        controller.found(UsbDiscovery.find(device)!!)
+        controller.permissionResult(controller.requestPermission()!!, true)
+        assertEquals(TuneResult.Sent, controller.checkConnection())
+        now += 300
+        assertEquals("последняя команда 0x85 300 мс назад, состояние ${controller.transitionState}",
+            controller.pauseContext(now))
+    }
+
     @Test fun liveFramesAreObservedBeforeJournalDrainsAndCannotRestoreDetachedState() {
         val entered = java.util.concurrent.CountDownLatch(1)
         val resume = java.util.concurrent.CountDownLatch(1)
