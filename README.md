@@ -1,7 +1,7 @@
 # Heterodyne FM для Toyota Highlander
 
 Пакет передачи задачи coding-агенту. Дата: 14 октября 2026 года.
-Цель — собственный Android APK для USB AM/FM-приёмника Super Radio на штатном ГУ китайского Toyota Highlander 2026 2.0T.
+Цель — собственный Android APK для USB FM-приёмника Super Radio на штатном ГУ китайского Toyota Highlander 2026 2.0T.
 ГУ означает головное устройство автомобиля. Совместимость конкретного ГУ требует экспериментальной проверки.
 
 Проект: [Super Radio Android для Toyota Highlander](https://chatgpt.com/space/page_6acf7aa369ec819199fe34a21c46040c).

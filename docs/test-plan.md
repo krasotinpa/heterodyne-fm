@@ -23,13 +23,13 @@ Real fixtures имеют hash/provenance. Synthetic bytes доказывают n
 
 1. Проверь descriptors и CDC open по trace.
 2. Повтори tune три раза; сравни Windows/Android.
-3. Проверь known FM/AM станции и band boundaries.
+3. Проверь known FM станции и границы диапазона.
 4. Проверь seek обеих сторон, cancel/timeout и no stations.
 5. Выполни 10 unplug/replug, включая pending и audio.
 6. Выполни 30 минут приёма, focus/route и sleep/wake.
 
 ```text
-Descriptors → TX/RX → FM/AM → Seek → Replug
+Descriptors → TX/RX → FM → Seek → Replug
             → Audio/focus → Sleep/wake → Отчёт
 ```
 
@@ -42,7 +42,7 @@ getPreferredDevice не подтверждает фактический route.
 
 Каждая строка R01–R27 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
 Запиши device/API/build/commit, steps, expected/actual, evidence и date.
-AM не проходит без реального AM evidence.
+AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.
 
 1. Выполни Python 3.12 tests.

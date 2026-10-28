@@ -1,6 +1,6 @@
 # ADR 0007: Приёмники
 
-Статус: принято владельцем 27.10.2026 на grilling-сессии ([#157](https://github.com/krasotinpa/heterodyne-fm/issues/157)).
+Статус: принято владельцем 27.10.2026 на grilling-сессии ([#157](https://github.com/krasotinpa/heterodyne-fm/issues/157)). Решения 7 и 9 частично заменены [ADR 0008](0008-fm-only.md).
 
 ## Контекст
 

@@ -1,6 +1,6 @@
 # План реализации Super Radio Android
 
-**Цель:** Android APK с проверенными FM/AM, поиском, пресетами и звуком.
+**Цель:** Android APK с проверенным FM, поиском, пресетами и звуком.
 **Архитектура:** чистое protocol core, отдельный USB transport, session state и audio backend.
 **Стек:** Python 3.12, Kotlin, Windows, WSL2 Ubuntu, VS Code Remote.
 **Spec:** [requirements.md](../requirements.md), [architecture.md](../architecture.md), [research-plan.md](research-plan.md).
@@ -84,7 +84,7 @@ Gradle modules можно объединить пакетами при сохр�
 - [ ] Проверь отдельно AudioRecord input route и AudioTrack output route.
 - [ ] Запроси runtime permission только для реально выбранного API.
 - [ ] Для background/foreground service проверь требования target/API до реализации.
-- [ ] Выполни G6: real FM/AM, focus, 30 минут, detach.
+- [ ] Выполни G6: real FM, focus, 30 минут, detach.
 
 Готовность: R10/R11 passed на ГУ. OEM restriction фиксируется как blocker.
 
