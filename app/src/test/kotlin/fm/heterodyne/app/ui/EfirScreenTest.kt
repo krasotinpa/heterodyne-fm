@@ -29,6 +29,25 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class EfirScreenTest {
 
+    @Test fun disconnectedReceiverDoesNotDrawPauseRing() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Seeking, null, TuneTarget(Band.FM, 87500),
+                    fm.heterodyne.app.receiver.CommandPause(fm.heterodyne.app.receiver.PauseKind.Seek, Direction.Up, 5000, 5000, android.os.SystemClock.elapsedRealtime())),
+                false, EfirActions())
+        }
+        compose.onAllNodes(hasTestTag("pause-ring-Up") or hasTestTag("pause-ring-Down")).assertCountEquals(0)
+    }
+
+    @Test fun stepRemainsAvailableDuringSeeking() {
+        compose.setContent {
+            EfirScreen(StationsScreenState(initial, listOf(catalog)),
+                TransitionSnapshot(TransitionState.Seeking, null, TuneTarget(Band.FM, 87500)), true, EfirActions())
+        }
+        compose.onNodeWithText("Шаг ◀").assertIsEnabled()
+        compose.onNodeWithText("Шаг ▶").assertIsEnabled()
+    }
+
     @Test fun fmOnlyReceiverReservesBandAndSeekSpaceWithoutControls() {
         compose.setContent {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
@@ -64,7 +83,7 @@ class EfirScreenTest {
                 true, EfirActions(), driving = true, seekHint = "Поиск доступен через 4 с")
         }
         compose.onNodeWithTag("efir-status").assertTextEquals("Поиск доступен через 4 с")
-        compose.onNodeWithText("Шаг ▶ · пауза").assertIsEnabled()
+        compose.onNodeWithText("Шаг ▶").assertIsEnabled()
     }
 
     @Test fun seekingStatusWinsOverStaleSeekHint() {
@@ -104,7 +123,7 @@ class EfirScreenTest {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
                 TransitionSnapshot(state.value, null, TuneTarget(Band.FM, 87500)), true, EfirActions())
         }
-        listOf(TransitionState.Idle to "Поиск", TransitionState.CommandPause to "Поиск · пауза").forEach { (transition, text) ->
+        listOf(TransitionState.Idle to "Поиск", TransitionState.CommandPause to "Поиск").forEach { (transition, text) ->
             compose.runOnIdle { state.value = transition }
             val label = compose.onNodeWithText(text).assertWidthIsEqualTo(104.dp)
             val bounds = label.fetchSemanticsNode().boundsInRoot
@@ -123,41 +142,36 @@ class EfirScreenTest {
         }
     }
 
-    @Test fun stepPauseKeepsLabelAt16SpAndPauseInSeparateText() {
+    @Test fun stepPauseIsGreyWithoutRingOrPauseText() {
+        val pause = fm.heterodyne.app.receiver.CommandPause(fm.heterodyne.app.receiver.PauseKind.Step, Direction.Up, 500, 500, android.os.SystemClock.elapsedRealtime())
+        var clicks = 0
         compose.setContent {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
-                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500)),
-                true, EfirActions())
+                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500), pause),
+                true, EfirActions(step = { clicks++ }, seek = { clicks++ }))
         }
-        listOf("Шаг ◀ · пауза", "Шаг ▶ · пауза").forEach { description ->
-            val label = compose.onNode(hasText("Шаг") and hasAnyAncestor(hasText(description)),
-                useUnmergedTree = true)
-            val results = mutableListOf<TextLayoutResult>()
-            label.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
-            assertEquals("Шаг", results.single().layoutInput.text.text)
-            assertEquals(16f, results.single().layoutInput.style.fontSize.value)
-            val pause = compose.onNode(hasText("пауза") and hasAnyAncestor(hasText(description)),
-                useUnmergedTree = true)
-            val pauseResults = mutableListOf<TextLayoutResult>()
-            pause.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(pauseResults) }
-            assertEquals("пауза", pauseResults.single().layoutInput.text.text)
-        }
+        listOf("Шаг ◀", "Шаг ▶").forEach { compose.onNodeWithText(it).assertIsNotEnabled().performTouchInput { click() } }
+        listOf("Поиск ◀", "Поиск ▶").forEach { compose.onNodeWithContentDescription(it).assertIsEnabled() }
+        compose.onAllNodesWithText("пауза", substring = true).assertCountEquals(0)
+        compose.onAllNodes(hasTestTag("pause-ring-Up") or hasTestTag("pause-ring-Down")).assertCountEquals(0)
+        assertEquals(0, clicks)
     }
 
-    @Test fun commandPauseLabelsRequireConnectedReceiver() {
-        val connected = mutableStateOf(true)
+    @Test fun seekPauseDescriptionTracksPressedDirection() {
+        compose.mainClock.autoAdvance = false
+        val direction = mutableStateOf(Direction.Down)
         compose.setContent {
             EfirScreen(StationsScreenState(initial, listOf(catalog)),
-                TransitionSnapshot(TransitionState.CommandPause, null, TuneTarget(Band.FM, 87500)),
-                connected.value, EfirActions())
+                TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 87500),
+                    fm.heterodyne.app.receiver.CommandPause(fm.heterodyne.app.receiver.PauseKind.Seek, direction.value, 5000, 5000, android.os.SystemClock.elapsedRealtime())),
+                true, EfirActions())
         }
-        listOf("Шаг ◀ · пауза", "Шаг ▶ · пауза", "Поиск · пауза").forEach {
-            compose.onNodeWithText(it).assertIsDisplayed()
-        }
-        compose.runOnIdle { connected.value = false }
+        compose.onNodeWithContentDescription("Поиск ◀, пауза, осталось 5 с").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Поиск ▶").assertIsNotEnabled()
+        compose.runOnIdle { direction.value = Direction.Up }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithContentDescription("Поиск ▶, пауза, осталось 5 с").assertIsNotEnabled()
         compose.onAllNodesWithText("пауза", substring = true).assertCountEquals(0)
-        listOf("Шаг ◀", "Шаг ▶").forEach { compose.onNodeWithText(it).assertIsNotEnabled() }
-        compose.onNodeWithText("Поиск").assertIsDisplayed()
     }
 
     @Test fun drivingParkingTextAndIconUseDisabledText() {
@@ -477,10 +491,10 @@ class EfirScreenTest {
         compose.onNodeWithContentDescription("Поиск ▶").assertIsEnabled().performClick()
         assertEquals(listOf(Direction.Down, Direction.Up), seeks)
         compose.runOnIdle { transition.value = TransitionState.CommandPause }
-        compose.onNodeWithText("Поиск · пауза").assertIsDisplayed()
+        compose.onNodeWithText("Поиск").assertIsDisplayed()
         assertEquals(parkedBounds, neighborBounds())
         compose.runOnIdle { driving.value = true }
-        compose.onNodeWithText("Поиск · пауза").assertDoesNotExist()
+        compose.onNodeWithText("Поиск").assertDoesNotExist()
         assertEquals(parkedBounds, neighborBounds())
     }
 

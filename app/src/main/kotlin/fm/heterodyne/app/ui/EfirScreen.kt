@@ -47,6 +47,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import fm.heterodyne.app.StationsScreenState
+import fm.heterodyne.app.module.arrow
+import fm.heterodyne.app.receiver.PauseKind
+import androidx.compose.ui.text.font.FontWeight
 import fm.heterodyne.app.module.Direction
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.module.TransitionState
@@ -77,9 +80,6 @@ fun frequencyText(target: TuneTarget): String = if (target.band == fm.heterodyne
 
 private fun StationEntry.matches(target: TuneTarget?) = target != null &&
     band.name == target.band.name && frequencyKhz == target.frequencyKhz
-
-private fun isCommandPaused(connected: Boolean, state: TransitionState) =
-    connected && state == TransitionState.CommandPause
 
 @Composable
 fun EfirScreen(
@@ -153,13 +153,14 @@ fun EfirScreen(
                             .then(if (driving) Modifier.clearAndSetSemantics {} else Modifier),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                            Control("◀", connected && !driving, { actions.seek(Direction.Down) },
-                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ◀")
-                            BasicText(if (isCommandPaused(connected, transition.state)) "Поиск · пауза" else "Поиск",
+                            SeekControl(Direction.Down, transition, connected, driving, { actions.seek(Direction.Down) },
+                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")))
+                            BasicText("Поиск",
                                 Modifier.width(tokenDp("size.seekGroup.width") - tokenDp("size.seekButton.width") * 2 -
-                                    tokenDp("space.plateGap") * 2), style = designTextStyle("label", Muted).copy(textAlign = TextAlign.Center), maxLines = 1)
-                            Control("▶", connected && !driving, { actions.seek(Direction.Up) },
-                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")), description = "Поиск ▶")
+                                    tokenDp("space.plateGap") * 2), style = designTextStyle("label", if (connected && transition.state == TransitionState.Seeking) LocalAppearanceColors.current["accentText"] else Muted).copy(textAlign = TextAlign.Center,
+                                    fontWeight = if (connected && transition.state == TransitionState.Seeking) FontWeight.Bold else FontWeight.Normal), maxLines = 1)
+                            SeekControl(Direction.Up, transition, connected, driving, { actions.seek(Direction.Up) },
+                                Modifier.size(tokenDp("size.seekButton.width"), tokenDp("size.seekButton.height")))
                         }
                     }
                 }
@@ -167,7 +168,7 @@ fun EfirScreen(
                     parkShowLabel = parkShowLabel, parkLargeIcon = parkLargeIcon, description = "Стоянка")
             }
             Row(Modifier.weight(1f).testTag("efir-body"), horizontalArrangement = Arrangement.spacedBy(gap)) {
-                EdgeControls(Direction.Down, connected, hasSupportedEntries, transition.state, actions,
+                EdgeControls(Direction.Down, connected, hasSupportedEntries, transition, actions,
                     Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
                 Column(Modifier.weight(1f).fillMaxHeight().testTag("efir-center"),
                     verticalArrangement = Arrangement.spacedBy(if (compact && showActions) tokenDp("space.plateGap") else gap)) {
@@ -215,7 +216,7 @@ fun EfirScreen(
                         }
                     }
                 }
-                EdgeControls(Direction.Up, connected, hasSupportedEntries, transition.state, actions,
+                EdgeControls(Direction.Up, connected, hasSupportedEntries, transition, actions,
                     Modifier.fillMaxHeight(), playing, confirmed?.band, capabilities.bands.size > 1)
             }
             if (showActions) {
@@ -245,9 +246,9 @@ internal fun tokenDp(path: String) = DesignTokens.number(path).dp
 internal fun receiverText(text: String) = text.replace("Модуля", "приёмника").replace("Модуль", "Приёмник").replace("модуль", "приёмник")
 
 @Composable
-private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: Boolean, state: TransitionState,
+private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: Boolean, transition: TransitionSnapshot,
                          actions: EfirActions, modifier: Modifier, playing: Boolean, band: fm.heterodyne.app.module.Band?, showBand: Boolean) {
-    val arrow = if (direction == Direction.Down) "◀" else "▶"
+    val arrow = direction.arrow()
     Column(modifier.width(tokenDp("size.sideColumn.width")), verticalArrangement = Arrangement.spacedBy(tokenDp("space.section"))) {
         if (direction == Direction.Down) Control(if (playing) "Стоп" else "Старт", connected, actions.play,
             Modifier.fillMaxWidth().height(tokenDp("size.startStop.height")), selected = playing, radius = "xl", outlined = !playing, playback = playing)
@@ -256,7 +257,7 @@ private fun EdgeControls(direction: Direction, connected: Boolean, hasEntries: B
             connected && band != null, actions.band, Modifier.fillMaxWidth().height(tokenDp("size.bandButton.height")), selected = true, radius = "xl", bandDisplay = band)
         Control("Станция $arrow", connected && hasEntries, { actions.station(direction) },
             Modifier.fillMaxWidth().weight(1f).heightIn(min = tokenDp("size.stationButton.minHeight")), radius = "xl", edge = true)
-        Control("Шаг $arrow" + if (isCommandPaused(connected, state)) " · пауза" else "", connected,
+        Control("Шаг $arrow", connected && transition.pause?.kind != PauseKind.Step,
             { actions.step(direction) }, Modifier.fillMaxWidth().height(tokenDp("size.stepButton.height")), radius = "xl", edge = true)
     }
 }
@@ -384,7 +385,6 @@ internal fun Control(text: String, enabled: Boolean, onClick: () -> Unit, modifi
             BasicText(if (edge) text.substringBefore(' ') else text, style = designTextStyle("button", foreground).let {
                 if (text.startsWith("Шаг")) it.copy(fontSize = DesignTokens.number("font.style.body.size").sp) else it
             })
-            if (text.contains("пауза")) BasicText("пауза", style = designTextStyle("label", foreground))
         } else if (bandDisplay != null) Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             listOf(fm.heterodyne.app.module.Band.FM, fm.heterodyne.app.module.Band.AM).forEach { band ->
                 val active = band == bandDisplay
