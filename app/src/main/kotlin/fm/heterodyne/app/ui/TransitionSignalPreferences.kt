@@ -19,7 +19,7 @@ class TransitionSignalPreferences(private val preferences: SharedPreferences) {
     companion object {
         fun readMethod(preferences: SharedPreferences): TransitionSignalMethod {
             val saved = try { preferences.getString("method", null) } catch (_: ClassCastException) { null }
-            return TransitionSignalMethod.entries.firstOrNull { it.name == saved } ?: TransitionSignalMethod.Tone
+            return TransitionSignalMethod.entries.firstOrNull { it.name == saved } ?: TransitionSignalMethod.KeyClick
         }
     }
 }
