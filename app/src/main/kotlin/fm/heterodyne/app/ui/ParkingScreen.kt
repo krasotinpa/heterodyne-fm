@@ -65,6 +65,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   connected: Boolean = false, developerEnabled: Boolean = false,
                   developerTools: @Composable () -> Unit = {},
                   autostartEnabled: Boolean = true, selectAutostart: (Boolean) -> Unit = {},
+                  scaleMarker: ScaleMarker = ScaleMarker.Pin, selectScaleMarker: (ScaleMarker) -> Unit = {},
                   parkShowLabel: Boolean = true, selectParkShowLabel: (Boolean) -> Unit = {},
                   parkLargeIcon: Boolean = false, selectParkLargeIcon: (Boolean) -> Unit = {},
                   receiverKinds: List<fm.heterodyne.app.receiver.ReceiverKind> = listOf(fm.heterodyne.app.receiver.ReceiverKind.Module),
@@ -139,6 +140,13 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         Palette.entries.forEach { option ->
                             Control(option.title, true, { selectPalette(option) }, selected = option == palette)
+                        }
+                    }
+                    Label("Отметка на шкале", 24)
+                    Row(Modifier.horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
+                        ScaleMarker.entries.forEach { option ->
+                            Control(option.title, true, { selectScaleMarker(option) }, selected = option == scaleMarker)
                         }
                     }
                     Label("Кнопка «Стоянка»", 24)

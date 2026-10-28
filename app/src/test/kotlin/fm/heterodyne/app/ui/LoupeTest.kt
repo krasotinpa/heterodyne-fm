@@ -126,3 +126,25 @@ class LoupeTest {
         compose.onNodeWithTag("band-scale").performTouchInput { up() }
     }
 }
+
+/** R21 includes the composited, dimmed neighbours, not just the raw text token. */
+class LoupeContrastTest {
+    @Test fun textMeetsR21InEveryThemeAndPaletteIncludingDimmedNeighbours() {
+        Palette.entries.forEach { palette -> ResolvedTheme.entries.forEach { theme ->
+            fun rgb(name: String) = DesignTokens.color(palette, theme, name).drop(1)
+                .chunked(2).map { it.toInt(16) / 255.0 }
+            fun luminance(rgb: List<Double>) = rgb.map {
+                if (it <= .04045) it / 12.92 else Math.pow((it + .055) / 1.055, 2.4)
+            }.let { it[0] * .2126 + it[1] * .7152 + it[2] * .0722 }
+            fun contrast(fg: List<Double>, bg: List<Double>): Double {
+                val a = luminance(fg); val b = luminance(bg)
+                return (maxOf(a, b) + .05) / (minOf(a, b) + .05)
+            }
+            assertTrue("$palette/$theme selected", contrast(rgb("onAccent"), rgb("accent")) >= 4.5)
+            val alpha = DesignTokens.number("size.loupe.neighbourAlpha").toDouble()
+            val surface = rgb("surface")
+            val dimmed = rgb("text").mapIndexed { i, value -> value * alpha + surface[i] * (1 - alpha) }
+            assertTrue("$palette/$theme neighbours", contrast(dimmed, surface) >= 4.5)
+        } }
+    }
+}

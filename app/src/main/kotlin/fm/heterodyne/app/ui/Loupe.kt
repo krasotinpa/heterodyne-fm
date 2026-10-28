@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,7 +35,16 @@ internal fun Loupe(stations: List<CatalogStation>, entries: List<StationEntry>, 
                 loupeWindow(stations, selected, count).forEachIndexed { index, station ->
                     val active = index == count / 2
                     Column(Modifier.weight(if (active) DesignTokens.number("size.loupe.selectedGrow") else 1f)
-                        .fillMaxHeight().background(colors[if (active) "accent" else "surface"], shape)
+                        .fillMaxHeight().zIndex(if (active) 1f else 0f)
+                        .graphicsLayer {
+                            alpha = if (active) 1f else DesignTokens.number("size.loupe.neighbourAlpha")
+                            this.shape = shape
+                            if (active) {
+                                shadowElevation = tokenDp("size.loupe.selectedShadow").toPx()
+                                ambientShadowColor = colors["shadow"]
+                                spotShadowColor = colors["shadow"]
+                            }
+                        }.background(colors[if (active) "accent" else "surface"], shape)
                         .then(if (active) Modifier.testTag("loupe-selected").semantics(mergeDescendants = true) {} else Modifier)
                         .padding(tokenDp("space.plateGap")), verticalArrangement = Arrangement.Center) {
                         if (station != null) {

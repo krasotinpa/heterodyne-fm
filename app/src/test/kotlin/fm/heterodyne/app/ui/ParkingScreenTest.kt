@@ -24,6 +24,23 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
 
+    @Test fun scaleMarkerSettingSelectsEveryShapeImmediately() {
+        val marker = mutableStateOf(ScaleMarker.Pin)
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults()), false, null,
+                ParkingActions(), {}, theme = ThemeChoice.Dark, palette = Palette.Coral,
+                selectTheme = {}, selectPalette = {}, scaleMarker = marker.value,
+                selectScaleMarker = { marker.value = it }, diagnostics = {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Отметка на шкале").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Булавка").assertIsSelected()
+        ScaleMarker.entries.forEach { shape ->
+            compose.onNodeWithText(shape.title).performScrollTo().performClick().assertIsSelected()
+            assertEquals(shape, marker.value)
+        }
+    }
+
     @Test fun receiverChoiceHidesModuleSettingsAndSelectsReceiver() {
         val other = fm.heterodyne.app.receiver.ReceiverKind("test")
         val profiles = fm.heterodyne.app.receiver.ReceiverProfiles.Module.withProfile(
@@ -89,7 +106,7 @@ class ParkingScreenTest {
         compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Сигнал Перехода").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("Тон").assertIsSelected()
-        compose.onNodeWithText("Выключено").performClick().assertIsSelected()
+        compose.onNodeWithText("Выключено").performScrollTo().performClick().assertIsSelected()
         compose.onNodeWithText("Тон").performClick().assertIsSelected()
         compose.onNodeWithText("Звук клавиши").performClick().assertIsSelected()
         compose.onNodeWithText("Тишина").performClick().assertIsSelected()

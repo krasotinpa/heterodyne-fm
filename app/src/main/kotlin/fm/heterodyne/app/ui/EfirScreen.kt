@@ -91,6 +91,7 @@ fun EfirScreen(
     driving: Boolean = false,
     noFocus: Boolean = false,
     seekHint: String? = null,
+    scaleMarker: ScaleMarker = ScaleMarker.Pin,
     parkShowLabel: Boolean = true,
     parkLargeIcon: Boolean = false,
     capabilities: fm.heterodyne.app.receiver.ReceiverCapabilities = fm.heterodyne.app.receiver.moduleCapabilities,
@@ -180,7 +181,7 @@ fun EfirScreen(
                         windowWidth = windowWidth, select = { entry ->
                             if (fm.heterodyne.app.module.Band.valueOf(entry.band.name) in capabilities.bands) actions.select(entry)
                         },
-                        playing = playing, play = actions.play)
+                        playing = playing, play = actions.play, marker = scaleMarker)
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         var choosing by remember(state?.selectedRegion, selections?.activeName) { mutableStateOf(false) }
                         Box {

@@ -144,6 +144,30 @@
 | `size.scale.markPreset` | [5, 36] |
 | `size.scale.confirmed` | [8, 48], ширина уменьшается при плотных отметках |
 | `size.scale.preview` | [8, 56], контур цели Лупы |
+| `size.scale.marker.width` | 54 |
+| `size.scale.marker.height` | 60 |
+| `size.scale.marker.baselineInset` | 22 |
+| `size.scale.marker.outline` | 2 |
+| `size.scale.marker.pinStem` | 4 |
+| `size.scale.marker.pinStemHeight` | 36 |
+| `size.scale.marker.pinHead` | 18 |
+| `size.scale.marker.pinHeadCenter` | 39 |
+| `size.scale.marker.flagStem` | 3 |
+| `size.scale.marker.flagStemHeight` | 34 |
+| `size.scale.marker.flagWidth` | 54 |
+| `size.scale.marker.flagHeight` | 26 |
+| `size.scale.marker.flagBottom` | 32 |
+| `size.scale.marker.flagTop` | 2 |
+| `size.scale.marker.flagRadius` | 8 |
+| `size.scale.marker.flagTip` | 6 |
+| `size.scale.marker.needleRing` | 48 |
+| `size.scale.marker.needleHead` | 14 |
+| `size.scale.marker.needleHeadCenter` | 36 |
+| `size.scale.marker.needleStem` | 2 |
+| `size.scale.marker.needleStemHeight` | 22 |
+| `size.scale.marker.dropWidth` | 34 |
+| `size.scale.marker.dropHeight` | 52 |
+| `size.scale.marker.dropDot` | 11 |
 | `size.scale.slider` | 4 |
 | `size.scale.sliderKnob` | 16 |
 | `size.plate.height` | 64 |
@@ -158,6 +182,8 @@
 | `size.loupe.stationsNarrow` | 5 |
 | `size.loupe.pointer` | 12 |
 | `size.loupe.selectedGrow` | 1.6 |
+| `size.loupe.neighbourAlpha` | 0.65 (без единиц; text на surface) |
+| `size.loupe.selectedShadow` | 6 dp; цвет shadow |
 | `size.rds.height` | 22 |
 | `size.editorRow.height` | 56 |
 | `size.editorRow.stride` | 64 |
@@ -223,3 +249,7 @@
 | `motion.transitionDemoMs` | 650 |
 | `breakpoint.compactHeight` | 540 |
 | `breakpoint.narrowLoupeWidth` | 1000 |
+
+Новые формы отметки используют `size.scale.marker.*` (#241). Полоска сохраняет прежние размеры.
+Контраст текста Лупы проверяется после смешивания соседних слотов с `surface` при alpha 0,65.
+Выбранный слот использует `onAccent / accent` без дополнительной прозрачности.
