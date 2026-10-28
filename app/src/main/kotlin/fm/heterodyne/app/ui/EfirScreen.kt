@@ -184,7 +184,8 @@ fun EfirScreen(
                         windowWidth = windowWidth, select = { entry ->
                             actions.select(entry)
                         },
-                        playing = playing, play = actions.play, marker = scaleMarker)
+                        playing = playing, play = actions.play, marker = scaleMarker,
+                        saved = displayed.takeIf { confirmed == null })
                     Row(Modifier.fillMaxWidth().height(plateHeight), horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         var choosing by remember(state?.selectedRegion, selections?.activeName) { mutableStateOf(false) }
                         Box {

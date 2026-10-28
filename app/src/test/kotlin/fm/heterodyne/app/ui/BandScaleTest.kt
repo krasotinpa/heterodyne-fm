@@ -1,6 +1,7 @@
 package fm.heterodyne.app.ui
 
 import android.app.Application
+import androidx.compose.ui.graphics.toPixelMap
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -22,10 +23,45 @@ import org.robolectric.annotation.Config
 class BandScaleTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun savedCursorMovesAndRegainsColorAfterConfirmationForEveryShape() {
+        val shape = mutableStateOf(ScaleMarker.Pin)
+        val snapshot = mutableStateOf(TransitionSnapshot(TransitionState.Disconnected, null, null))
+        val saved = StationsState.defaults().copy(lastStation = fm.heterodyne.app.stations.SessionStation(87500))
+        compose.setContent {
+            EfirScreen(StationsScreenState(saved, emptyList()), snapshot.value, true, EfirActions(),
+                scaleMarker = shape.value)
+        }
+        fun assertCursor(frequency: String, fraction: Float, faded: Boolean) {
+            val node = compose.onNodeWithTag("band-scale-marker").assertIsDisplayed()
+            node.assertContentDescriptionContains(frequency, substring = true)
+            val scale = compose.onNodeWithTag("band-scale").fetchSemanticsNode().boundsInRoot
+            val inset = with(compose.density) { tokenDp("size.scale.inset").toPx() }
+            assertEquals(scale.left + inset + fraction * (scale.width - 2 * inset),
+                node.fetchSemanticsNode().boundsInRoot.center.x, 1f)
+            val pixels = node.captureToImage().toPixelMap()
+            val ink = AppearanceColors(Palette.Coral, ResolvedTheme.Dark)[if (faded) "disabledText" else "accent"]
+            assertTrue((0 until pixels.width).any { x ->
+                (0 until pixels.height).any { y -> pixels[x, y] == ink }
+            })
+        }
+        ScaleMarker.entries.forEach { marker ->
+            compose.runOnIdle {
+                shape.value = marker
+                snapshot.value = TransitionSnapshot(TransitionState.Disconnected, null, null)
+            }
+            assertCursor("87,5", 0f, true)
+            compose.runOnIdle {
+                snapshot.value = TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 108000))
+            }
+            assertCursor("108,0", 1f, false)
+        }
+    }
+
     @Test fun targetBeforeFirstConfirmationUsesOutlineWithoutConfirmedMarker() {
         compose.setContent {
             BandScale(emptyList(), emptyList(), TransitionSnapshot(
-                TransitionState.Waiting, TuneTarget(Band.FM, 97700), null))
+                TransitionState.Waiting, TuneTarget(Band.FM, 97700), null),
+                saved = TuneTarget(Band.FM, 90300))
         }
         compose.onNodeWithTag("scale-marker-Pin-outline").assertIsDisplayed()
         compose.onNodeWithTag("band-scale-marker").assertDoesNotExist()
