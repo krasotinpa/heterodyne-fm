@@ -19,6 +19,15 @@ class RestartTest {
         fake.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
         controller.receive()
     }
+    @Test fun stoppingAudioKeepsConfirmedStationWithoutCommands() {
+        connect(); receive()
+        val confirmed = controller.snapshot.confirmed
+        assertNotNull(confirmed)
+        assertTrue(controller.stopAudio())
+        assertEquals(confirmed, controller.snapshot.confirmed)
+        assertEquals(0, fake.sendCount)
+    }
+
     @Test fun startupAndReturnNeverSelectWithoutAutostartDecision() {
         controller.tick()
         assertEquals(0, fake.sendCount)
