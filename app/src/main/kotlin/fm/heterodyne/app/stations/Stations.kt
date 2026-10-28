@@ -3,13 +3,12 @@ package fm.heterodyne.app.stations
 import java.util.Collections
 import org.json.JSONObject
 
-enum class Band { FM, AM }
 data class Region(val id: String, val name: String)
 data class CatalogSource(val text: String, val url: String)
-data class CatalogStation(val id: String, val name: String, val band: Band, val frequencyKhz: Int) {
-    fun copyEntry() = StationEntry(band, frequencyKhz, name, id)
+data class CatalogStation(val id: String, val name: String, val frequencyKhz: Int) {
+    fun copyEntry() = StationEntry(frequencyKhz, name, id)
 }
-data class StationEntry(val band: Band, val frequencyKhz: Int, val name: String? = null, val catalogId: String? = null)
+data class StationEntry(val frequencyKhz: Int, val name: String? = null, val catalogId: String? = null)
 
 data class Catalog(
     val schema: Int,
@@ -25,9 +24,10 @@ data class Catalog(
             val region = root.getJSONObject("region")
             val source = root.getJSONObject("source")
             val rows = root.getJSONArray("stations")
-            val stations = (0 until rows.length()).map { index ->
+            val stations = (0 until rows.length()).mapNotNull { index ->
                 val row = rows.getJSONObject(index)
-                CatalogStation(row.getString("id"), row.getString("name"), Band.valueOf(row.getString("band")), row.getInt("frequencyKhz"))
+                if (row.getString("band") != "FM") return@mapNotNull null
+                CatalogStation(row.getString("id"), row.getString("name"), row.getInt("frequencyKhz"))
             }
             require(stations.map { it.id }.distinct().size == stations.size)
             return Catalog(1, root.getString("revision"), Region(region.getString("id"), region.getString("name")),
@@ -44,10 +44,10 @@ data class Change<out T>(val value: T? = null, val error: ChangeError? = null)
 data class StationSelection private constructor(val name: String, val entries: List<StationEntry>) {
     init {
         require(name.isNotBlank())
-        require(entries.distinctBy { it.band to it.frequencyKhz }.size == entries.size)
+        require(entries.distinctBy { it.frequencyKhz }.size == entries.size)
     }
     fun add(entry: StationEntry): Change<StationSelection> {
-        if (entries.any { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }) {
+        if (entries.any { it.frequencyKhz == entry.frequencyKhz }) {
             return Change(error = ChangeError.DUPLICATE_FREQUENCY)
         }
         return Change(StationSelection(name, Collections.unmodifiableList(entries + entry.copy())))
@@ -56,7 +56,7 @@ data class StationSelection private constructor(val name: String, val entries: L
         else Change(StationSelection(name, entries))
 
     fun remove(entry: StationEntry): Change<StationSelection> {
-        val index = entries.indexOfFirst { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }
+        val index = entries.indexOfFirst { it.frequencyKhz == entry.frequencyKhz }
         if (index < 0) return Change(error = ChangeError.NOT_FOUND)
         return Change(StationSelection(name, Collections.unmodifiableList(entries.filterIndexed { i, _ -> i != index })))
     }
@@ -114,10 +114,10 @@ data class RegionSelections private constructor(val selections: List<StationSele
     }
 }
 
-data class SessionStation(val band: Band, val frequencyKhz: Int) {
+data class SessionStation(val frequencyKhz: Int) {
     init {
         require(fm.heterodyne.app.module.isSelectableFrequency(
-            fm.heterodyne.app.module.Band.valueOf(band.name), frequencyKhz))
+            fm.heterodyne.app.module.Band.FM, frequencyKhz))
     }
 }
 
@@ -125,7 +125,6 @@ data class StationsState(
     val selectedRegion: String,
     val regions: Map<String, RegionSelections>,
     val lastStation: SessionStation? = null,
-    val band: Band = Band.FM,
     val lastPlayed: Boolean = false,
 ) {
     init {

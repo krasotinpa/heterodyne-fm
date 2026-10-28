@@ -7,14 +7,7 @@ import org.junit.Test
 
 class DisabledReasonTest {
 
-    @Test fun unsupportedAmHasReasonBelowConnectionErrors() {
-        assertEquals("Приёмник не принимает AM", DisabledReason.UnsupportedBand.text)
-        assertEquals(DisabledReason.UnsupportedBand,
-            disabledReason(ConnectionState.Observing, TransitionState.Idle, Band.AM, entries, setOf(Band.FM)))
-        assertEquals(DisabledReason.Disconnected,
-            disabledReason(ConnectionState.Disconnected, TransitionState.Idle, Band.AM, entries, setOf(Band.FM)))
-    }
-    private val entries = listOf(StationEntry(fm.heterodyne.app.stations.Band.FM, 87500, "Первая"))
+    private val entries = listOf(StationEntry(87500, "Первая"))
 
     @Test fun unresponsiveHasHighestPriority() {
         assertEquals(DisabledReason.Unresponsive,

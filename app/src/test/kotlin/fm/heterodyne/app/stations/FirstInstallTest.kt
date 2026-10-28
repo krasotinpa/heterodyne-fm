@@ -64,7 +64,7 @@ class FirstInstallTest {
 
     @Test fun existingUserEntriesRemainUnchanged() {
         val region = RegionSelections.defaults().let {
-            it.replaceActive(it.active.add(StationEntry(Band.FM, 90300, "Моя станция")).value!!)
+            it.replaceActive(it.active.add(StationEntry(90300, "Моя станция")).value!!)
         }
         val state = StationsState.defaults().copy(regions = StationsState.defaults().regions + ("moskva" to region))
         file().writeText(StationsJson.encode(state))

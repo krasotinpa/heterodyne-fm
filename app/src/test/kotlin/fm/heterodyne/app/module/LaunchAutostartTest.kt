@@ -66,19 +66,19 @@ class LaunchAutostartTest {
     }
 
     @Test fun returnReusesProbeAndWaitsTwoSecondsBeforeSelectAndPlayback() {
-        connect(); receive("fm28"); module.detach("module"); now = 10000
+        connect(); receive("am31"); module.detach("module"); now = 10000
         connect()
-        launch.moduleReturn(true, TuneTarget(Band.AM, 801))
-        receive("fm28")
+        launch.moduleReturn(true, TuneTarget(Band.FM, 90300))
+        receive("am31")
         assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
-        now = 10230; receive("am31")
+        now = 10230; receive("fm28")
         now = 11999; module.tick(); launch.tick()
         assertEquals(2, transport.sendCount)
         now = 12000; module.tick(); launch.tick()
         assertEquals(listOf(0x85, 0x84, 0x82), transport.sentFrames.map { it[6].toInt() and 255 })
-        receive("am31")
+        receive("fm28")
         assertEquals(1, plays)
-        assertEquals(TuneTarget(Band.AM, 801), module.snapshot.confirmed)
+        assertEquals(TuneTarget(Band.FM, 90300), module.snapshot.confirmed)
         assertEquals(listOf(false), starts)
         assertTrue(log.readTail(32768).contains("autostart reason=module-return result=selected"))
     }
@@ -134,9 +134,9 @@ class LaunchAutostartTest {
 
     @Test fun userCancelsReturnAfterBandAndBeforePlayback() {
         connect(); module.detach("module"); connect()
-        launch.moduleReturn(true, TuneTarget(Band.AM, 801)); receive("fm28")
+        launch.moduleReturn(true, TuneTarget(Band.FM, 90300)); receive("am31")
         launch.cancel()
-        receive("am31"); now = 2000; module.tick(); launch.tick()
+        receive("fm28"); now = 2000; module.tick(); launch.tick()
         assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
         assertEquals(0, plays)
         assertEquals(1, releases)
@@ -209,16 +209,16 @@ class LaunchAutostartTest {
         assertEquals(1, plays)
     }
     @Test fun differentBandWaitsTwoSecondsAndUsesOneTransitionWithoutRetry() {
-        launch.open(true, TuneTarget(Band.AM, 801)); connect(); receive("fm28")
+        launch.open(true, TuneTarget(Band.FM, 90300)); connect(); receive("am31")
         assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
-        now = 230; receive("am31")
+        now = 230; receive("fm28")
         assertEquals(2, transport.sendCount)
         now = 1999; module.tick(); launch.tick()
         assertEquals(2, transport.sendCount)
         now = 2000; module.tick(); launch.tick()
         assertEquals(listOf(0x85, 0x84, 0x82), transport.sentFrames.map { it[6].toInt() and 255 })
         assertEquals(0, plays)
-        receive("am31")
+        receive("fm28")
         assertEquals(1, plays)
         now = 60000; module.tick(); launch.tick()
         assertEquals(3, transport.sendCount)
@@ -273,9 +273,9 @@ class LaunchAutostartTest {
     }
 
     @Test fun cancellationDiscardsUnsentSelectAfterBand() {
-        launch.open(true, TuneTarget(Band.AM, 801)); connect(); receive("fm28")
+        launch.open(true, TuneTarget(Band.FM, 90300)); connect(); receive("am31")
         launch.cancel()
-        receive("am31"); now = 2000; module.tick(); launch.tick()
+        receive("fm28"); now = 2000; module.tick(); launch.tick()
         assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
         assertEquals(0, plays)
     }
@@ -333,16 +333,16 @@ class LaunchAutostartTest {
     }
 
     @Test fun userSelectionAfterAutostartBandWaitsForOutstandingBandReply() {
-        launch.open(true, TuneTarget(Band.AM, 801)); connect(); receive("fm28")
+        launch.open(true, TuneTarget(Band.FM, 90300)); connect(); receive("am31")
         launch.cancel()
         assertEquals(TuneResult.RateLimited, module.select(Band.FM, 108000))
         assertEquals(2, transport.sendCount)
-        now = 230; receive("am31")
-        assertEquals(2, transport.sendCount)
-        now = 2000; module.tick(); launch.tick()
-        assertEquals(0x84, transport.sentFrames.last()[6].toInt() and 255)
-        receive("fm28")
+        now = 230; receive("fm28")
+        assertEquals(3, transport.sendCount)
         assertEquals(0x82, transport.sentFrames.last()[6].toInt() and 255)
+        assertEquals(205, transport.sentFrames.last()[8].toInt() and 255)
+        now = 2000; module.tick(); launch.tick()
+        assertEquals(3, transport.sendCount)
         assertEquals(0, plays)
     }
 
@@ -368,7 +368,7 @@ class LaunchAutostartTest {
         val guarded = LaunchAutostart(module, log, { now }, { it(lease()) }, { plays++; it(true) },
             cancelled = cancelled::get)
         connect()
-        guarded.open(true, TuneTarget(Band.AM, 801))
+        guarded.open(true, TuneTarget(Band.FM, 90300))
         transport.enqueueReceived(javaClass.getResourceAsStream("/module/fm28.bin")!!.use { it.readBytes() })
         module.receive()
         cancelled.set(true) // Main has cancelled; its queued worker cancel has not run yet.
@@ -406,13 +406,13 @@ class LaunchAutostartTest {
             cancelled = cancelled::get)
         guardedModule.found(DeviceProfile("module"))
         guardedModule.permissionResult(guardedModule.requestPermission()!!, true)
-        guarded.open(true, TuneTarget(Band.AM, 801))
+        guarded.open(true, TuneTarget(Band.FM, 90300))
         fun reply(name: String) {
             transport.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
             guardedModule.receive(); guarded.tick()
         }
-        reply("fm28")
-        now = 230; reply("am31")
+        reply("am31")
+        now = 230; reply("fm28")
         assertEquals(listOf(0x85, 0x84), transport.sentFrames.map { it[6].toInt() and 255 })
         now = 1999
         afterRead = { now = 2000; cancelled.set(true) }
@@ -529,7 +529,7 @@ class LaunchAutostartTest {
         var active = false
         var completed: ((AudioFocusLease?) -> Unit)? = null
         val waiting = LaunchAutostart(module, log, { now }, { completed = it }, { plays++; it(true) }, isPlaying = { active })
-        waiting.open(true, TuneTarget(Band.AM, 801))
+        waiting.open(true, TuneTarget(Band.FM, 90300))
         active = true; completed!!(lease())
         assertEquals(0, transport.sendCount)
         assertTrue(log.readTail(32768).contains("result=already-playing"))
@@ -539,7 +539,7 @@ class LaunchAutostartTest {
         connect()
         var active = false
         val waiting = LaunchAutostart(module, log, { now }, { it(lease()) }, { plays++; it(true) }, isPlaying = { active })
-        waiting.open(true, TuneTarget(Band.AM, 801))
+        waiting.open(true, TuneTarget(Band.FM, 90300))
         transport.enqueueReceived(javaClass.getResourceAsStream("/module/fm28.bin")!!.use { it.readBytes() })
         module.receive()
         active = true; waiting.tick()

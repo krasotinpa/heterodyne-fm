@@ -28,7 +28,7 @@ class LaunchSessionTest {
         val context = RuntimeEnvironment.getApplication()
         val file = File(context.filesDir, "launch-session.json")
         val playing = StationsState.defaults().copy(
-            lastStation = SessionStation(Band.FM, 90300), lastPlayed = true)
+            lastStation = SessionStation(90300), lastPlayed = true)
         listOf(null, "broken", StationsJson.encode(playing).replace("90300", "90301"),
             StationsJson.encode(playing.copy(lastPlayed = false)),
             StationsJson.encode(playing.copy(lastStation = null)), StationsJson.encode(playing)).forEach { text ->
@@ -61,7 +61,7 @@ class LaunchSessionTest {
         val context = RuntimeEnvironment.getApplication()
         val file = File(context.filesDir, "return-session.json")
         file.writeText(StationsJson.encode(StationsState.defaults().copy(
-            lastStation = SessionStation(Band.FM, 90300), lastPlayed = true)))
+            lastStation = SessionStation(90300), lastPlayed = true)))
         val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() }, AtomicStationsFile(file))
         session.load {}
         val transport = FakeTransport()
@@ -98,7 +98,7 @@ class LaunchSessionTest {
         val context = RuntimeEnvironment.getApplication()
         val file = File(context.filesDir, "launch-session-stop.json")
         file.writeText(StationsJson.encode(StationsState.defaults().copy(
-            lastStation = SessionStation(Band.FM, 90300), lastPlayed = true)))
+            lastStation = SessionStation(90300), lastPlayed = true)))
         val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() }, AtomicStationsFile(file))
         session.load {}
         var target: TuneTarget? = null
@@ -114,7 +114,7 @@ class LaunchSessionTest {
         val context = RuntimeEnvironment.getApplication()
         val file = File(context.filesDir, "launch-session-ui-error.json")
         file.writeText(StationsJson.encode(StationsState.defaults().copy(
-            lastStation = SessionStation(Band.FM, 90300), lastPlayed = true)))
+            lastStation = SessionStation(90300), lastPlayed = true)))
         val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() }, AtomicStationsFile(file))
         session.load {}
         session.createSelection("moskva", "Основной") // A duplicate name is a temporary UI message.

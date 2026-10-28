@@ -48,7 +48,7 @@ internal fun Loupe(stations: List<CatalogStation>, entries: List<StationEntry>, 
                         .then(if (active) Modifier.testTag("loupe-selected").semantics(mergeDescendants = true) {} else Modifier)
                         .padding(tokenDp("space.plateGap")), verticalArrangement = Arrangement.Center) {
                         if (station != null) {
-                            val star = entries.any { it.band == station.band && it.frequencyKhz == station.frequencyKhz }
+                            val star = entries.any { it.frequencyKhz == station.frequencyKhz }
                             val color = colors[if (active) "onAccent" else "text"]
                             BasicText((if (star) "★ " else "") + station.name,
                                 style = designTextStyle(if (active) "loupeSel" else "loupe", color),

@@ -11,7 +11,6 @@ import fm.heterodyne.app.stations.LoadStatus
 import fm.heterodyne.app.stations.StationsRepository
 import fm.heterodyne.app.stations.StationsFile
 import fm.heterodyne.app.stations.StationsState
-import fm.heterodyne.app.stations.Band as StationBand
 import fm.heterodyne.app.stations.SessionStation
 import fm.heterodyne.app.module.TuneTarget
 import fm.heterodyne.app.module.Band
@@ -55,7 +54,7 @@ class StationsSession(
     fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.add(entry) }
     fun removeStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) { it.remove(entry) }
     fun moveStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry, to: Int) = changeSelection(regionId, name) { selection ->
-        val from = selection.entries.indexOfFirst { it.band == entry.band && it.frequencyKhz == entry.frequencyKhz }
+        val from = selection.entries.indexOfFirst { it.frequencyKhz == entry.frequencyKhz }
         selection.move(from, to)
     }
 
@@ -105,7 +104,7 @@ class StationsSession(
             }
             publish()
             val station = current.state?.lastStation
-            loaded(station?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) })
+            loaded(station?.let { TuneTarget(Band.FM, it.frequencyKhz) })
         }
     }
 
@@ -117,15 +116,16 @@ class StationsSession(
                 current.state != null && pendingLastPlayed == null &&
                     saved.status == LoadStatus.LOADED && saved.state.lastPlayed
             }
-            ready(station?.let { TuneTarget(Band.valueOf(it.band.name), it.frequencyKhz) })
+            ready(station?.let { TuneTarget(Band.FM, it.frequencyKhz) })
         }
     }
 
     fun rememberStation(band: Band, frequency: Int, saved: () -> Unit) {
         storage.execute {
             val state = current.state ?: return@execute
-            val station = SessionStation(StationBand.valueOf(band.name), frequency)
-            if (save(state.copy(lastStation = station, band = station.band))) saved()
+            if (!fm.heterodyne.app.module.isSelectableFrequency(band, frequency)) return@execute
+            val station = SessionStation(frequency)
+            if (save(state.copy(lastStation = station))) saved()
         }
     }
 

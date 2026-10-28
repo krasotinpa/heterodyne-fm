@@ -286,7 +286,7 @@ class AndroidUsbAdapter(
         }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
-    fun select(band: Band, frequencyKhz: Int) { cancelAutostart(); worker.execute { if (band in receiver?.capabilities?.bands.orEmpty()) receiver?.select(band, frequencyKhz) } }
+    fun select(band: Band, frequencyKhz: Int) { cancelAutostart(); worker.execute { receiver?.select(band, frequencyKhz) } }
     fun seek(direction: Direction) { cancelAutostart(); worker.execute { if (receiver?.capabilities?.seek == true) receiver?.seek(direction) } }
     fun checkConnection() { worker.execute { receiver?.checkConnection() ?: TuneResult.NotConnected } }
     fun retry() { worker.execute { try { discover() } catch (_: Exception) { receiverError() } } }
@@ -313,7 +313,7 @@ class AndroidUsbAdapter(
         }
     }
     fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
-        if (!closing) select(Band.valueOf(entry.band.name), entry.frequencyKhz)
+        if (!closing) select(Band.FM, entry.frequencyKhz)
     }
     fun stepStation(direction: Direction) { cancelAutostart(); if (!closing) worker.execute { receiver?.step(direction) } }
     fun seekStation(direction: Direction) = seek(direction)

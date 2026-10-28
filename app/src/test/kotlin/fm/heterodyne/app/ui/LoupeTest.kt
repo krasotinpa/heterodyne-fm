@@ -9,7 +9,6 @@ import fm.heterodyne.app.StationsScreenState
 import fm.heterodyne.app.module.*
 import fm.heterodyne.app.stations.*
 import fm.heterodyne.app.module.Band
-import fm.heterodyne.app.stations.Band as StationBand
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -22,7 +21,7 @@ import org.robolectric.annotation.Config
 class LoupeTest {
     @get:Rule val compose = createComposeRule()
     private val stations = listOf(87500, 97700, 108000).mapIndexed { i, frequency ->
-        CatalogStation("s$i", "Станция $i", StationBand.FM, frequency)
+        CatalogStation("s$i", "Станция $i", frequency)
     }
     private fun show(band: Band = Band.FM, selected: (StationEntry) -> Unit = {},
                      playing: Boolean = false, play: () -> Unit = {}) {

@@ -47,14 +47,14 @@ class ParkingSessionTest {
 
         failWrite = false
         var remembered = false
-        session.rememberStation(fm.heterodyne.app.module.Band.AM, 855) { remembered = true }
+        session.rememberStation(fm.heterodyne.app.module.Band.FM, 90300) { remembered = true }
         drain(queued)
         assertTrue(remembered)
         assertNull(session.screen.error)
         val restarted = StationsSession(context, handler, storage, file)
         restarted.load {}
         drain(queued)
-        assertEquals(SessionStation(Band.AM, 855), restarted.screen.state!!.lastStation)
+        assertEquals(SessionStation(90300), restarted.screen.state!!.lastStation)
         assertFalse(restarted.screen.state!!.lastPlayed)
     }
 
@@ -76,10 +76,10 @@ class ParkingSessionTest {
             assertEquals(expected, session.screen.state!!.lastPlayed)
         }
         restartAndCheck(true)
-        session.rememberStation(fm.heterodyne.app.module.Band.AM, 855) {}
+        session.rememberStation(fm.heterodyne.app.module.Band.FM, 90300) {}
         drain(queued)
         restartAndCheck(true)
-        assertEquals(SessionStation(Band.AM, 855), session.screen.state!!.lastStation)
+        assertEquals(SessionStation(90300), session.screen.state!!.lastStation)
         session.selectRegion("yaroslavl")
         drain(queued)
         restartAndCheck(true)
@@ -105,7 +105,7 @@ class ParkingSessionTest {
         session.selectRegion("yaroslavl")
         session.createSelection("yaroslavl", "Поездка")
         session.activateSelection("Поездка")
-        session.addStation("yaroslavl", "Поездка", StationEntry(Band.FM, 90300))
+        session.addStation("yaroslavl", "Поездка", StationEntry(90300))
         // load is queued after all mutations on the same storage queue.
         load(session)
         val restarted = StationsSession(context, handler)
@@ -113,13 +113,13 @@ class ParkingSessionTest {
         val state = restarted.screen.state!!
         assertEquals("yaroslavl", state.selectedRegion)
         assertEquals("Поездка", state.regions.getValue(state.selectedRegion).activeName)
-        assertEquals(listOf(StationEntry(Band.FM, 90300)), state.regions.getValue(state.selectedRegion).active.entries)
+        assertEquals(listOf(StationEntry(90300)), state.regions.getValue(state.selectedRegion).active.entries)
         assertEquals("Ярославль", restarted.screen.catalogs.first { it.region.id == state.selectedRegion }.region.name)
     }
 
     @Test fun delayedEditFromOldRegionDoesNotChangeNewRegion() {
         val context = RuntimeEnvironment.getApplication()
-        val entry = StationEntry(Band.FM, 90300)
+        val entry = StationEntry(90300)
         val populated = RegionSelections.defaults().let { it.replaceActive(it.active.add(entry).value!!) }
         val initial = StationsState("moskva", mapOf("moskva" to populated, "yaroslavl" to populated))
         assertTrue(StationsRepository(AtomicStationsFile(File(context.filesDir, "stations.json"))).save(initial))
@@ -139,9 +139,9 @@ class ParkingSessionTest {
 
     @Test fun delayedMoveDoesNotMoveAnotherStationAfterRemoval() {
         val context = RuntimeEnvironment.getApplication()
-        val first = StationEntry(Band.FM, 90300)
-        val second = StationEntry(Band.FM, 91000)
-        val third = StationEntry(Band.FM, 92000)
+        val first = StationEntry(90300)
+        val second = StationEntry(91000)
+        val third = StationEntry(92000)
         val region = RegionSelections.defaults().let {
             it.replaceActive(it.active.add(first).value!!.add(second).value!!.add(third).value!!)
         }

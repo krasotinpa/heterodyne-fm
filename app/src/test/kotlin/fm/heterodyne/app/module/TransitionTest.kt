@@ -27,35 +27,23 @@ class TransitionTest {
         fake.enqueueReceived(javaClass.getResourceAsStream("/module/$name.bin")!!.use { it.readBytes() })
         controller.receive()
     }
-    // Synthetic 0x22 variants exercise session behavior; they are not hardware evidence.
-    private fun receiveAm(cid: Int) {
-        val frame = javaClass.getResourceAsStream("/module/am31.bin")!!.use { it.readBytes() }
-        frame[7] = cid.toByte()
-        frame[frame.lastIndex] = (-frame.sliceArray(5 until frame.lastIndex)
-            .sumOf { it.toInt() and 255 }).toByte()
-        controller
-        fake.enqueueReceived(frame)
-        controller.receive()
-    }
-    @Test fun transitionSignalIsNotifiedAfterSuccessfulSend() {
+    @Test fun firstTransitionFromAmSendsBandThenFmSelection() {
+        receive("am31")
+        assertEquals(TuneResult.Sent, controller.tune(90300))
+        assertEquals(0x84, fake.sentFrames.single()[6].toInt() and 255)
+        receive("fm0")
+        assertEquals(2, fake.sendCount)
+        assertEquals(0x82, fake.sentFrames.last()[6].toInt() and 255)
+        assertEquals(28, fake.sentFrames.last()[8].toInt() and 255)
         receive("fm28")
-        controller.select(Band.AM, 711)
-        now = 230; receive("am31")
-        now = 2000; controller.select(Band.AM, 720)
-        assertEquals(listOf(1, 3), sentCounts)
+        assertEquals(TuneTarget(Band.FM, 90300), controller.snapshot.confirmed)
+        assertNull(controller.target)
     }
 
     @Test fun failedPlaySelectDoesNotStartSilence() {
         receive("fm28")
         fake.close() // FakeTransport.send rejects a closed transport.
         assertEquals(TuneResult.TransportError, controller.select(Band.FM, 108000))
-        assertTrue(sends.isEmpty())
-    }
-
-    @Test fun failedBandDoesNotStartSilence() {
-        receive("fm28")
-        fake.close()
-        assertEquals(TuneResult.TransportError, controller.select(Band.AM, 711))
         assertTrue(sends.isEmpty())
     }
 
@@ -81,10 +69,10 @@ class TransitionTest {
     }
 
     @Test fun composedTransitionNotifiesOnceAtBandSend() {
-        receive("fm28")
-        controller.select(Band.AM, 711)
+        receive("am31")
+        controller.select(Band.FM, 90300)
         assertEquals(listOf(0L), sends)
-        now = 230; receive("am31")
+        now = 230; receive("fm28")
         assertEquals(listOf(0L), sends)
     }
 
@@ -193,34 +181,6 @@ class TransitionTest {
         assertEquals(TransitionState.Unconfirmed, controller.transitionState)
         assertEquals(1, fake.sendCount)
     }
-    @Test fun crossBandUsesOneDeadlineAndNeverSendsAfterTimeout() {
-        receive("fm28")
-        assertEquals(TuneResult.Sent, controller.select(Band.AM, 711))
-        assertEquals(0x84, fake.sentFrames.last()[6].toInt() and 255)
-        now = 2800; receive("am31")
-        assertEquals(2, fake.sendCount)
-        assertEquals(21, fake.sentFrames.last()[8].toInt() and 255)
-        now = 3000; controller.tick()
-        assertEquals(TransitionState.Unconfirmed, controller.transitionState)
-        receive("fm28")
-        now = 9000; controller.tick()
-        assertEquals(2, fake.sendCount)
-    }
-    @Test fun sentBandCannotBeCancelledAndOppositeTargetWaitsTwoSeconds() {
-        receive("fm28")
-        controller.select(Band.AM, 711)
-        now = 100; controller.select(Band.FM, 108000)
-        assertEquals(1, fake.sendCount)
-        now = 230; receive("am31")
-        now = 1999; controller.tick()
-        assertEquals(1, fake.sendCount)
-        now = 2000; controller.tick()
-        assertEquals(0x84, fake.sentFrames.last()[6].toInt() and 255)
-        now = 2230; receive("fm28")
-        assertEquals(3, fake.sendCount)
-        receive("fm205")
-        assertEquals(TransitionState.Idle, controller.transitionState)
-    }
     @Test fun healthCheckTimeoutAndAnyValidFrameRecoverWithoutRetry() {
         receive("fm28")
         controller.tune(108000)
@@ -237,7 +197,7 @@ class TransitionTest {
         assertEquals(3, fake.sendCount)
     }
     @Test fun completedSeekReportsRemainingBandPauseWithoutSending() {
-        for ((fixture, pause) in listOf("fm28" to 5000L, "am31" to 15000L)) {
+        for ((fixture, pause) in listOf("fm28" to 5000L)) {
             now += 20000
             receive(fixture)
             val start = now
@@ -275,7 +235,7 @@ class TransitionTest {
         assertTrue(pauses.isEmpty())
     }
 
-    @Test fun seekSeriesEndsAfterQuietAndRespectsBandSpecificPause() {
+    @Test fun seekSeriesEndsAfterQuietAndRespectsFmPause() {
         receive("fm28")
         assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
         assertEquals(TransitionState.Seeking, controller.transitionState)
@@ -290,17 +250,17 @@ class TransitionTest {
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
         now = 25000; controller.tick()
         assertEquals("Поиск не завершён", controller.snapshot.banner)
-        receive("am31")
+        receive("fm28")
         assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
-        now = 26000; receive("am31")
+        now = 26000; receive("fm28")
         now = 26300; controller.tick()
-        now = 39999
+        now = 29999
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
-        now = 40000
+        now = 30000
         assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
     }
     @Test fun seekExpiresWithoutRepliesAndNeverRetries() {
-        receive("am31")
+        receive("fm28")
         controller.seek(Direction.Up)
         now = 19999; controller.tick()
         assertEquals("идёт поиск…", controller.snapshot.banner)
@@ -308,73 +268,6 @@ class TransitionTest {
         assertEquals("Поиск не завершён", controller.snapshot.banner)
         now = 60000; controller.tick()
         assertEquals(1, fake.sendCount)
-    }
-    @Test fun amStepWorksBeyondSelectRangeAndDropsPressesBeforeFiveHundredMilliseconds() {
-        receiveAm(58)
-        assertEquals(TuneResult.Sent, controller.step(Direction.Up))
-        assertEquals(0x89, fake.sentFrames.last()[6].toInt() and 255)
-        assertEquals(TuneTarget(Band.AM, 1044), controller.snapshot.confirmed)
-        now = 10; receiveAm(59)
-        assertEquals(TuneTarget(Band.AM, 1053), controller.snapshot.confirmed)
-        now = 499
-        assertEquals(TuneResult.RateLimited, controller.step(Direction.Down))
-        now = 500; controller.tick()
-        assertEquals(1, fake.sendCount)
-        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
-        assertEquals(0x88, fake.sentFrames.last()[6].toInt() and 255)
-        now = 510; receiveAm(58)
-        now = 1000
-        receiveAm(21)
-        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
-        now = 1010; receiveAm(20)
-        assertEquals(TuneTarget(Band.AM, 702), controller.snapshot.confirmed)
-        now = 1500
-        assertEquals(TuneResult.Sent, controller.step(Direction.Down))
-        now = 1510; receiveAm(19)
-        assertEquals(TuneTarget(Band.AM, 693), controller.snapshot.confirmed)
-        now = 10000; controller.tick()
-        assertEquals(4, fake.sendCount)
-    }
-    @Test fun amSeekUpOnEmptyAirWrapsAndReturnsToStart() {
-        amSeekOnEmptyAir(Direction.Up, (41..122).toList() + (0..40).toList(), 0x87)
-    }
-    @Test fun amSeekDownOnEmptyAirWrapsAndReturnsToStart() {
-        amSeekOnEmptyAir(Direction.Down, (39 downTo 0).toList() + (122 downTo 40).toList(), 0x86)
-    }
-    private fun amSeekOnEmptyAir(direction: Direction, cids: List<Int>, opcode: Int) {
-        receiveAm(40)
-        assertEquals(TuneResult.Sent, controller.seek(direction))
-        assertEquals(opcode, fake.sentFrames.single()[6].toInt() and 255)
-        cids.forEach { cid ->
-            now += 87
-            receiveAm(cid)
-            assertEquals(TransitionState.Seeking, controller.transitionState)
-            assertEquals(TuneResult.RateLimited, controller.seek(direction))
-            if (cid == 0) assertEquals(TuneTarget(Band.AM, 522), controller.snapshot.confirmed)
-            if (cid == 122) assertEquals(TuneTarget(Band.AM, 1620), controller.snapshot.confirmed)
-        }
-        assertEquals(TuneTarget(Band.AM, 882), controller.snapshot.confirmed)
-        now += 299; controller.tick()
-        assertEquals("идёт поиск…", controller.snapshot.banner)
-        now += 1; controller.tick()
-        assertEquals(TransitionState.Idle, controller.transitionState)
-        assertNull(controller.snapshot.banner)
-        now = 14999
-        assertEquals(TuneResult.RateLimited, controller.seek(direction))
-        now = 15000; controller.tick()
-        assertEquals(1, fake.sendCount)
-        assertEquals(TuneResult.Sent, controller.seek(direction))
-        assertEquals(2, fake.sendCount)
-    }
-    @Test fun amSeekStartsAtModuleEdgesOutsideSelectRange() {
-        receiveAm(0)
-        assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
-        assertEquals(0x86, fake.sentFrames.single()[6].toInt() and 255)
-        now = 100; receiveAm(122)
-        assertEquals(TuneTarget(Band.AM, 1620), controller.snapshot.confirmed)
-        now = 15000
-        assertEquals(TuneResult.Sent, controller.seek(Direction.Up))
-        assertEquals(0x87, fake.sentFrames.last()[6].toInt() and 255)
     }
     @Test fun fmSeekCannotRestartWhileRepliesContinueAfterFiveSecondPause() {
         receive("fm205")
@@ -407,24 +300,6 @@ class TransitionTest {
         assertEquals(TuneTarget(Band.FM, 90300), controller.snapshot.confirmed)
         assertEquals(1, fake.sendCount)
         assertEquals(TuneResult.Sent, controller.step(Direction.Down))
-    }
-    @Test fun configuredDeadlineIsCapturedAtEachSeekAndAmPauseRemainsFifteenSeconds() {
-        limit = 10000
-        receive("am31")
-        controller.seek(Direction.Up)
-        limit = 30000
-        now = 10000; controller.tick()
-        assertEquals("Поиск не завершён", controller.snapshot.banner)
-        assertEquals(1, fake.sendCount)
-        now = 14999
-        assertEquals(TuneResult.RateLimited, controller.seek(Direction.Down))
-        now = 15000
-        assertEquals(TuneResult.Sent, controller.seek(Direction.Down))
-        now = 44999; controller.tick()
-        assertEquals("идёт поиск…", controller.snapshot.banner)
-        now = 45000; controller.tick()
-        assertEquals("Поиск не завершён", controller.snapshot.banner)
-        assertEquals(2, fake.sendCount)
     }
     @Test fun errno19ClearsTargetAndReturnOnlyProbesOnce() {
         receive("fm28")
@@ -521,7 +396,7 @@ class TransitionTest {
         controller.step(Direction.Up)
         assertEquals(TuneResult.RateLimited, controller.seek(Direction.Up))
         assertEquals(TuneResult.RateLimited, controller.checkConnection())
-        assertEquals(TuneResult.RateLimited, controller.select(Band.AM, 711))
+        assertEquals(TuneResult.RateLimited, controller.select(Band.FM, 90300))
         now = 500
         assertEquals(TuneResult.RateLimited, controller.step(Direction.Down))
         assertEquals(1, fake.sendCount)

@@ -261,14 +261,14 @@ class ParkingScreenTest {
     }
 
     @Test fun editorAddsCatalogCopyAndLongDragRequestsNewOrder() {
-        val first = StationEntry(Band.FM, 90300, "Первая")
-        val second = StationEntry(Band.FM, 91000, "Вторая")
+        val first = StationEntry(90300, "Первая")
+        val second = StationEntry(91000, "Вторая")
         val base = StationsState.defaults()
         val region = base.regions.getValue("moskva")
         val state = base.copy(regions = base.regions + ("moskva" to
             region.replaceActive(region.active.add(first).value!!.add(second).value!!)))
         val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("vcfm.ru", "https://vcfm.ru"),
-            listOf(CatalogStation("a", "Справочная", Band.FM, 92000)))
+            listOf(CatalogStation("a", "Справочная", 92000)))
         val added = mutableListOf<Triple<String, String, StationEntry>>()
         val moved = mutableListOf<Pair<Triple<String, String, StationEntry>, Int>>()
         compose.setContent {

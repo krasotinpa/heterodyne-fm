@@ -3,14 +3,13 @@ package fm.heterodyne.app.ui
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.TuneTarget
 import fm.heterodyne.app.stations.CatalogStation
-import fm.heterodyne.app.stations.Band as StationBand
 import org.junit.Assert.*
 import org.junit.Test
 
 class LoupeSelectionTest {
     private val stations = listOf(108000, 87500, 97700).map {
-        CatalogStation("$it", "$it", StationBand.FM, it)
-    } + CatalogStation("am", "AM", StationBand.AM, 999)
+        CatalogStation("$it", "$it", it)
+    }
     @Test fun nearestStationUsesWholeFmBandAndClampsEdges() {
         assertEquals(87500, nearestLoupeStation(stations, -1f)?.frequencyKhz)
         assertEquals(97700, nearestLoupeStation(stations, .5f)?.frequencyKhz)

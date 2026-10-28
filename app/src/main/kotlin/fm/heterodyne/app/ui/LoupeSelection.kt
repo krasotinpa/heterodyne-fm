@@ -1,12 +1,11 @@
 package fm.heterodyne.app.ui
 
 import fm.heterodyne.app.module.TuneTarget
-import fm.heterodyne.app.stations.Band
 import fm.heterodyne.app.stations.CatalogStation
 import fm.heterodyne.app.stations.StationEntry
 import kotlin.math.abs
 
-private fun fmStations(stations: List<CatalogStation>) = stations.filter { it.band == Band.FM }.sortedBy { it.frequencyKhz }
+private fun fmStations(stations: List<CatalogStation>) = stations.sortedBy { it.frequencyKhz }
 
 fun nearestLoupeStation(stations: List<CatalogStation>, fraction: Float): CatalogStation? {
     val frequency = 87500f + fraction.coerceIn(0f, 1f) * 20500f
@@ -17,7 +16,7 @@ fun nearestLoupeStation(stations: List<CatalogStation>, fraction: Float): Catalo
 fun isLoupeCancelled(y: Float, height: Float): Boolean = y < -height / 2 || y > height * 1.5f
 
 fun loupeRelease(station: CatalogStation?, cancelled: Boolean, confirmed: TuneTarget?): StationEntry? =
-    station?.takeUnless { cancelled || (confirmed?.band?.name == it.band.name && confirmed.frequencyKhz == it.frequencyKhz) }?.copyEntry()
+    station?.takeUnless { cancelled || (confirmed?.band == fm.heterodyne.app.module.Band.FM && confirmed.frequencyKhz == it.frequencyKhz) }?.copyEntry()
 
 fun loupeWindow(stations: List<CatalogStation>, selected: CatalogStation, count: Int): List<CatalogStation?> {
     val sorted = fmStations(stations)

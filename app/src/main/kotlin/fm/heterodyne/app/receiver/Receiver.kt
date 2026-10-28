@@ -17,15 +17,12 @@ value class ReceiverKind(val value: String) {
 
 /** Accepted features stay fixed for the lifetime of a Receiver. */
 class ReceiverCapabilities(
-    bands: Set<Band>,
     val seek: Boolean,
     val cancelSeek: Boolean,
     val rds: Boolean,
     val signalLevel: Boolean,
     val stereo: Boolean,
-) {
-    val bands: Set<Band> = java.util.Collections.unmodifiableSet(bands.toSet())
-}
+)
 
 enum class PauseKind { Step, Seek }
 
@@ -60,4 +57,4 @@ interface Receiver {
 }
 
 /** Возможности Модуля, принятые для v1. */
-val moduleCapabilities = ReceiverCapabilities(setOf(Band.FM, Band.AM), true, false, false, false, false)
+val moduleCapabilities = ReceiverCapabilities(true, false, false, false, false)

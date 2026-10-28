@@ -26,13 +26,12 @@ class WheelController(
 
     fun update(entries: List<StationEntry>, current: StationEntry?,
                capabilities: fm.heterodyne.app.receiver.ReceiverCapabilities = fm.heterodyne.app.receiver.moduleCapabilities) {
-        val supported = entries.filter { fm.heterodyne.app.module.Band.valueOf(it.band.name) in capabilities.bands }
         seekEnabled = capabilities.seek
-        if (this.entries != supported) {
+        if (this.entries != entries) {
             generation++
             cancel?.invoke()
             cancel = null
-            this.entries = supported
+            this.entries = entries
             cursor = current
         } else if (cancel == null && this.current != current) cursor = current
         this.current = current
@@ -69,7 +68,7 @@ class WheelController(
 
     private fun move(delta: Int) {
         if (held || entries.isEmpty()) return
-        val index = entries.indexOfFirst { it.band == cursor?.band && it.frequencyKhz == cursor?.frequencyKhz }
+        val index = entries.indexOfFirst { it.frequencyKhz == cursor?.frequencyKhz }
         cursor = entries[if (index < 0) { if (delta > 0) 0 else entries.lastIndex }
             else (index + delta + entries.size) % entries.size]
         generation++

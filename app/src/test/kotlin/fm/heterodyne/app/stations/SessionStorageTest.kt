@@ -15,7 +15,7 @@ class SessionStorageTest {
 
     @Test fun lastPlayedRoundTripsBothValues() {
         for (value in listOf(true, false)) {
-            val state = StationsState.defaults().copy(lastPlayed = value)
+            val state = StationsState.defaults().copy(lastStation = SessionStation(90300), lastPlayed = value)
             val encoded = StationsJson.encode(state)
             assertEquals(value, org.json.JSONObject(encoded).get("lastPlayed"))
             assertEquals(state, StationsJson.decode(encoded))
@@ -41,7 +41,7 @@ class SessionStorageTest {
     @Test fun invalidLastPlayedRejectsWholeDocument() {
         for (value in listOf<Any>("true", "false", 0, 1, org.json.JSONObject(), org.json.JSONArray())) {
             val json = org.json.JSONObject(StationsJson.encode(StationsState.defaults().copy(
-                selectedRegion = "yaroslavl", lastStation = SessionStation(Band.AM, 855))))
+                selectedRegion = "yaroslavl", lastStation = SessionStation(90300))))
                 .put("lastPlayed", value)
             val file = File(temporary.newFolder(), "stations.json").apply { writeText(json.toString()) }
             val loaded = StationsRepository(AtomicStationsFile(file)).load()
@@ -60,14 +60,13 @@ class SessionStorageTest {
             state.copy(selectedRegion = "yaroslavl"),
             state.copy(selectedRegion = "yaroslavl", regions = state.regions + ("yaroslavl" to region)),
         )
-        for (next in changes + changes.last().copy(lastStation = SessionStation(Band.AM, 711), band = Band.AM)) {
+        for (next in changes + changes.last().copy(lastStation = SessionStation(97700))) {
             assertTrue(StationsRepository(AtomicStationsFile(file)).save(next))
             state = StationsRepository(AtomicStationsFile(file)).load().state
             assertEquals(next, state)
         }
         assertEquals("Дорога", state.regions.getValue("yaroslavl").activeName)
-        assertEquals(SessionStation(Band.AM, 711), state.lastStation)
-        assertEquals(Band.AM, state.band)
+        assertEquals(SessionStation(97700), state.lastStation)
     }
 
     @Test fun legacySetsKeyPreservesNamesEntriesAndSession() {
@@ -87,15 +86,13 @@ class SessionStorageTest {
         val loaded = repository.load()
         assertEquals(LoadStatus.LOADED, loaded.status)
         assertEquals("yaroslavl", loaded.state.selectedRegion)
-        assertEquals(Band.AM, loaded.state.band)
-        assertEquals(SessionStation(Band.AM, 855), loaded.state.lastStation)
+        assertNull(loaded.state.lastStation)
         val region = loaded.state.regions.getValue("yaroslavl")
         assertEquals("Поездка", region.activeName)
         assertEquals(listOf("Основной", "Поездка"), region.selections.map { it.name })
         assertEquals("Основной", loaded.state.regions.getValue("moskva").activeName)
         assertEquals(listOf(
-            StationEntry(Band.FM, 90300, "Моя станция", "custom"),
-            StationEntry(Band.AM, 855),
+            StationEntry(90300, "Моя станция", "custom"),
         ), region.active.entries)
         assertTrue(repository.save(loaded.state))
         val savedRegion = org.json.JSONObject(file.readText()).getJSONObject("regions").getJSONObject("yaroslavl")
@@ -118,15 +115,12 @@ class SessionStorageTest {
 
     @Test fun corruptOrIncompleteSessionUsesDefaultsAndPreservesOriginal() {
         val valid = StationsJson.encode(StationsState.defaults().copy(
-            lastStation = SessionStation(Band.FM, 90300)))
+            lastStation = SessionStation(90300)))
         val invalid = listOf("garbage", "", valid.replace("\"schema\":2", "\"schema\":99"),
             valid.replace("\"schema\":2", "\"schema\":2.5"),
             valid.replace("90300", "90301"), valid.replace("90300", "108100"),
-            valid.replace("FM", "DAB"), valid.replace("90300", "null"),
-            org.json.JSONObject(valid).apply { remove("band") }.toString(),
-            org.json.JSONObject(valid).apply { remove("lastStation") }.toString(),
-            org.json.JSONObject(valid).put("lastStation",
-                org.json.JSONObject().put("band", "AM").put("frequencyKhz", 1053)).toString())
+            valid.replace("90300", "null"),
+            org.json.JSONObject(valid).apply { remove("lastStation") }.toString())
         for (text in invalid) {
             val file = File(temporary.newFolder(), "stations.json").apply { writeText(text) }
             val repository = StationsRepository(AtomicStationsFile(file))

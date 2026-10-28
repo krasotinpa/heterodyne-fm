@@ -36,7 +36,7 @@ class CommandPauseTest {
     }
 
     @Test fun seekPauseIsPublishedWithoutRejectedPressAndRetainsDirection() {
-        for ((fixture, duration) in listOf("fm28" to 5000L, "am31" to 15000L)) {
+        for ((fixture, duration) in listOf("fm28" to 5000L)) {
             for (direction in Direction.entries) {
                 var now = 0L
                 val snapshots = mutableListOf<TransitionSnapshot>()
