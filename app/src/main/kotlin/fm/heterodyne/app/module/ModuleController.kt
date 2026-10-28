@@ -2,6 +2,8 @@ package fm.heterodyne.app.module
 
 import fm.heterodyne.app.Journal
 import fm.heterodyne.app.audio.AudioCounters
+import fm.heterodyne.app.receiver.CommandPause
+import fm.heterodyne.app.receiver.PauseKind
 import fm.heterodyne.app.receiver.ConnectionProbe
 import fm.heterodyne.app.receiver.Receiver
 import fm.heterodyne.app.receiver.ReceiverKind
@@ -17,7 +19,7 @@ enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, RateLim
 
 enum class TransitionState { Idle, Waiting, Unconfirmed, Unresponsive, Disconnected, CommandPause, Seeking, SeekIncomplete }
 data class TuneTarget(val band: Band, val frequencyKhz: Int)
-data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget?, val confirmed: TuneTarget?) {
+data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget?, val confirmed: TuneTarget?, val pause: CommandPause? = null) {
     val banner: String? get() = when (state) {
         TransitionState.Unconfirmed -> "Нет ответа от Модуля"
         TransitionState.Unresponsive -> "Модуль не отвечает, переподключите USB"
@@ -28,6 +30,9 @@ data class TransitionSnapshot(val state: TransitionState, val target: TuneTarget
     }
 }
 enum class Direction { Up, Down }
+fun Direction.arrow() = if (this == Direction.Up) "▶" else "◀"
+
+private const val STEP_PAUSE_MILLIS = 500L
 
 class TransportFailure(val errno: Int) : java.io.IOException()
 
@@ -67,8 +72,21 @@ class ModuleController(
     var target: TuneTarget? = null; private set
     private var confirmed: TuneTarget? = null
     override var stationRevision = 0L; private set
-    override val snapshot get() = TransitionSnapshot(transitionState, target, confirmed)
-    private fun publish() { transitionObserved(snapshot) }
+    private var actionPause: CommandPause? = null
+    private var actionPauseUntil = 0L
+    private var seekCommandPause: CommandPause? = null
+    private var publishedSnapshot = TransitionSnapshot(TransitionState.Disconnected, null, null)
+    override val snapshot get() = publishedSnapshot
+    private fun publish() {
+        val now = clock()
+        val pause = actionPause?.copy(remainingMillis = (actionPauseUntil - now).coerceAtLeast(0), publishedAtMillis = now)
+        val next = TransitionSnapshot(transitionState, target, confirmed, pause)
+        // Time alone is not a change. The UI owns the countdown between publications.
+        if (next.copy(pause = pause?.copy(remainingMillis = 0, publishedAtMillis = 0)) ==
+            publishedSnapshot.copy(pause = publishedSnapshot.pause?.copy(remainingMillis = 0, publishedAtMillis = 0))) return
+        publishedSnapshot = next
+        transitionObserved(next)
+    }
     private var started: Long? = null
     private var checking = false
     private var bandReply: Band? = null
@@ -105,6 +123,11 @@ class ModuleController(
     fun tick() {
         beforeTick()
         advance(true)
+        if (actionPause != null && clock() >= actionPauseUntil && seeking == null) {
+            actionPause = seekCommandPause?.takeIf { clock() < (lastSeek ?: 0) + it.durationMillis }
+            actionPauseUntil = (lastSeek ?: 0) + (actionPause?.durationMillis ?: 0)
+        }
+        publish()
         if (probeNeeded) tryCheckConnection()
     }
 
@@ -210,6 +233,7 @@ class ModuleController(
         clearAction()
         if (outstandingBand != null) { bandReply = outstandingBand; started = bandStarted }
         if (state == ConnectionState.Observing) radio(TransitionState.Idle)
+        publish()
     }
 
     private fun dispatch(): TuneResult {
@@ -257,14 +281,17 @@ class ModuleController(
         tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
         if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
-        if (stepStarted != null || started != null || seeking != null || target != null || lastStep?.let { clock() - it < 500 } == true) {
+        if (stepStarted != null || started != null || seeking != null || target != null || lastStep?.let { clock() - it < STEP_PAUSE_MILLIS } == true) {
             if (started == null && seeking == null) radio(TransitionState.CommandPause)
             return TuneResult.RateLimited
         }
+        actionPause = CommandPause(PauseKind.Step, direction, STEP_PAUSE_MILLIS, STEP_PAUSE_MILLIS)
+        actionPauseUntil = clock() + STEP_PAUSE_MILLIS
         stepStarted = clock()
         lastStep = clock()
-        pauseUntil = clock() + 500
+        pauseUntil = clock() + STEP_PAUSE_MILLIS
         radio(TransitionState.CommandPause)
+        publish()
         return send(if (direction == Direction.Up) 0x89 else 0x88)
     }
     override fun seek(direction: Direction): TuneResult {
@@ -281,6 +308,9 @@ class ModuleController(
         stepStarted = null
         lastSeek = clock(); seekPause = if (band == Band.FM) 5000 else 15000
         activeSeekLimit = seekLimitMillis()
+        actionPause = CommandPause(PauseKind.Seek, direction, seekPause, seekPause)
+        seekCommandPause = actionPause
+        actionPauseUntil = clock() + seekPause
         seeking = clock(); seekReply = null
         radio(TransitionState.Seeking)
         return send(if (direction == Direction.Up) 0x87 else 0x86)
@@ -412,10 +442,13 @@ class ModuleController(
     }
     override fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
+        actionPause = null
+        seekCommandPause = null
         probeNeeded = false
         returnProbe = null
         clearAction()
         radio(TransitionState.Disconnected)
+        publish()
         pending = null
         band = null
         decoder.clear()

@@ -27,6 +27,12 @@ class ReceiverCapabilities(
     val bands: Set<Band> = java.util.Collections.unmodifiableSet(bands.toSet())
 }
 
+enum class PauseKind { Step, Seek }
+
+/** Publication uses the receiver monotonic clock (Android elapsedRealtime in production). */
+data class CommandPause(val kind: PauseKind, val direction: Direction, val durationMillis: Long, val remainingMillis: Long,
+    val publishedAtMillis: Long = 0)
+
 data class ConnectionProbe(val sentAt: Long, val revision: Long)
 
 /** Worker-owned receiver boundary. No frames or device commands cross it. */
