@@ -75,6 +75,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                   selectReceiver: (fm.heterodyne.app.receiver.ReceiverKind) -> Unit = {},
                   diagnostics: @Composable (() -> Unit) -> Unit) {
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
+    LaunchedEffect(page) { actions.clearNameError() }
     LaunchedEffect(developerEnabled, selectedReceiver) {
         if ((!developerEnabled || selectedReceiver != fm.heterodyne.app.receiver.ReceiverKind.Module) && page == "Режим разработчика") page = "Диагностика"
     }
@@ -198,8 +199,8 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     }
                     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         Column(Modifier.width(DesignTokens.number("size.segment.width").dp)) {
-                            BasicTextField(name, { name = it; actions.clearNameError() }, Modifier.width(DesignTokens.number("size.segment.width").dp).heightIn(min = DesignTokens.number("size.segment.height").dp)
-                            .background(colors["surface2"]).padding(DesignTokens.number("space.section").dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
+                            BasicTextField(name, { name = it; actions.clearNameError() }, Modifier.fillMaxWidth().heightIn(min = DesignTokens.number("size.segment.height").dp)
+                                .background(colors["surface2"]).padding(DesignTokens.number("space.section").dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
                             screen.nameError?.let { Label(it, 18, colors["danger"]) }
                         }
                         Control("Создать", true, { actions.create(state.selectedRegion, name) })

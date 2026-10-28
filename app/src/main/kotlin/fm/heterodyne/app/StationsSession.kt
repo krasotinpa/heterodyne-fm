@@ -51,6 +51,7 @@ class StationsSession(
 
     fun clearNameError() {
         storage.execute {
+            if (current.nameError == null) return@execute
             current = current.copy(nameError = null)
             publish()
         }

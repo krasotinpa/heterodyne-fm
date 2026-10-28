@@ -52,6 +52,24 @@ class ParkingScreenTest {
         error.assertDoesNotExist()
     }
 
+    @Test fun nameErrorClearsWhenLeavingSelections() {
+        val screen = mutableStateOf(StationsScreenState(StationsState.defaults()))
+        compose.setContent {
+            ParkingScreen(screen.value, false, null,
+                ParkingActions(
+                    rename = { _, _, _ -> screen.value = screen.value.copy(nameError = "Подборка с таким именем уже есть") },
+                    clearNameError = { screen.value = screen.value.copy(nameError = null) },
+                ), {}, {})
+        }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Переименовать").performClick()
+        compose.onNodeWithText("Подборка с таким именем уже есть").assertIsDisplayed()
+        compose.onNodeWithText("Настройки").performClick()
+        compose.runOnIdle { assertEquals(null, screen.value.nameError) }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Подборка с таким именем уже есть").assertDoesNotExist()
+    }
+
     @Test fun scaleMarkerSettingSelectsEveryShapeImmediately() {
         val marker = mutableStateOf(ScaleMarker.Pin)
         compose.setContent {
