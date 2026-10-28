@@ -22,11 +22,40 @@ import org.robolectric.annotation.Config
 class BandScaleTest {
     @get:Rule val compose = createComposeRule()
 
+    @Test fun targetBeforeFirstConfirmationUsesOutlineWithoutConfirmedMarker() {
+        compose.setContent {
+            BandScale(emptyList(), emptyList(), TransitionSnapshot(
+                TransitionState.Waiting, TuneTarget(Band.FM, 97700), null))
+        }
+        compose.onNodeWithTag("scale-marker-Pin-outline").assertIsDisplayed()
+        compose.onNodeWithTag("band-scale-marker").assertDoesNotExist()
+    }
+
+    @Test fun shapesApplyImmediatelyAndTransitionTargetIsOutlinedUntilConfirmed() {
+        val marker = mutableStateOf(ScaleMarker.Pin)
+        val snapshot = mutableStateOf(TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 97700)))
+        compose.setContent { BandScale(emptyList(), emptyList(), snapshot.value, marker = marker.value) }
+        ScaleMarker.entries.filter { it != ScaleMarker.Stripe }.forEach { shape ->
+            compose.runOnIdle {
+                marker.value = shape
+                snapshot.value = TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 97700))
+            }
+            compose.onNodeWithTag("scale-marker-${shape.name}-filled").assertIsDisplayed()
+            compose.runOnIdle { snapshot.value = snapshot.value.copy(state = TransitionState.Waiting, target = TuneTarget(Band.FM, 100000)) }
+            compose.onNodeWithTag("scale-marker-${shape.name}-outline").assertIsDisplayed()
+            compose.onNodeWithTag("scale-marker-${shape.name}-filled").assertIsDisplayed()
+            compose.runOnIdle { snapshot.value = TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 100000)) }
+            compose.onNodeWithTag("scale-marker-${shape.name}-outline").assertDoesNotExist()
+        }
+        compose.runOnIdle { marker.value = ScaleMarker.Stripe }
+        compose.onNodeWithTag("band-scale-confirmed-stripe").assertIsDisplayed()
+    }
+
     @Test fun confirmedStripeAndLoupeTargetHaveDistinctGeometry() {
         val source = Catalog.parse(File("src/main/assets/catalogs/moskva.json").readText())
         val snapshot = mutableStateOf(TransitionSnapshot(TransitionState.Idle, null, TuneTarget(Band.FM, 97700)))
         compose.setContent {
-            BandScale(source.stations, emptyList(), snapshot.value, loupeEnabled = true)
+            BandScale(source.stations, emptyList(), snapshot.value, loupeEnabled = true, marker = ScaleMarker.Stripe)
         }
         val stripe = compose.onNodeWithTag("band-scale-confirmed-stripe").assertIsDisplayed().fetchSemanticsNode().boundsInRoot
         val slider = compose.onNodeWithTag("band-scale-marker").fetchSemanticsNode().boundsInRoot

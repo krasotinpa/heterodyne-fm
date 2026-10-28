@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
             val signalPreferences = remember {
                 fm.heterodyne.app.ui.TransitionSignalPreferences(getSharedPreferences("transition-signal", MODE_PRIVATE))
             }
+            val scaleMarkerPreferences = remember {
+                fm.heterodyne.app.ui.ScaleMarkerPreferences(getSharedPreferences("scale-marker", MODE_PRIVATE))
+            }
             val parkPreferences = remember {
                 fm.heterodyne.app.ui.ParkButtonPreferences(getSharedPreferences("park-button", MODE_PRIVATE))
             }
@@ -72,6 +75,7 @@ class MainActivity : ComponentActivity() {
                             playing = stations.module.audioState in listOf(fm.heterodyne.app.audio.AudioState.Starting, fm.heterodyne.app.audio.AudioState.Playing),
                             driving = driving,
                             capabilities = stations.module.capabilities,
+                            scaleMarker = scaleMarkerPreferences.marker,
                             parkShowLabel = parkPreferences.showLabel, parkLargeIcon = parkPreferences.largeIcon,
                             noFocus = stations.module.noFocus,
                             seekHint = stations.module.seekHint,
@@ -109,6 +113,7 @@ class MainActivity : ComponentActivity() {
                     selectReceiver = stations.module::selectReceiver,
                     theme = appearance.theme, palette = appearance.palette,
                     signalMethod = signalPreferences.method, selectSignal = signalPreferences::selectMethod,
+                    scaleMarker = scaleMarkerPreferences.marker, selectScaleMarker = scaleMarkerPreferences::selectMarker,
                     parkShowLabel = parkPreferences.showLabel, selectParkShowLabel = parkPreferences::selectShowLabel,
                     parkLargeIcon = parkPreferences.largeIcon, selectParkLargeIcon = parkPreferences::selectLargeIcon,
                     seekLimitSeconds = seekPreferences.seconds, selectSeekLimit = seekPreferences::selectSeconds,

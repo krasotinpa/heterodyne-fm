@@ -34,11 +34,12 @@ fun BandScale(
     loupeEnabled: Boolean = false,
     windowWidth: Float = 1100f,
     select: (StationEntry) -> Unit = {},
+    marker: ScaleMarker = ScaleMarker.Pin,
     playing: Boolean = false,
     play: () -> Unit = {},
 ) {
     val confirmed = transition.confirmed
-    val band = confirmed?.band
+    val band = confirmed?.band ?: transition.target?.band
     val colors = LocalAppearanceColors.current
     val density = LocalDensity.current
     val enabled = loupeEnabled && band == Band.FM && stations.any { it.band.name == "FM" }
@@ -92,8 +93,15 @@ fun BandScale(
                 listOfNotNull(confirmed?.frequencyKhz, visiblePreview?.frequencyKhz)).distinct()
             fun markWidth(frequency: Int, preferred: Float, highlighted: Boolean): Float =
                 scaleMarkWidth(band ?: Band.FM, frequency, frequencies, width, preferred, highlighted)
+            fun markerPosition(target: fm.heterodyne.app.module.TuneTarget) = Modifier.offset {
+                val markerWidth = with(density) { tokenDp("size.scale.marker.width").toPx() }
+                val top = with(density) {
+                    (tokenDp("size.scale.height") - tokenDp("size.scale.marker.baselineInset") - tokenDp("size.scale.marker.height")).toPx()
+                }
+                IntOffset((bandFraction(target.band, target.frequencyKhz) * width - markerWidth / 2).roundToInt(), top.roundToInt())
+            }
             Canvas(Modifier.fillMaxSize()) {
-                val baseline = size.height / 2
+                val baseline = if (marker == ScaleMarker.Stripe) size.height / 2 else size.height - tokenDp("size.scale.marker.baselineInset").toPx()
                 drawLine(colors["edge"], Offset(0f, baseline), Offset(size.width, baseline), tokenDp("line.tick").toPx())
                 if (band != null && band != Band.DAB) {
                     val ticks = if (band == Band.FM) 41 else 61
@@ -113,41 +121,66 @@ fun BandScale(
                     }
                 }
             }
+            if (confirmed == null && marker != ScaleMarker.Stripe) {
+                transition.target?.takeIf { it.band != Band.DAB }?.let {
+                    ScaleMarkerShape(marker, it, true, false, markerPosition(it).testTag("band-scale-preview-target"))
+                }
+            }
             if (confirmed != null && band != Band.DAB) {
                 val labels = scaleFrequencyLabels(confirmed.band, confirmed.frequencyKhz)
                 val fraction = bandFraction(confirmed.band, confirmed.frequencyKhz)
                 val faded = transition.state in listOf(TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected)
                 val stripeWidth = markWidth(confirmed.frequencyKhz,
                     with(density) { tokenDp("size.scale.confirmed.0").toPx() }, true)
-                Box(Modifier.align(Alignment.CenterStart)
-                    .offset { IntOffset((fraction * width - stripeWidth / 2).roundToInt(), 0) }
-                    .width(with(density) { stripeWidth.toDp() }).height(tokenDp("size.scale.confirmed.1"))
-                    .background(colors[if (faded) "disabledText" else "accent"])
-                    .testTag("band-scale-confirmed-stripe")
-                    .semantics { contentDescription = "Подтверждённая Станция ${frequencyText(confirmed)}" })
-                visiblePreview?.let { station ->
-                    val targetWidth = markWidth(station.frequencyKhz,
-                        with(density) { tokenDp("size.scale.preview.0").toPx() }, true)
-                    val targetFraction = bandFraction(confirmed.band, station.frequencyKhz)
-                    // Open outline differs from the solid confirmed stripe even at the same frequency.
+                if (marker == ScaleMarker.Stripe) {
                     Box(Modifier.align(Alignment.CenterStart)
-                        .offset { IntOffset((targetFraction * width - targetWidth / 2).roundToInt(), 0) }
-                        .width(with(density) { targetWidth.toDp() }).height(tokenDp("size.scale.preview.1"))
-                        .border(with(density) { minOf(1.dp.toPx(), targetWidth / 4).toDp() }, colors["accentText"])
-                        .testTag("band-scale-preview-target")
-                        .semantics { contentDescription = "Цель Лупы ${frequencyText(fm.heterodyne.app.module.TuneTarget(confirmed.band, station.frequencyKhz))}" })
+                        .offset { IntOffset((fraction * width - stripeWidth / 2).roundToInt(), 0) }
+                        .width(with(density) { stripeWidth.toDp() }).height(tokenDp("size.scale.confirmed.1"))
+                        .background(colors[if (faded) "disabledText" else "accent"])
+                        .testTag("band-scale-confirmed-stripe")
+                        .semantics { contentDescription = "Подтверждённая Станция ${frequencyText(confirmed)}" })
+                    visiblePreview?.let { station ->
+                        val targetWidth = markWidth(station.frequencyKhz,
+                            with(density) { tokenDp("size.scale.preview.0").toPx() }, true)
+                        val targetFraction = bandFraction(confirmed.band, station.frequencyKhz)
+                        // Open outline differs from the solid confirmed stripe even at the same frequency.
+                        Box(Modifier.align(Alignment.CenterStart)
+                            .offset { IntOffset((targetFraction * width - targetWidth / 2).roundToInt(), 0) }
+                            .width(with(density) { targetWidth.toDp() }).height(tokenDp("size.scale.preview.1"))
+                            .border(with(density) { minOf(1.dp.toPx(), targetWidth / 4).toDp() }, colors["accentText"])
+                            .testTag("band-scale-preview-target")
+                            .semantics { contentDescription = "Цель Лупы ${frequencyText(fm.heterodyne.app.module.TuneTarget(confirmed.band, station.frequencyKhz))}" })
+                    }
+                    // Draw the slider last so its full-height stem remains visible.
+                    val sliderWidth = minOf(with(density) { tokenDp("size.scale.slider").toPx() }, stripeWidth / 2)
+                    Box(Modifier.offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
+                        .width(with(density) { sliderWidth.toDp() }).fillMaxHeight()
+                        .background(colors[if (faded) "disabledText" else "accent"]).testTag("band-scale-marker")
+                        .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
+                } else {
+                    ScaleMarkerShape(marker, confirmed, false, faded,
+                        markerPosition(confirmed).testTag("band-scale-marker"))
+                    val target = visiblePreview?.let { fm.heterodyne.app.module.TuneTarget(confirmed.band, it.frequencyKhz) }
+                        ?: transition.target?.takeIf { it.band == confirmed.band && it != confirmed }
+                    target?.let {
+                        ScaleMarkerShape(marker, it, true, false,
+                            markerPosition(it).testTag("band-scale-preview-target"))
+                    }
                 }
-                // Draw the slider last so its full-height stem remains visible.
-                val sliderWidth = minOf(with(density) { tokenDp("size.scale.slider").toPx() }, stripeWidth / 2)
-                Box(Modifier.offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
-                    .width(with(density) { sliderWidth.toDp() }).fillMaxHeight()
-                    .background(colors[if (faded) "disabledText" else "accent"]).testTag("band-scale-marker")
-                    .semantics { contentDescription = "Подтверждённая частота ${frequencyText(confirmed)}" })
                 BasicText(labels.first(), Modifier.align(Alignment.BottomStart), designTextStyle("label", colors["muted"]))
                 BasicText(labels.last(), Modifier.align(Alignment.BottomEnd), designTextStyle("label", colors["muted"]))
                 // Keep the frequency inside the scale at both ends of the band.
-                Box(Modifier.fillMaxWidth().align(Alignment.TopStart), contentAlignment = androidx.compose.ui.BiasAlignment(fraction * 2 - 1, -1f)) {
+                if (marker == ScaleMarker.Stripe) Box(Modifier.fillMaxWidth().align(Alignment.TopStart), contentAlignment = androidx.compose.ui.BiasAlignment(fraction * 2 - 1, -1f)) {
                     BasicText(labels[1], style = designTextStyle("label", colors[if (faded) "disabledText" else "accentText"]))
+                } else if (marker != ScaleMarker.Flag) {
+                    // Place the label beside the head, keeping it inside either band edge.
+                    val labelWidth = with(density) { tokenDp("size.scale.marker.width").toPx() }
+                    val labelX = if (fraction <= .5f) fraction * width + labelWidth / 2
+                        else fraction * width - labelWidth * 1.5f
+                    BasicText(labels[1].substringBefore(' '), Modifier.offset {
+                        IntOffset(labelX.coerceIn(0f, (width - labelWidth).coerceAtLeast(0f)).roundToInt(), 0)
+                    }.width(tokenDp("size.scale.marker.width")),
+                        style = designTextStyle("label", colors[if (faded) "disabledText" else "accentText"]))
                 }
             }
         }
