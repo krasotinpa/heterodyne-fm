@@ -39,10 +39,10 @@ class TransitionSignal(
     private val systemKeyClick: (Float) -> Unit = {},
     private val keyClickUsesSystemEffect: Boolean = KEY_CLICK_USES_SYSTEM_EFFECT,
 ) {
-    private var selected = TransitionSignalMethod.Tone
+    private var selected = TransitionSignalMethod.KeyClick
     private var focusVolume = 1f
     private var active: Any? = null
-    private var activeMethod = TransitionSignalMethod.Tone
+    private var activeMethod = TransitionSignalMethod.KeyClick
     private var activeOutput: TransitionToneOutput? = null
 
     fun begin(method: TransitionSignalMethod) { selected = method }
