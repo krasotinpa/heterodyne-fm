@@ -151,7 +151,7 @@ class ParkingScreenTest {
         }
         compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Сигнал Перехода").performScrollTo().assertIsDisplayed()
-        compose.onNodeWithText("Тон").assertIsSelected()
+        compose.onNodeWithText("Тон").performScrollTo().assertIsSelected()
         compose.onNodeWithText("Выключено").performScrollTo().performClick().assertIsSelected()
         compose.onNodeWithText("Тон").performClick().assertIsSelected()
         compose.onNodeWithText("Звук клавиши").performClick().assertIsSelected()
@@ -179,7 +179,8 @@ class ParkingScreenTest {
             compose.onNodeWithText(it).assertWidthIsAtLeast(48.dp).assertHeightIsAtLeast(48.dp)
         }
         compose.onNodeWithText("Настройки").performClick()
-        compose.onNodeWithText("Москва").assertIsSelected()
+        compose.onNodeWithText("Регион: Москва ›").performScrollTo().performClick()
+        compose.onNodeWithText("Москва ✓").assertIsSelected()
         compose.onNodeWithText("Ярославль").performClick()
         assertEquals(listOf("yaroslavl"), selected)
         compose.onNodeWithText("О приложении").performClick()
@@ -199,11 +200,11 @@ class ParkingScreenTest {
             }
         }
         compose.onNodeWithText("Настройки").performClick()
-        compose.onNodeWithText("Регион").assertIsDisplayed()
-        compose.onNodeWithText("Авто").assertIsSelected()
-        compose.onNodeWithText("Коралл").assertIsSelected()
-        compose.onNodeWithText("Светлая").performClick()
-        compose.onNodeWithText("Слива").performClick()
+        compose.onNodeWithText("Вид").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("Авто").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Коралл").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Светлая").performScrollTo().performClick()
+        compose.onNodeWithText("Слива").performScrollTo().performClick()
         compose.onNodeWithText("Светлая").assertIsSelected()
         compose.onNodeWithText("Слива").assertIsSelected()
         compose.runOnIdle {
