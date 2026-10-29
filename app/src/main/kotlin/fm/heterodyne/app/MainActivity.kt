@@ -12,9 +12,38 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
+    private val drivingHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val drivingMonitor: fm.heterodyne.app.ui.DrivingMonitor by lazy {
+        val stations = application as StationsApplication
+        fm.heterodyne.app.ui.DrivingMonitor(
+            fm.heterodyne.app.ui.AndroidDrivingSpeedSource(this, drivingHandler) { drivingMonitor.poll() },
+            android.os.SystemClock::elapsedRealtime,
+            stations.module::updateDriving,
+            stations.diagnostics::drivingEvent,
+        )
+    }
+    private val drivingTick = object : Runnable {
+        override fun run() {
+            drivingMonitor.poll()
+            drivingHandler.postDelayed(this, 1000)
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        drivingMonitor.start()
+        drivingHandler.post(drivingTick)
+    }
+
+    override fun onStop() {
+        drivingHandler.removeCallbacks(drivingTick)
+        drivingMonitor.stop()
+        super.onStop()
+    }
+
     private val locationPermission = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions(),
-    ) { _ -> /* Denial is represented by the probe as «нет разрешения». */ }
+    ) { _ -> drivingMonitor.poll() }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -36,13 +65,10 @@ class MainActivity : ComponentActivity() {
                     android.Manifest.permission.ACCESS_COARSE_LOCATION))
             },
         )
+        probePermission.update(true,
+            checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED)
         setContent {
-            val developerEnabled = stations.diagnostics.developerMode.enabled
-            androidx.compose.runtime.LaunchedEffect(developerEnabled) {
-                probePermission.update(developerEnabled,
-                    checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
-                        android.content.pm.PackageManager.PERMISSION_GRANTED)
-            }
             val signalPreferences = remember {
                 fm.heterodyne.app.ui.TransitionSignalPreferences(getSharedPreferences("transition-signal", MODE_PRIVATE))
             }

@@ -11,6 +11,8 @@ class StationsDiagnostics(
     private val main: Handler,
     private val usb: AndroidUsbAdapter,
 ) {
+    fun drivingEvent(text: String) { usb.probeEvent(text) }
+
     val audioCounters get() = usb.audioCounters
     val developerMode: DeveloperMode
 
