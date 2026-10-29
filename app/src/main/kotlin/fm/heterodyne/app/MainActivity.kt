@@ -136,6 +136,7 @@ class MainActivity : ComponentActivity() {
                         remove = stations.session::removeStation, move = stations.session::moveStation,
                         editStation = stations.session::editStation,
                         clearNameError = stations.session::clearNameError,
+                        deleteRegion = stations.module::deleteObsoleteRegion,
                     ), back = { parked = false },
                     receiverName = stations.module::receiverName, receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
                     selectReceiver = stations.module::selectReceiver,

@@ -240,7 +240,8 @@ class ParkingSessionTest {
         // Both operations are pending while the UI still holds the Moscow snapshot.
         assertEquals("moskva", session.screen.state!!.selectedRegion)
         drain(queued)
-        assertEquals(initial.copy(selectedRegion = "yaroslavl"), session.screen.state)
+        assertEquals(initial.copy(selectedRegion = "yaroslavl",
+            regionNames = mapOf("moskva" to "Москва", "yaroslavl" to "Ярославль")), session.screen.state)
     }
 
     @Test fun delayedMoveDoesNotMoveAnotherStationAfterRemoval() {
@@ -292,7 +293,7 @@ class ParkingSessionTest {
             assertEquals(region, StationsJson.decode(contents).regions.getValue("unknown-region"))
             session.selectRegion("unknown-region")
             drain(queued)
-            assertEquals("yaroslavl", session.screen.state!!.selectedRegion)
+            assertEquals("unknown-region", session.screen.state!!.selectedRegion)
         }
     }
 

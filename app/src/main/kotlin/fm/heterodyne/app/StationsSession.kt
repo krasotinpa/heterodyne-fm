@@ -27,7 +27,18 @@ data class StationsScreenState(
     val error: String? = null,
     val nameError: String? = null,
     val frequencyError: String? = null,
-)
+) {
+    val regions: List<fm.heterodyne.app.stations.Region> get() {
+        val active = catalogs.map { it.region }
+        val obsolete = state?.regions.orEmpty().keys.filter { id -> active.none { it.id == id } }
+            .map { fm.heterodyne.app.stations.Region(it, state?.regionNames?.get(it) ?: it) }
+        val russian = java.text.Collator.getInstance(java.util.Locale.forLanguageTag("ru")) as java.text.RuleBasedCollator
+        val order = java.text.RuleBasedCollator(russian.rules + "& е , Е < ё , Ё").apply {
+            strength = java.text.Collator.SECONDARY
+        }
+        return (active + obsolete).sortedWith { a, b -> order.compare(a.name, b.name) }
+    }
+}
 
 /** Owns the repository and its single storage queue for this process. */
 class StationsSession(
@@ -137,6 +148,7 @@ class StationsSession(
                         ?: catalogs.first().region.id)
                 current = StationsScreenState(state, catalogs, loaded.status == LoadStatus.RECOVERED)
                 if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded.copy(state = state), catalogs))
+                else if (loaded.status == LoadStatus.LOADED) save(state)
             } catch (_: Exception) {
                 current = current.copy(error = "Не удалось прочитать Справочники")
             }
@@ -178,14 +190,28 @@ class StationsSession(
     fun selectRegion(id: String) {
         storage.execute {
             val state = current.state ?: return@execute
-            if (current.catalogs.none { it.region.id == id }) return@execute // устаревшее действие UI отбрасывается молча, как в changeRegion
-            val next = state.copy(selectedRegion = id)
+            if (current.catalogs.none { it.region.id == id } && id !in state.regions) return@execute // устаревшее действие UI отбрасывается молча, как в changeRegion
+            val next = state.copy(selectedRegion = id, regions = state.regions + (id to state.regionSelections(id)))
             save(next)
         }
     }
 
+    fun deleteObsoleteRegion(id: String) {
+        storage.execute {
+            val state = current.state ?: return@execute
+            if (id !in state.regions || current.catalogs.any { it.region.id == id }) return@execute
+            val selected = if (state.selectedRegion == id)
+                current.catalogs.firstOrNull { it.region.id == "moskva" }?.region?.id
+                    ?: current.catalogs.first().region.id
+                else state.selectedRegion
+            save(state.copy(selectedRegion = selected, regions = state.regions - id, regionNames = state.regionNames - id))
+        }
+    }
+
     private fun save(state: StationsState): Boolean {
-        val next = pendingLastPlayed?.let { state.copy(lastPlayed = it) } ?: state
+        val named = state.copy(regionNames = state.regionNames + current.catalogs
+            .filter { it.region.id in state.regions }.associate { it.region.id to it.region.name })
+        val next = pendingLastPlayed?.let { named.copy(lastPlayed = it) } ?: named
         if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null && current.nameError == null && current.frequencyError == null) return true
         val saved = repository.save(next)
         if (saved) pendingLastPlayed = null

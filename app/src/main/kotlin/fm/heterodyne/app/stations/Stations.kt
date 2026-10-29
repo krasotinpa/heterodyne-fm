@@ -136,6 +136,7 @@ data class StationsState(
     val regions: Map<String, RegionSelections>,
     val lastStation: SessionStation? = null,
     val lastPlayed: Boolean = false,
+    val regionNames: Map<String, String> = emptyMap(),
 ) {
     fun regionSelections(id: String): RegionSelections = regions[id] ?: RegionSelections.defaults()
 

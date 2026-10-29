@@ -44,6 +44,7 @@ data class ParkingActions(
     val move: (String, String, StationEntry, Int) -> Unit = { _, _, _, _ -> },
     val editStation: (String, String, StationEntry, String) -> Unit = { _, _, _, _ -> },
     val clearNameError: () -> Unit = {},
+    val deleteRegion: (String) -> Unit = {},
 )
 
 fun dragTargetIndex(from: Int, distance: Float, rowHeight: Float, count: Int): Int {
@@ -118,24 +119,39 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                 "Режим разработчика" -> if (developerEnabled) developerTools()
                 "Настройки" -> {
                     var regionsOpen by remember { mutableStateOf(false) }
+                    var deletingRegion by remember { mutableStateOf<fm.heterodyne.app.stations.Region?>(null) }
                     val gap = tokenDp("size.settings.gap")
                     if (regionsOpen) {
-                        BackHandler { regionsOpen = false }
-                        Control("← Настройки", true, { regionsOpen = false }, Modifier.fillMaxWidth(), settings = true)
-                        val regions = remember(screen.catalogs) {
-                            val order = java.text.Collator.getInstance(java.util.Locale.forLanguageTag("ru"))
-                            screen.catalogs.sortedWith { a, b -> order.compare(a.region.name, b.region.name) }
-                        }
-                        val selectedIndex = regions.indexOfFirst { it.region.id == state?.selectedRegion }.coerceAtLeast(0)
+                        BackHandler { if (deletingRegion != null) deletingRegion = null else regionsOpen = false }
+                        Control("← Настройки", true, { deletingRegion = null; regionsOpen = false }, Modifier.fillMaxWidth(), settings = true)
+                        val regions = remember(screen) { screen.regions }
+                        val selectedIndex = regions.indexOfFirst { it.id == state?.selectedRegion }.coerceAtLeast(0)
                         val listState = remember { androidx.compose.foundation.lazy.LazyListState(selectedIndex) }
                         LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("settings-regions"), state = listState) {
-                            items(regions, key = { it.region.id }) { option ->
-                                val selected = option.region.id == state?.selectedRegion
-                                Control(option.region.name + if (selected) " ✓" else "", true, {
-                                    actions.region(option.region.id)
-                                    regionsOpen = false
-                                }, Modifier.fillMaxWidth().height(tokenDp("size.settings.regionRow")),
-                                    selected = selected, settings = true)
+                            items(regions, key = { it.id }) { option ->
+                                val selected = option.id == state?.selectedRegion
+                                val obsolete = screen.catalogs.none { it.region.id == option.id }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                    Control(option.name + (if (obsolete) " · устарел" else "") + if (selected) " ✓" else "", true, {
+                                        actions.region(option.id)
+                                        deletingRegion = null
+                                        regionsOpen = false
+                                    }, Modifier.weight(1f).height(tokenDp("size.settings.regionRow")),
+                                        selected = selected, settings = true)
+                                    if (obsolete) Control("Удалить", true, { deletingRegion = option },
+                                        Modifier.width(tokenDp("size.settings.regionRow") * 2),
+                                        description = "Удалить Регион ${option.name}", settings = true)
+                                }
+                            }
+                        }
+                        deletingRegion?.let { target ->
+                            Label("Удалить Регион «${target.name}» и все его Подборки?", 18)
+                            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                                Control("Отмена", true, { deletingRegion = null }, Modifier.weight(1f), settings = true)
+                                Control("Удалить Регион и Подборки", true, {
+                                    actions.deleteRegion(target.id)
+                                    deletingRegion = null
+                                }, Modifier.weight(1f), settings = true)
                             }
                         }
                     } else {
@@ -188,7 +204,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                                     { it == parkLargeIcon }, selectParkLargeIcon)
                             }
                             SettingsGroup("Регион")
-                            Control("Регион: ${catalog?.region?.name.orEmpty()} ›", true, { regionsOpen = true },
+                            Control("Регион: ${screen.regions.firstOrNull { it.id == state?.selectedRegion }?.name.orEmpty()} ›", true, { regionsOpen = true },
                                 Modifier.fillMaxWidth(), settings = true)
                         }
                     }
