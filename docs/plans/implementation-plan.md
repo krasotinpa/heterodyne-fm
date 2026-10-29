@@ -8,25 +8,19 @@
 Один исполнитель реализует связные блоки. Независимый reviewer проверяет всю итоговую ветку после полного validation gate.
 Неизвестные opcode/TX bytes и toolchain versions намеренно не выдуманы. Их определяют G1–G4.
 
-## Ограничения и будущая структура
+## Текущее продолжение разработки
 
-После создания каталога/repo пользователем проверь точные distro, repository, branch, worktree и SHA.
-Изменения выполняй в isolated WSL worktree. Python 3.12. Toolchain закрепи после получения API/ABI ГУ.
-Начальный whitelist пуст. Root/firmware/DFU/EEPROM и неизвестные vendor requests исключены.
+Приложение уже реализовано в `app/`. Протокол, Станции, звук и UI разделены пакетами.
+Проверки исследовательских инструментов находятся в `tests/research/`.
+Версии Android toolchain закреплены в `gradle/libs.versions.toml` и Gradle wrapper.
 
-```text
-docs/research/      отчёты, descriptor map, command catalog
-research-tools/    offline analysis, Windows prototype
-tests/research/    проверки исследовательских инструментов
-protocol-core/     parser и verified codec
-radio-domain/      session, capabilities, confirmed state
-usb-transport/     Android USB и permission lifecycle
-audio/             проверенный AudioBackend
-app/               диагностика, затем UI и presets
-```
+Новые задачи выполняет Codex по [процессу разработки](../agents/codex-implementation.md).
+Готовность проверяй по GitHub Issues и [отчётам приёмки](../acceptance/report-run3.md).
+Перед кодом обязателен Ponytail. Для поиска по коду обязателен Graphify.
 
-Это план будущих файлов. Scaffold сейчас не создавался.
-Gradle modules можно объединить пакетами при сохранении границ ответственности.
+Блоки ниже сохраняют исходную последовательность исследования.
+Их старые чекбоксы не отражают текущую готовность приложения.
+Проверяй актуальные требования и ADR перед использованием исторических решений.
 
 ## Блок 1: доказательства и совместимость
 
@@ -116,6 +110,6 @@ Test-first блоки → Полный gate → Независимое review
                 → Общий fixes пакет → Повторный gate → APK
 ```
 
-Ожидаемый Android gate: `./gradlew test lint assembleDebug`; variants уточняются после создания проекта.
+Android gate: `./gradlew test lint assembleDebug`.
 Hardware gate выполняется отдельно. Debug build не является release signing.
-Signing key не входит в Git. Push этим handoff не разрешён.
+Signing key не входит в Git. Codex делает push feature-ветки и открывает PR; merge выполняет владелец.
