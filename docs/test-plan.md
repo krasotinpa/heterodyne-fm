@@ -40,14 +40,14 @@ getPreferredDevice не подтверждает фактический route.
 
 ## Отчёт и gate
 
-Каждая строка R01–R27 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
+Каждая строка R01–R28 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
 Запиши device/API/build/commit, steps, expected/actual, evidence и date.
 AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.
 
-1. Выполни Python 3.12 tests.
-2. Выполни Kotlin unit tests.
-3. Выполни lint и APK build.
+1. Выполни `python3.12 -m unittest discover -s tests/research`.
+2. Выполни `./gradlew test lint assembleDebug` для Kotlin unit tests, lint и APK build.
+3. Запиши SHA-256: `sha256sum app/build/outputs/apk/debug/app-debug.apk`.
 4. Выполни доступные instrumented tests.
 5. Сверь hardware matrix; укажи blocked/not tested.
 6. Запиши actual exit codes, версии, SHA и APK hash.
@@ -55,6 +55,9 @@ AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Hardware blocked не превращается в passed.
 После полного gate независимый reviewer проверяет всю ветку.
 Исполнитель объединяет fixes и выполняет один повторный gate.
+
+Для правок только документации проверь diff и локальные ссылки. Android/Python gate не требуется, если код и сборка не меняются.
+Независимое review всей ветки остаётся обязательным.
 
 ## Приёмка MVP на ГУ
 

@@ -1,25 +1,23 @@
 # Heterodyne FM для Toyota Highlander
 
-Пакет передачи задачи coding-агенту. Дата: 14 октября 2026 года.
-Цель — собственный Android APK для USB FM-приёмника Super Radio на штатном ГУ китайского Toyota Highlander 2026 2.0T.
-ГУ означает головное устройство автомобиля. Совместимость конкретного ГУ требует экспериментальной проверки.
-
-Проект: [Super Radio Android для Toyota Highlander](https://chatgpt.com/space/page_6acf7aa369ec819199fe34a21c46040c).
-Space хранит документы и архив. Это область подготовки, а не локальный Git-репозиторий.
-Пользователь создаёт будущий каталог и GitHub-репозиторий самостоятельно. Пакет не содержит готового APK.
+Heterodyne FM — Android-приложение для USB FM-приёмника на штатном ГУ Toyota Highlander 2026 2.0T.
+Репозиторий содержит приложение, тесты, исследования протокола и отчёты испытаний.
+Разработка выполняется только с Codex. Merge и испытания на ГУ выполняет владелец.
 
 ## Начало работы
 
-1. Прочитай [AGENTS.md](AGENTS.md) и [handoff.md](docs/agents/handoff.md).
-2. Проверь цель в [brief.md](docs/brief.md) и критерии в [requirements.md](docs/requirements.md).
-3. Воспроизведи [измерения захвата](evidence/capture-analysis.md) по исходному бинарному файлу.
-4. Начни [research-plan.md](docs/plans/research-plan.md) без прикладных команд устройству.
-5. Продолжай [implementation-plan.md](docs/plans/implementation-plan.md) после соответствующих контрольных точек.
+1. Прочитай [AGENTS.md](AGENTS.md) и [точку входа](docs/agents/handoff.md).
+2. Прочитай [процесс Codex](docs/agents/codex-implementation.md), затем требования и архитектуру нужной задачи.
+3. Проверь открытые Issues и PR в `krasotinpa/heterodyne-fm`.
+4. Выполняй изменения в отдельном WSL worktree. Перед кодом примени Ponytail; для поиска используй Graphify.
+5. Выполни проверки по [test-plan.md](docs/test-plan.md) и независимое review перед PR.
 
 ```text
-Доказательства → Дескрипторы → Проверка ГУ → Контролируемые команды
-              → Прототип Windows/Android → Аудио → UI → Приёмка APK
+Issue → worktree → тест и код → проверки → review Codex → PR → merge владельцем
 ```
+
+Приёмка пока завершена частично: [прогон 3](docs/acceptance/report-run3.md).
+Его результаты относятся к сборке, указанной в отчёте.
 
 ## Содержание
 
@@ -71,9 +69,9 @@ Space хранит документы и архив. Это область по�
 
 ## Ограничения
 
-VID:PID `0483:5740` не идентифицирует прикладной протокол. Строка `DAB usb bridge` не доказывает DAB.
-USB host доступных портов ГУ, установка стороннего APK и аудиотракт пока не подтверждены.
-Захват не содержит timestamps или исходящих команд. Он не устанавливает семантику пакетов или безопасность TX.
+Whitelist и доказательства протокола находятся в [command-catalog.md](docs/research/command-catalog.md).
+VID:PID сам по себе не устанавливает протокол. Codex проверяет код без доступа к оборудованию.
+Неподтверждённые возможности остаются выключенными. Синтетические тесты не заменяют испытания на ГУ.
 
-Архив `super-radio-android-handoff.zip` доступен через страницу скачивания в проекте и содержит README.md в корне. Перенос описан в docs/handoff/transfer-guide.md.
-Python проекта: 3.12. Android toolchain выбирается после получения API/ABI ГУ.
+Версии инструментов закреплены в `gradle/libs.versions.toml` и Gradle wrapper.
+Python для проверок — 3.12. Локальные пути SDK и ключи подписи не входят в Git.
