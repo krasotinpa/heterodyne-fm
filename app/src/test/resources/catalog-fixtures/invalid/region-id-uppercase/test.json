@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "revision": "2026-01-01",
+  "region": {
+    "id": "Test",
+    "name": "Тест"
+  },
+  "source": {
+    "text": "example",
+    "url": "https://example.org/"
+  },
+  "stations": [
+    {
+      "id": "test-a",
+      "name": "Радио А",
+      "band": "FM",
+      "frequencyKhz": 87500
+    },
+    {
+      "id": "test-b",
+      "name": "Радио Б",
+      "band": "FM",
+      "frequencyKhz": 108000
+    }
+  ]
+}

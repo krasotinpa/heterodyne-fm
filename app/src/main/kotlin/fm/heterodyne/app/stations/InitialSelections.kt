@@ -13,10 +13,10 @@ internal fun initialSelections(loaded: StationsLoad, catalogs: List<Catalog>): S
             "yaroslavl-radio-rossii", "yaroslavl-love-radio", "yaroslavl-radio-7",
             "yaroslavl-radio-dacha", "yaroslavl-avtoradio", "yaroslavl-marusya-fm", "yaroslavl-mayak"),
     )
-    return loaded.state.copy(regions = loaded.state.regions + ids.mapValues { (regionId, _) ->
+    return loaded.state.copy(regions = loaded.state.regions + ids.filterKeys { id -> catalogs.any { it.region.id == id } }.mapValues { (regionId, _) ->
         val catalog = catalogs.single { it.region.id == regionId }
         val selection = ids.getValue(regionId).fold(StationSelection.empty("Основной")) { selection, id ->
-            selection.add(catalog.stations.single { it.id == id }.copyEntry()).value!!
+            catalog.stations.firstOrNull { it.id == id }?.let { selection.add(it.copyEntry()).value } ?: selection
         }
         loaded.state.regionSelections(regionId).replaceActive(selection)
     })

@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "revision": "2026-10-29",
+  "regions": [
+    {
+      "id": "moskva",
+      "name": "Москва",
+      "file": "moskva.json",
+      "sha256": "7c8d2ba94006f0676419dc01bd7d08c4d484887587a089a1094aeb20653a6e6c",
+      "revision": "2024-12-07"
+    },
+    {
+      "id": "yaroslavl",
+      "name": "Ярославль",
+      "file": "yaroslavl.json",
+      "sha256": "f1367559bb6e42fd1b3ac53a8f11fab21e25af249e507f167de1f9c6a4438aaa",
+      "revision": "2024-12-12"
+    }
+  ]
+}
