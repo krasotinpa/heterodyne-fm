@@ -193,6 +193,7 @@ class StationsModule(
 
     fun activateSelection(name: String) { cursor = null; session.activateSelection(name) }
     fun selectRegion(id: String) { cursor = null; session.selectRegion(id) }
+    fun deleteObsoleteRegion(id: String) { cursor = null; session.deleteObsoleteRegion(id) }
 }
 
 internal fun seekPauseHint(driving: Boolean, remainingMillis: Long): String? =

@@ -124,6 +124,65 @@ class SettingsScreenTest {
         }
     }
 
+    @Test fun obsoleteRegionDeletionRequiresConfirmationAndIsHiddenWhileDriving() {
+        val removed = mutableListOf<String>()
+        val driving = mutableStateOf(false)
+        val state = StationsState("moskva", mapOf("retired" to RegionSelections.defaults()))
+        val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("test", "https://example.org"), emptyList())
+        compose.setContent {
+            ParkingScreen(StationsScreenState(state, listOf(catalog)), driving.value, null,
+                ParkingActions(deleteRegion = { removed.add(it) }), {}, {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Регион: Москва ›").performScrollTo().performClick()
+        compose.onNodeWithContentDescription("Удалить Регион Москва").assertDoesNotExist()
+        val choice = compose.onNodeWithText("retired · устарел").getUnclippedBoundsInRoot()
+        val delete = compose.onNodeWithContentDescription("Удалить Регион retired").getUnclippedBoundsInRoot()
+        assertEquals(12f, (delete.left - choice.right).value, 0.5f)
+        compose.onNodeWithContentDescription("Удалить Регион retired").performClick()
+        assertTrue(removed.isEmpty())
+        val cancel = compose.onNodeWithText("Отмена").getUnclippedBoundsInRoot()
+        val confirm = compose.onNodeWithText("Удалить Регион и Подборки").getUnclippedBoundsInRoot()
+        assertEquals(12f, (confirm.left - cancel.right).value, 0.5f)
+        compose.onNodeWithText("Отмена").performClick()
+        assertTrue(removed.isEmpty())
+        compose.onNodeWithContentDescription("Удалить Регион retired").performClick()
+        compose.onNodeWithText("Удалить Регион и Подборки").performClick()
+        assertEquals(listOf("retired"), removed)
+        compose.runOnIdle { driving.value = true }
+        compose.onNodeWithContentDescription("Удалить Регион retired").assertDoesNotExist()
+    }
+
+    @Test fun obsoleteRegionRemainsInListAndCanBeSelected() {
+        val selected = mutableListOf<String>()
+        val state = StationsState("moskva", mapOf("retired" to RegionSelections.defaults()))
+        val catalog = Catalog(1, "test", Region("moskva", "Москва"), CatalogSource("test", "https://example.org"), emptyList())
+        compose.setContent {
+            ParkingScreen(StationsScreenState(state, listOf(catalog)), false, null,
+                ParkingActions(region = { selected.add(it) }), {}, {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Регион: Москва ›").performScrollTo().performClick()
+        compose.onNodeWithText("retired · устарел").assertIsDisplayed().performClick()
+        assertEquals(listOf("retired"), selected)
+        compose.onNodeWithText("← Настройки").assertDoesNotExist()
+    }
+
+    @Test fun regionsUseRussianOrderWithYoAfterEAndIgnoreCase() {
+        val catalogs = listOf("Жуков", "ёлка", "Ель", "Ёлка", "ель").mapIndexed { i, name ->
+            Catalog(1, "test", Region("r$i", name), CatalogSource("test", "https://example.org"), emptyList())
+        }
+        compose.setContent {
+            ParkingScreen(StationsScreenState(StationsState.defaults(), catalogs), false, null, ParkingActions(), {}, {})
+        }
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Регион:  ›").performScrollTo().performClick()
+        val positions = listOf("Ель", "ель", "ёлка", "Ёлка", "Жуков").map {
+            compose.onNodeWithText(it).getUnclippedBoundsInRoot().top.value
+        }
+        assertTrue(positions.toString(), positions.zipWithNext().all { (a, b) -> a < b })
+    }
+
     @Test fun regionListUsesAllCatalogsSortsAndRevealsSelectionThenClosesOnChoice() {
         val catalogs = (0 until 52).map { i ->
             Catalog(1, "test", Region(if (i == 40) "moskva" else "r$i", "Регион %02d".format(i)),

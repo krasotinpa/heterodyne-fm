@@ -11,6 +11,7 @@ object StationsJson {
     fun encode(state: StationsState): String = JSONObject().put("schema", 3)
         .put("selectedRegion", state.selectedRegion)
         .put("band", "FM")
+        .put("regionNames", JSONObject(state.regionNames))
         .put("lastPlayed", state.lastPlayed)
         .put("lastStation", state.lastStation?.let {
             JSONObject().put("band", "FM").put("frequencyKhz", it.frequencyKhz)
@@ -76,8 +77,12 @@ object StationsJson {
             require(value is Boolean)
             value
         }
+        val regionNames = root.optJSONObject("regionNames")?.let { names ->
+            names.keys().asSequence().filter { it in regions }.associateWith { names.getString(it) }
+        }.orEmpty()
         return StationsState(root.getString("selectedRegion"), regions, lastStation,
-            lastPlayed = lastPlayed && !(schema >= 2 && !root.isNull("lastStation") && lastStation == null))
+            lastPlayed = lastPlayed && !(schema >= 2 && !root.isNull("lastStation") && lastStation == null),
+            regionNames = regionNames)
     }
 }
 

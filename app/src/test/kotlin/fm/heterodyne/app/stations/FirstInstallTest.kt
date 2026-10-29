@@ -68,7 +68,7 @@ class FirstInstallTest {
         }
         val state = StationsState.defaults().copy(regions = StationsState.defaults().regions + ("moskva" to region))
         file().writeText(StationsJson.encode(state))
-        assertEquals(state, load().screen.state)
+        assertEquals(state.copy(regionNames = mapOf("moskva" to "Москва")), load().screen.state)
     }
 
     private fun file() = File(RuntimeEnvironment.getApplication().filesDir, "stations.json")
