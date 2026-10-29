@@ -18,6 +18,38 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class ParkingSessionTest {
+    @Test fun stationNameEditIsQueuedPersistedAndReportsFieldErrors() {
+        val context = RuntimeEnvironment.getApplication()
+        File(context.filesDir, "stations.json").delete()
+        val queued = java.util.ArrayDeque<Runnable>()
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), java.util.concurrent.Executor { queued.add(it) })
+        session.load {}
+        drain(queued)
+        val original = session.activeEntries.first()
+        val catalog = session.screen.catalogs.first { it.region.id == "moskva" }
+        session.editStation("moskva", "Основной", original, "  Моё имя  ")
+        assertEquals(original, session.activeEntries.first())
+        drain(queued)
+        assertEquals(original.copy(name = "Моё имя"), session.activeEntries.first())
+        assertEquals(catalog, session.screen.catalogs.first { it.region.id == "moskva" })
+        for (invalid in listOf(" ", "я".repeat(33))) {
+            session.editStation("moskva", "Основной", original, invalid)
+            drain(queued)
+            assertEquals("Введите имя Станции: от 1 до 32 символов", session.screen.nameError)
+            assertNull(session.screen.error)
+        }
+        session.clearNameError()
+        drain(queued)
+        assertNull(session.screen.nameError)
+        session.load {}
+        drain(queued)
+        assertEquals(original.copy(name = "Моё имя"), session.activeEntries.first())
+        session.selectRegion("yaroslavl")
+        session.editStation("moskva", "Основной", original, "Устаревшее")
+        drain(queued)
+        assertEquals("Моё имя", session.screen.state!!.regionSelections("moskva").active.entries.first().name)
+    }
+
     @Test fun invalidAndDuplicateNamesStayAtFieldAndSuccessfulSaveClearsThem() {
         val context = RuntimeEnvironment.getApplication()
         File(context.filesDir, "stations.json").delete()
@@ -60,6 +92,36 @@ class ParkingSessionTest {
         drain(queued)
         assertEquals("Подборка или Станция не найдены", session.screen.error)
         assertNull(session.screen.nameError)
+    }
+
+    @Test fun newStationsRequireValidNameFrequencyAndRejectDuplicatesAtField() {
+        val context = RuntimeEnvironment.getApplication()
+        File(context.filesDir, "stations.json").delete()
+        val queued = java.util.ArrayDeque<Runnable>()
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), java.util.concurrent.Executor { queued.add(it) })
+        session.load {}
+        drain(queued)
+        session.createSelection("moskva", "Новая")
+        drain(queued)
+        for (name in listOf(null, " ", "я".repeat(33))) {
+            session.addStation("moskva", "Новая", StationEntry(101700, name))
+            drain(queued)
+            assertEquals("Введите имя Станции: от 1 до 32 символов", session.screen.nameError)
+        }
+        session.addStation("moskva", "Новая", StationEntry(101750, "Имя"))
+        drain(queued)
+        assertEquals("Введите FM-частоту 87,5–108,0 МГц с шагом 0,1", session.screen.frequencyError)
+        session.addStation("moskva", "Новая", StationEntry(101700, "  Новая  "))
+        drain(queued)
+        session.addStation("moskva", "Новая", StationEntry(101700, "Дубликат"))
+        drain(queued)
+        assertEquals("Частота уже есть в Подборке", session.screen.frequencyError)
+        assertNull(session.screen.error)
+        session.clearNameError()
+        drain(queued)
+        assertNull(session.screen.frequencyError)
+        assertEquals(listOf(StationEntry(101700, "Новая")),
+            session.screen.state!!.regionSelections("moskva").selections.first { it.name == "Новая" }.entries)
     }
 
     @Test fun failedStopWriteIsRetriedWhenRememberingStationAndSurvivesRestart() {
@@ -149,7 +211,7 @@ class ParkingSessionTest {
         session.selectRegion("yaroslavl")
         session.createSelection("yaroslavl", "Поездка")
         session.activateSelection("Поездка")
-        session.addStation("yaroslavl", "Поездка", StationEntry(90300))
+        session.addStation("yaroslavl", "Поездка", StationEntry(90300, "Моя"))
         // load is queued after all mutations on the same storage queue.
         load(session)
         val restarted = StationsSession(context, handler)
@@ -157,7 +219,7 @@ class ParkingSessionTest {
         val state = restarted.screen.state!!
         assertEquals("yaroslavl", state.selectedRegion)
         assertEquals("Поездка", state.regionSelections(state.selectedRegion).activeName)
-        assertEquals(listOf(StationEntry(90300)), state.regionSelections(state.selectedRegion).active.entries)
+        assertEquals(listOf(StationEntry(90300, "Моя")), state.regionSelections(state.selectedRegion).active.entries)
         assertEquals("Ярославль", restarted.screen.catalogs.first { it.region.id == state.selectedRegion }.region.name)
     }
 

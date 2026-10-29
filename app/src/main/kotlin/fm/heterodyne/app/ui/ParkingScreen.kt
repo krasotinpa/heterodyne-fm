@@ -1,6 +1,7 @@
 package fm.heterodyne.app.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,6 +42,7 @@ data class ParkingActions(
     val add: (String, String, StationEntry) -> Unit = { _, _, _ -> },
     val remove: (String, String, StationEntry) -> Unit = { _, _, _ -> },
     val move: (String, String, StationEntry, Int) -> Unit = { _, _, _, _ -> },
+    val editStation: (String, String, StationEntry, String) -> Unit = { _, _, _, _ -> },
     val clearNameError: () -> Unit = {},
 )
 
@@ -198,6 +200,21 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                     val selection = region.selections.firstOrNull { it.name == editing }
                         ?: region.selections.firstOrNull { it.name == renamedTo } ?: region.active
                     var name by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(selection.name) }
+                    var formOpen by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(false) }
+                    var stationFrequency by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf<Int?>(null) }
+                    var stationName by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf("") }
+                    var frequencyText by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf("") }
+                    var targetSelection by rememberSaveable(state.selectedRegion, selection.name) { mutableStateOf(selection.name) }
+                    var localNameError by remember(state.selectedRegion, selection.name) { mutableStateOf<String?>(null) }
+                    var localFrequencyError by remember(state.selectedRegion, selection.name) { mutableStateOf<String?>(null) }
+                    val targetEntries = region.selections.firstOrNull { it.name == targetSelection }?.entries
+                    var previousTargetEntries by remember(state.selectedRegion, targetSelection) {
+                        mutableStateOf(targetEntries)
+                    }
+                    LaunchedEffect(targetEntries) {
+                        if (previousTargetEntries != targetEntries) formOpen = false
+                        previousTargetEntries = targetEntries
+                    }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
                         items(region.selections, key = { it.name }) { option ->
                             Control(option.name, true, { if (selection.name != option.name) actions.clearNameError(); editing = option.name; renamedTo = null }, selected = selection.name == option.name)
@@ -207,14 +224,65 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                         Column(Modifier.width(DesignTokens.number("size.segment.width").dp)) {
                             BasicTextField(name, { name = it; actions.clearNameError() }, Modifier.fillMaxWidth().heightIn(min = DesignTokens.number("size.segment.height").dp)
                                 .background(colors["surface2"]).padding(DesignTokens.number("space.section").dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
-                            screen.nameError?.let { Label(it, 18, colors["danger"]) }
+                            if (!formOpen) screen.nameError?.let { Label(it, 18, colors["danger"]) }
                         }
-                        Control("Создать", true, { actions.create(state.selectedRegion, name) })
-                        Control("Переименовать", true, { editing = selection.name; renamedTo = name; actions.rename(state.selectedRegion, selection.name, name) })
-                        Control("Удалить Подборку", region.selections.size > 1, { renamedTo = null; actions.delete(state.selectedRegion, selection.name) })
+                        Control("Создать", true, { formOpen = false; actions.clearNameError(); actions.create(state.selectedRegion, name) })
+                        Control("Переименовать", true, { formOpen = false; actions.clearNameError(); editing = selection.name; renamedTo = name; actions.rename(state.selectedRegion, selection.name, name) })
+                        Control("Удалить Подборку", region.selections.size > 1, { formOpen = false; actions.clearNameError(); renamedTo = null; actions.delete(state.selectedRegion, selection.name) })
                         Control("Сделать активной", selection.name != region.activeName, { actions.activate(selection.name) })
                     }
-                    Control("Сохранить текущую частоту", confirmed != null, { confirmed?.let { actions.add(state.selectedRegion, region.activeName, it) } })
+                    fun openForm(entry: StationEntry?, target: String, edit: Boolean) {
+                        actions.clearNameError()
+                        localNameError = null; localFrequencyError = null
+                        stationFrequency = if (edit) entry?.frequencyKhz else null
+                        stationName = if (edit) entry?.name.orEmpty() else ""
+                        frequencyText = entry?.let { formatStationFrequency(it.frequencyKhz) }.orEmpty()
+                        targetSelection = target
+                        formOpen = true
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                        Control("Добавить Станцию", true, { openForm(null, selection.name, false) })
+                        Control("Сохранить текущую частоту", confirmed != null, {
+                            confirmed?.let { openForm(it, region.activeName, false) }
+                        })
+                    }
+                    if (formOpen) {
+                        BackHandler { formOpen = false; actions.clearNameError() }
+                        Row(horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
+                            Column(Modifier.weight(1f)) {
+                                Label("Имя Станции", 18)
+                                BasicTextField(stationName, {
+                                    stationName = it; localNameError = null; actions.clearNameError()
+                                }, Modifier.fillMaxWidth().testTag("station-name").background(colors["surface2"])
+                                    .padding(DesignTokens.number("space.section").dp),
+                                    textStyle = designTextStyle("body", colors["text"]), singleLine = true)
+                                (localNameError ?: screen.nameError)?.let { Label(it, 18, colors["danger"]) }
+                            }
+                            Column(Modifier.weight(1f)) {
+                                Label("Частота, МГц", 18)
+                                BasicTextField(frequencyText, {
+                                    frequencyText = it; localFrequencyError = null; actions.clearNameError()
+                                }, Modifier.fillMaxWidth().testTag("station-frequency").background(colors["surface2"])
+                                    .padding(DesignTokens.number("space.section").dp), enabled = stationFrequency == null,
+                                    textStyle = designTextStyle("body", colors["text"]), singleLine = true)
+                                (localFrequencyError ?: screen.frequencyError)?.let { Label(it, 18, colors["danger"]) }
+                            }
+                            Control("Сохранить Станцию", true, {
+                                val trimmed = stationName.trim()
+                                val frequency = stationFrequency ?: parseStationFrequency(frequencyText)
+                                localNameError = if (trimmed.isEmpty() || trimmed.length > 32)
+                                    "Введите имя Станции: от 1 до 32 символов" else null
+                                localFrequencyError = if (frequency == null)
+                                    "Введите FM-частоту 87,5–108,0 МГц с шагом 0,1" else null
+                                if (localNameError == null && frequency != null) {
+                                    if (stationFrequency != null) actions.editStation(state.selectedRegion, targetSelection,
+                                        selection.entries.firstOrNull { it.frequencyKhz == frequency } ?: StationEntry(frequency), trimmed)
+                                    else actions.add(state.selectedRegion, targetSelection, StationEntry(frequency, trimmed))
+                                }
+                            })
+                            Control("Отмена", true, { formOpen = false; actions.clearNameError() })
+                        }
+                    } else screen.frequencyError?.let { Label(it, 18, colors["danger"]) }
                     Label("Активная Подборка: ${region.activeName}. Для порядка удерживайте Станцию и перетащите её.", 18)
                     Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(DesignTokens.number("space.window").dp)) {
                         Column(Modifier.weight(1f)) {
@@ -263,6 +331,7 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                                             .background(colors["surface2"], RoundedCornerShape(DesignTokens.number("radius.m").dp))
                                             .then(if (active) Modifier.border(DesignTokens.number("line.stroke").dp,
                                                 colors["accent"], RoundedCornerShape(DesignTokens.number("radius.m").dp)) else Modifier)
+                                            .clickable { openForm(entry, selection.name, true) }
                                             .pointerInput(selection, index) {
                                                 detectDragGesturesAfterLongPress(
                                                     onDragStart = { distance = 0f; dragging = index },
@@ -338,4 +407,18 @@ private fun <T> SettingsOptions(options: List<T>, title: (T) -> String, selected
                 selected = selected(option), description = description?.invoke(option), settings = true, settingsCard = card)
         }
     }
+}
+
+private fun formatStationFrequency(frequencyKhz: Int): String {
+    val fraction = if (frequencyKhz % 100 == 0) (frequencyKhz % 1000 / 100).toString()
+        else (frequencyKhz % 1000).toString().padStart(3, '0')
+    return "${frequencyKhz / 1000},$fraction"
+}
+
+private fun parseStationFrequency(text: String): Int? {
+    val normalized = text.trim().replace(',', '.')
+    if (!normalized.matches(Regex("[0-9]{2,3}(\\.[0-9]{1,3})?"))) return null
+    val khz = try { normalized.toBigDecimal().movePointRight(3).intValueExact() }
+        catch (_: ArithmeticException) { return null }
+    return khz.takeIf { fm.heterodyne.app.module.isSelectableFrequency(fm.heterodyne.app.module.Band.FM, it) }
 }

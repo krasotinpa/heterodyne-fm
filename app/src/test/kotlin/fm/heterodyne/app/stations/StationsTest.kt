@@ -26,6 +26,23 @@ class StationsTest {
 }
 
 class StationSelectionsTest {
+    @Test fun editStationNamePreservesIdentityOrderAndCatalog() {
+        val catalog = CatalogStation("source", "Справочное", 101700)
+        val entry = catalog.copyEntry()
+        val other = StationEntry(90300)
+        val original = StationSelection.empty("Основной").add(other).value!!.add(entry).value!!
+        val edited = original.editStation(entry, "  Моё имя  ").value!!
+        assertEquals(listOf(other, entry.copy(name = "Моё имя")), edited.entries)
+        assertEquals("Справочное", original.entries[1].name)
+        assertEquals("Справочное", catalog.name)
+        for (invalid in listOf("", "  ", "я".repeat(33))) {
+            assertEquals(ChangeError.INVALID_NAME, original.editStation(entry, invalid).error)
+        }
+        assertEquals("я".repeat(32), original.editStation(entry, "я".repeat(32)).value!!.entries[1].name)
+        assertEquals(ChangeError.NOT_FOUND, original.editStation(StationEntry(108000), "Имя").error)
+        assertEquals("Справочное", original.editStation(other, "Справочное").value!!.entries[0].name)
+    }
+
     @Test fun defaultsAndRegionInvariants() {
         val state = StationsState.defaults()
         assertEquals("moskva", state.selectedRegion)
@@ -57,6 +74,17 @@ class StationSelectionsTest {
 }
 
 class StationsStorageTest {
+    @Test fun legacyEntriesWithoutNameRemainReadable() {
+        val region = RegionSelections.defaults().let { it.replaceActive(it.active.add(StationEntry(101700)).value!!) }
+        val original = StationsState.defaults().copy(regions = mapOf("moskva" to region))
+        for (schema in 1..3) {
+            val json = JSONObject(StationsJson.encode(original)).put("schema", schema)
+            json.getJSONObject("regions").getJSONObject("moskva").getJSONArray("sets")
+                .getJSONObject(0).getJSONArray("entries").getJSONObject(0).remove("name")
+            assertEquals(original, StationsJson.decode(json.toString()))
+        }
+    }
+
     @Test fun roundTripPreservesRegionsActiveSelectionAndEntries() {
         val initial = StationsState.defaults()
         val region = initial.regionSelections("yaroslavl").createSelection("Дорога").value!!.activate("Дорога").value!!
