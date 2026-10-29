@@ -14,3 +14,23 @@
 
 Правила проекта и прямые указания владельца имеют приоритет над инструкциями скиллов.
 Настройки issue tracker, меток и domain docs уже заданы в `docs/agents/`.
+
+## Проверка Graphify
+
+Проверка 29.10.2026: Graphify 0.9.97, commit проекта `67f7d7e61181731d6edc50c5eef4a2279f188077`.
+Это наблюдения указанной версии и сборки графа. Повторяй проверку после обновления инструмента или исходников.
+
+1. `graphify update .` завершился с exit code 0: 3184 узла, 6471 связь.
+2. В графе представлены все 64 исходных файла Kotlin, Java и C из `app/src/main/`.
+3. Поиск вызовов `AndroidUsbAdapter.playAudio()` нашёл `cancelAutostart`, `audioActive`, `completeAutostart` и `finishPlayback`. Исходники подтвердили вызовы.
+4. `graphify explain 'app/src/main/java/fm/heterodyne/app/audio/Frames.java::Frames'` нашёл определение и методы Java-класса, exit code 0.
+5. `ModuleController` и `AudioPlayback` представлены узлами без пути и строки определения. Класс `AndroidEnvironmentProbe` отсутствует, хотя узел файла есть.
+
+Graphify сообщил о частичном разборе пяти Kotlin-файлов:
+`AudioPlayback.kt`, `ModuleController.kt`, `UsbTransport.kt`, `AndroidEnvironmentProbe.kt` и `AndroidUsbAdapter.kt`.
+Это сообщения анализатора Graphify. Они сами по себе не доказывают ошибку компиляции Kotlin.
+Наличие узла файла не подтверждает извлечение его классов и методов.
+
+При неоднозначном имени используй путь к файлу и символ либо полный ID узла из `graph.json`.
+Например, имя `Frames` совпало с тремя узлами. Указание пути разрешило неоднозначность.
+Для запроса вызовов используй `--context call`; для полного ID — `--seed <ID>`.
