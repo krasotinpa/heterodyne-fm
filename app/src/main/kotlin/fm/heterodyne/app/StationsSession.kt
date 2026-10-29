@@ -27,6 +27,8 @@ data class StationsScreenState(
     val error: String? = null,
     val nameError: String? = null,
     val frequencyError: String? = null,
+    val catalogUpdateBusy: Boolean = false,
+    val catalogUpdateResult: String? = null,
 ) {
     val regions: List<fm.heterodyne.app.stations.Region> get() {
         val active = catalogs.map { it.region }
@@ -46,16 +48,94 @@ class StationsSession(
     private val main: Handler,
     private val storage: Executor = Executors.newSingleThreadExecutor(),
     file: StationsFile = AtomicStationsFile(File(context.filesDir, "stations.json")),
+    private val network: Executor = Executors.newSingleThreadExecutor(),
+    private val onlineCatalog: () -> fm.heterodyne.app.stations.CatalogReader = { fm.heterodyne.app.stations.HttpsCatalogReader() },
+    private val catalogStore: CatalogStore = CatalogStore(File(context.filesDir, "catalog"),
+        AssetsCatalogReader { context.assets.open("catalogs/$it") }),
 ) {
     private val repository = StationsRepository(file)
-    private val catalogStore = CatalogStore(File(context.filesDir, "catalog"),
-        AssetsCatalogReader { context.assets.open("catalogs/$it") })
     // Only the storage queue reads or changes these values.
     private var current = StationsScreenState()
     private var pendingLastPlayed: Boolean? = null
     var screen by mutableStateOf(StationsScreenState())
         private set
     val activeEntries get() = screen.state?.let { it.regionSelections(it.selectedRegion).active.entries }.orEmpty()
+
+    private val updateLock = Any()
+    private var updateAllowed = false
+    private var updateGeneration = 0L
+    private var updating = false
+    private var download: fm.heterodyne.app.stations.CatalogReader? = null
+
+    /** Вызывается при выходе из стоянки, начале движения и уходе Activity в фон. */
+    fun allowCatalogUpdate(allowed: Boolean) = synchronized(updateLock) {
+        if (updateAllowed == allowed) return@synchronized
+        updateAllowed = allowed
+        if (!allowed) {
+            updateGeneration++
+            download?.close()
+            download = null
+            updating = false
+            storage.execute {
+                current = current.copy(catalogUpdateBusy = false)
+                publish()
+            }
+        }
+    }
+
+    fun updateCatalog() = synchronized(updateLock) {
+        if (!updateAllowed || updating) return@synchronized
+        updating = true
+        val generation = ++updateGeneration
+        storage.execute {
+            current = current.copy(catalogUpdateBusy = true, catalogUpdateResult = null)
+            publish()
+        }
+        network.execute {
+            val result = runCatching {
+                val reader = synchronized(updateLock) {
+                    check(updateAllowed && generation == updateGeneration)
+                    onlineCatalog().also { download = it }
+                }
+                reader.use {
+                    val files = linkedMapOf<String, ByteArray>()
+                    val candidate = fm.heterodyne.app.stations.loadCatalogSet(fm.heterodyne.app.stations.CatalogReader { name ->
+                        synchronized(updateLock) { check(updateAllowed && generation == updateGeneration) }
+                        reader.read(name).copyOf().also { files[name] = it }
+                    })
+                    candidate to files
+                }
+            }
+            storage.execute {
+                val outcome = runCatching {
+                    synchronized(updateLock) { check(updateAllowed && generation == updateGeneration) }
+                    val (candidate, files) = result.getOrThrow()
+                    if (candidate.revision <= catalogStore.active().revision) null
+                    else catalogStore.install(fm.heterodyne.app.stations.CatalogReader { files.getValue(it) },
+                        publish = { commit ->
+                            synchronized(updateLock) {
+                                check(updateAllowed && generation == updateGeneration)
+                                commit()
+                            }
+                        }).getOrThrow()
+                }
+                synchronized(updateLock) {
+                    if (!updateAllowed || generation != updateGeneration) return@execute
+                    download = null
+                    val installed = outcome.getOrNull()
+                    if (installed != null) current = current.copy(catalogs = installed.catalogs)
+                    val message = when {
+                        outcome.isFailure -> "Не удалось обновить Справочник"
+                        installed == null -> "Нет обновлений"
+                        else -> "Справочник обновлён: Ревизия ${installed.revision}"
+                    }
+                    updating = false
+                    current = current.copy(catalogUpdateBusy = false, catalogUpdateResult = message)
+                    publish()
+                }
+            }
+        }
+    }
 
     fun activateSelection(name: String) {
         storage.execute {

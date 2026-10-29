@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
+    private var foreground by mutableStateOf(false)
     private val drivingHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val drivingMonitor: fm.heterodyne.app.ui.DrivingMonitor by lazy {
         val stations = application as StationsApplication
@@ -31,11 +32,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        foreground = true
         drivingMonitor.start()
         drivingHandler.post(drivingTick)
     }
 
     override fun onStop() {
+        foreground = false
+        (application as StationsApplication).module.updateParked(false)
         drivingHandler.removeCallbacks(drivingTick)
         drivingMonitor.stop()
         super.onStop()
@@ -90,7 +94,7 @@ class MainActivity : ComponentActivity() {
             fm.heterodyne.app.ui.HeterodyneTheme(appearance.theme, appearance.palette) {
                 var parked by rememberSaveable { mutableStateOf(false) }
                 val driving = stations.module.driving
-                androidx.compose.runtime.SideEffect { stations.module.updateParked(parked && !driving) }
+                androidx.compose.runtime.SideEffect { stations.module.updateParked(parked && !driving && foreground) }
                 androidx.compose.runtime.LaunchedEffect(driving) { if (driving) parked = false }
                 if (!parked || driving) {
                     androidx.compose.foundation.layout.Box(Modifier.fillMaxSize()) {
@@ -137,6 +141,7 @@ class MainActivity : ComponentActivity() {
                         editStation = stations.session::editStation,
                         clearNameError = stations.session::clearNameError,
                         deleteRegion = stations.module::deleteObsoleteRegion,
+                        updateCatalog = stations.session::updateCatalog,
                     ), back = { parked = false },
                     receiverName = stations.module::receiverName, receiverKinds = stations.module.receiverKinds, selectedReceiver = stations.module.selectedReceiver,
                     selectReceiver = stations.module::selectReceiver,

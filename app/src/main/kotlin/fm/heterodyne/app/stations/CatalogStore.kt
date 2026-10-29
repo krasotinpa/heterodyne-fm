@@ -27,7 +27,8 @@ class CatalogStore(
         bundled
     }
 
-    fun install(reader: CatalogReader): Result<CatalogSet> = synchronized(ioLock) {
+    /** publish ограждает только атомарную смену указателя; подготовка и fsync идут до него. */
+    fun install(reader: CatalogReader, publish: (() -> Unit) -> Unit = { it() }): Result<CatalogSet> = synchronized(ioLock) {
         runCatching {
             val current = active()
             // Сохраняем именно проверенные байты, даже если источник меняется между чтениями.
@@ -40,7 +41,7 @@ class CatalogStore(
                 for ((name, raw) in bytes) writer(File(next, name), raw)
                 // Проверяем результат записи до публикации.
                 require(loadCatalogSet(DirectoryCatalogReader(next)) == candidate) { "Written catalog differs" }
-                pointTo(next.name)
+                pointTo(next.name, publish)
             } catch (failure: Exception) {
                 runCatching { next.deleteRecursively() }
                 throw failure
@@ -56,11 +57,11 @@ class CatalogStore(
         cleanup(null)
     }
 
-    private fun pointTo(name: String) {
+    private fun pointTo(name: String, publish: (() -> Unit) -> Unit = { it() }) {
         val temporary = File(dir, "active.tmp")
         try {
             writer(temporary, name.toByteArray(Charsets.UTF_8))
-            move(temporary, File(dir, "active"))
+            publish { move(temporary, File(dir, "active")) }
         } finally { temporary.delete() }
     }
 

@@ -35,7 +35,10 @@ class StationsModule(
         private set
     @Volatile private var parked = false
     @Volatile private var moving = false
-    fun updateParked(value: Boolean) { parked = value && !driving }
+    fun updateParked(value: Boolean) {
+        parked = value && !driving
+        session.allowCatalogUpdate(parked)
+    }
     fun selectReceiver(kind: fm.heterodyne.app.receiver.ReceiverKind) {
         if (!parked || driving) return
         cancelAutostart()
@@ -49,7 +52,7 @@ class StationsModule(
     fun updateDriving(value: Boolean) {
         moving = value
         driving = value
-        if (value) parked = false
+        if (value) updateParked(false)
         if (!value) {
             main.removeCallbacks(clearSeekHint)
             seekHint = null

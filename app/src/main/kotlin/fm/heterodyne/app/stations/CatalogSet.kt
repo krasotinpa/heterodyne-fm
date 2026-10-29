@@ -16,17 +16,20 @@ private const val INDEX_LIMIT = 32 * 1024
 private const val REGION_LIMIT = 64 * 1024
 private const val ZIP_LIMIT = 8 * 1024 * 1024
 private const val MAX_REGIONS = 100
-private fun limitFor(name: String) = if (name == "index.json") INDEX_LIMIT else REGION_LIMIT
+internal fun limitFor(name: String) = if (name == "index.json") INDEX_LIMIT else REGION_LIMIT
 private val identifier = Regex("[a-z0-9]+(-[a-z0-9]+)*")
 
 /** Читает файл набора; источник не определяет правила проверки. */
-fun interface CatalogReader { fun read(name: String): ByteArray }
+fun interface CatalogReader : AutoCloseable {
+    fun read(name: String): ByteArray
+    override fun close() {}
+}
 
-private fun safeName(name: String) {
+internal fun safeName(name: String) {
     require(name.isNotEmpty() && '/' !in name && '\\' !in name && ".." !in name) { "Unsafe file name: $name" }
 }
 
-private fun InputStream.boundedBytes(limit: Int): ByteArray {
+internal fun InputStream.boundedBytes(limit: Int): ByteArray {
     val output = java.io.ByteArrayOutputStream()
     val buffer = ByteArray(4096)
     while (true) {

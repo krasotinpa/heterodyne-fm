@@ -23,6 +23,26 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
+    @Test fun catalogUpdateIsManualAndShowsBusyAndResult() {
+        val screen = mutableStateOf(StationsScreenState(StationsState.defaults()))
+        val driving = mutableStateOf(false)
+        var requests = 0
+        compose.setContent {
+            ParkingScreen(screen.value, driving.value, null,
+                ParkingActions(updateCatalog = { requests++ }), {}, {})
+        }
+        assertEquals(0, requests)
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Обновить Справочник").performScrollTo().performClick()
+        assertEquals(1, requests)
+        compose.runOnIdle { screen.value = screen.value.copy(catalogUpdateBusy = true) }
+        compose.onNodeWithText("Обновление Справочника…").assertIsNotEnabled()
+        compose.runOnIdle { screen.value = screen.value.copy(catalogUpdateBusy = false, catalogUpdateResult = "Нет обновлений") }
+        compose.onNodeWithText("Нет обновлений").assertExists()
+        compose.runOnIdle { driving.value = true }
+        compose.onNodeWithText("Обновить Справочник").assertDoesNotExist()
+    }
+
     @Test fun stationFormClosesAfterSuccessfulAddCurrentFrequencyAndRename() {
         val screen = mutableStateOf(StationsScreenState(StationsState.defaults()))
         fun update(change: (StationSelection) -> StationSelection) {

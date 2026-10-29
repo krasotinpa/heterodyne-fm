@@ -45,6 +45,7 @@ data class ParkingActions(
     val editStation: (String, String, StationEntry, String) -> Unit = { _, _, _, _ -> },
     val clearNameError: () -> Unit = {},
     val deleteRegion: (String) -> Unit = {},
+    val updateCatalog: () -> Unit = {},
 )
 
 fun dragTargetIndex(from: Int, distance: Float, rowHeight: Float, count: Int): Int {
@@ -203,6 +204,10 @@ fun ParkingScreen(screen: StationsScreenState, driving: Boolean, confirmed: Stat
                                 SettingsOptions(listOf(false, true), { if (it) "Крупный" else "Обычный" },
                                     { it == parkLargeIcon }, selectParkLargeIcon)
                             }
+                            SettingsGroup("Справочник")
+                            Control(if (screen.catalogUpdateBusy) "Обновление Справочника…" else "Обновить Справочник",
+                                !screen.catalogUpdateBusy, actions.updateCatalog, Modifier.fillMaxWidth(), settings = true)
+                            screen.catalogUpdateResult?.let { SettingsText(it) }
                             SettingsGroup("Регион")
                             Control("Регион: ${screen.regions.firstOrNull { it.id == state?.selectedRegion }?.name.orEmpty()} ›", true, { regionsOpen = true },
                                 Modifier.fillMaxWidth(), settings = true)

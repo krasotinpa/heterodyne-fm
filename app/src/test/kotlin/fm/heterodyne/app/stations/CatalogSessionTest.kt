@@ -20,6 +20,126 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class CatalogSessionTest {
+    @Test fun failedDownloadKeepsBuiltinCatalogAndSelections() {
+        val context = RuntimeEnvironment.getApplication()
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
+            network = Executor { it.run() }, onlineCatalog = { CatalogReader { throw java.io.IOException("offline") } })
+        session.load {}; shadowOf(Looper.getMainLooper()).idle()
+        val before = session.screen
+        session.allowCatalogUpdate(true)
+        session.updateCatalog(); shadowOf(Looper.getMainLooper()).idle()
+        assertEquals(before.catalogs, session.screen.catalogs)
+        assertEquals(before.state, session.screen.state)
+        assertEquals("Не удалось обновить Справочник", session.screen.catalogUpdateResult)
+        assertFalse(session.screen.catalogUpdateBusy)
+    }
+
+    @Test fun manualUpdateInstallsNewRevisionWithoutChangingSelectionsAndSkipsSameRevision() {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.filesDir, "catalog")
+        val file = File(context.filesDir, "stations.json")
+        try {
+            val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
+                network = Executor { it.run() }, onlineCatalog = { testSetReader() })
+            session.load {}; shadowOf(Looper.getMainLooper()).idle()
+            val before = session.screen.state
+            session.allowCatalogUpdate(true)
+            session.updateCatalog(); shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf("test"), session.screen.catalogs.map { it.region.id })
+            assertEquals(before, session.screen.state)
+            assertEquals("Справочник обновлён: Ревизия 2026-10-30", session.screen.catalogUpdateResult)
+            session.updateCatalog(); shadowOf(Looper.getMainLooper()).idle()
+            assertEquals("Нет обновлений", session.screen.catalogUpdateResult)
+            val restarted = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() })
+            restarted.load {}; shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(session.screen.catalogs, restarted.screen.catalogs)
+        } finally { dir.deleteRecursively(); file.delete() }
+    }
+
+    @Test fun drivingAndBackgroundRejectNetworkAndCancelQueuedAndActiveUpdates() {
+        val context = RuntimeEnvironment.getApplication()
+        val queued = java.util.ArrayDeque<Runnable>()
+        var opened = 0
+        var closed = false
+        lateinit var session: StationsSession
+        session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
+            network = Executor { queued.add(it) }, onlineCatalog = {
+                opened++
+                val reader = testSetReader()
+                object : CatalogReader {
+                    override fun read(name: String): ByteArray {
+                        val bytes = reader.read(name)
+                        if (name == "index.json") session.allowCatalogUpdate(false)
+                        return bytes
+                    }
+                    override fun close() { closed = true }
+                }
+            })
+        session.load {}; shadowOf(Looper.getMainLooper()).idle()
+        val before = session.screen.catalogs
+        session.updateCatalog()
+        assertTrue(queued.isEmpty())
+        session.allowCatalogUpdate(true)
+        session.updateCatalog()
+        session.updateCatalog()
+        assertEquals(1, queued.size)
+        session.allowCatalogUpdate(false)
+        queued.remove().run()
+        assertEquals(0, opened)
+        session.allowCatalogUpdate(true)
+        session.updateCatalog()
+        queued.remove().run()
+        shadowOf(Looper.getMainLooper()).idle()
+        assertTrue(closed)
+        assertEquals(1, opened)
+        assertEquals(before, session.screen.catalogs)
+        assertFalse(session.screen.catalogUpdateBusy)
+        assertNull(session.screen.catalogUpdateResult)
+        session.updateCatalog()
+        assertTrue(queued.isEmpty())
+    }
+
+    @Test fun cancellationDoesNotWaitForDiskAndRejectsPreparedUpdateAfterReentry() {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = File(context.filesDir, "catalog")
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val tasks = java.util.concurrent.ConcurrentLinkedQueue<Runnable>()
+        val store = CatalogStore(dir, AssetsCatalogReader { context.assets.open("catalogs/$it") },
+            writer = { file, bytes ->
+                if (file.name == "test.json") {
+                    entered.countDown()
+                    check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                }
+                file.writeBytes(bytes)
+            })
+        val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { tasks.add(it) },
+            network = Executor { it.run() }, onlineCatalog = { testSetReader() }, catalogStore = store)
+        var worker: Thread? = null
+        try {
+            session.load {}; tasks.remove().run(); shadowOf(Looper.getMainLooper()).idle()
+            val before = session.screen.catalogs
+            session.allowCatalogUpdate(true)
+            session.updateCatalog()
+            tasks.remove().run() // busy
+            worker = Thread(tasks.remove()).also { it.start() }
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            val cancel = java.util.concurrent.FutureTask { session.allowCatalogUpdate(false) }
+            Thread(cancel).start()
+            cancel.get(1, java.util.concurrent.TimeUnit.SECONDS)
+            session.allowCatalogUpdate(true)
+            release.countDown()
+            worker.join(5000)
+            assertFalse(worker.isAlive)
+            while (tasks.isNotEmpty()) tasks.remove().run()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(before, session.screen.catalogs)
+            assertEquals("2026-10-29", store.active().revision)
+            assertFalse(session.screen.catalogUpdateBusy)
+            assertNull(session.screen.catalogUpdateResult)
+        } finally { release.countDown(); worker?.join(5000); dir.deleteRecursively() }
+    }
+
     @Test fun removedRegionKeepsItsLastKnownNameAndSelections() {
         val context = RuntimeEnvironment.getApplication()
         val dir = File(context.filesDir, "catalog")
