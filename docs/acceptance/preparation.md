@@ -1,5 +1,8 @@
 # Приёмка MVP на ГУ: подготовка
 
+Актуальный пакет прогона 4: [инструкция](test-plan-run4.md), [бланк](report-template-run4.md), [APK и проверки](build-run4.md).
+Ниже сохранена подготовка прогона 3; для нового прогона используй ограничения и файлы прогона 4.
+
 Это инструкция для владельца. Она готовит всё до выезда к автомобилю.
 Сами проверки прогона 3 описаны в [test-plan-run3.md](test-plan-run3.md). Форма результатов — в [report-template-run3.md](report-template-run3.md).
 Тикет приёмки: [#89](https://github.com/krasotinpa/super-radio-android/issues/89).
