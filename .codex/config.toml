@@ -8,5 +8,3 @@
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-
-model_context_window = 1048576
