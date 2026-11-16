@@ -23,7 +23,7 @@ Codex ведёт задачу от критериев приёмки до PR. Me
 1. Проверь дистрибутив WSL, repository, branch, worktree и SHA.
 2. Выполни `git fetch origin`. Создай feature-ветку в отдельном WSL worktree от `origin/main`.
 3. Перед первым изменением кода прочитай и примени `ponytail full`.
-4. Для поиска по коду сначала выполни `graphify update .`, затем `graphify query "<вопрос>"`.
+4. Для поиска по коду следуй [heterodyne-graphify](../../.agents/skills/heterodyne-graphify/SKILL.md): обычный режим использует update и query, режим чтения не обновляет граф.
 5. Проверяй вывод графа по исходникам. Точные строки и символы ищи через `rg`.
 6. Храни граф только в игнорируемом `graphify-out/` текущего worktree.
 
