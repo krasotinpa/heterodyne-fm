@@ -4,8 +4,8 @@
     {
       "label": "Codex: audit (read-only)",
       "type": "process",
-      "command": "codex",
-      "args": ["--config", "sandbox_mode=\"read-only\"", "--config", "approval_policy=\"never\""],
+      "command": "python3",
+      "args": ["${workspaceFolder}/build-support/codex-project.py", "--config", "sandbox_mode=\"read-only\"", "--config", "approval_policy=\"never\""],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "focus": true, "panel": "dedicated" }
@@ -13,8 +13,8 @@
     {
       "label": "Codex: develop (workspace-write)",
       "type": "process",
-      "command": "codex",
-      "args": ["--config", "sandbox_mode=\"workspace-write\"", "--config", "approval_policy=\"on-request\""],
+      "command": "python3",
+      "args": ["${workspaceFolder}/build-support/codex-project.py", "--config", "sandbox_mode=\"workspace-write\"", "--config", "approval_policy=\"on-request\""],
       "options": { "cwd": "${workspaceFolder}" },
       "problemMatcher": [],
       "presentation": { "reveal": "always", "focus": true, "panel": "dedicated" }

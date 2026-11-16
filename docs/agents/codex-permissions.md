@@ -23,10 +23,10 @@ Sandbox команд не ограничивает все действия по�
 
 ```bash
 # Аудит
-codex --config 'sandbox_mode="read-only"' --config 'approval_policy="never"'
+python3 build-support/codex-project.py --config 'sandbox_mode="read-only"' --config 'approval_policy="never"'
 
 # Разработка
-codex --config 'sandbox_mode="workspace-write"' --config 'approval_policy="on-request"'
+python3 build-support/codex-project.py --config 'sandbox_mode="workspace-write"' --config 'approval_policy="on-request"'
 ```
 
 В VS Code Remote WSL открой нужную папку и выбери `Terminal → Run Task`.
@@ -35,7 +35,8 @@ codex --config 'sandbox_mode="workspace-write"' --config 'approval_policy="on-re
 1. `Codex: audit (read-only)` — аудит.
 2. `Codex: develop (workspace-write)` — разработка.
 
-Задачи запускают CLI из WSL `PATH`. Они не переключают права боковой панели Extension.
+Задачи запускают [проектный launcher](../../build-support/codex-project.py), который выбирает CLI из WSL `PATH` и отключает ненужные MCP только для запуска.
+Они не переключают права и интеграции боковой панели Extension; для неё нужна отдельная проверка по [инструкции интеграций](project-integrations.md).
 Перед работой проверь права новой CLI-сессии через `/status` и при необходимости `/debug-config`.
 При несовпадении останови действия и исправь способ запуска.
 
@@ -122,8 +123,8 @@ Git может остановить обновление `main`, если на �
 Проверить загрузку настроек CLI можно без запроса к модели:
 
 ```bash
-codex --config 'sandbox_mode="read-only"' --config 'approval_policy="never"' doctor --json
-codex --config 'sandbox_mode="workspace-write"' --config 'approval_policy="on-request"' doctor --json
+python3 build-support/codex-project.py --config 'sandbox_mode="read-only"' --config 'approval_policy="never"' doctor --json
+python3 build-support/codex-project.py --config 'sandbox_mode="workspace-write"' --config 'approval_policy="on-request"' doctor --json
 ```
 
 `doctor` проверяет собственный запуск. Поле `active thread overrides: not inspected` исключает вывод о правах открытого чата.
