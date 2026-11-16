@@ -110,6 +110,7 @@ raw/                   новые captures до проверки; не комм�
 
 Источники и обновление скиллов: [docs/agents/skills.md](docs/agents/skills.md).
 Для выбора рабочего процесса используй [активный набор проекта](docs/agents/skills.md#активный-набор-проекта); наличие скилла в каталоге не требует его загрузки.
+Если инструкция использует отсутствующие `Skill`/`Task`/`Agent` или Claude-команды, следуй [адаптеру Codex](docs/agents/codex-skill-adapter.md).
 
 ### Issue tracker
 
