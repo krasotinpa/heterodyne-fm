@@ -17,7 +17,7 @@ Codex проверяет точный head SHA перед merge. Прямой pu
 | 4 | P1 | Обнаружение SDK в новых оболочках WSL | Выполнен; [отчёт](../validation/android-sdk-environment-p1.md) |
 | 5 | P1 | Согласованные актуальные документы | Выполнен; [отчёт](../validation/agent-instructions-p1.md) |
 | 6 | P1 | Короткий workflow Graphify с режимом чтения | Выполнен; [отчёт](../validation/graphify-workflow-p1.md) |
-| 7 | P1 | Минимальный активный набор Skills проекта | Ожидает |
+| 7 | P1 | Минимальный активный набор Skills проекта | Выполнен; [отчёт](../validation/active-skills-p1.md) |
 | 8 | P1 | Выполнимые инструкции Skills для Codex | Ожидает |
 | 9 | P1 | Только нужные проекту MCP и hooks | Ожидает |
 | 10 | P1 | Явная установка закреплённого NDK в CI | Ожидает |
