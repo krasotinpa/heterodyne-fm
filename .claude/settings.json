@@ -19,5 +19,8 @@
       "Bash(gh pr create *)",
       "Bash(gh pr view *)"
     ]
+  },
+  "enabledPlugins": {
+    "codex@openai-codex": false
   }
 }

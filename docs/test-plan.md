@@ -15,6 +15,7 @@
 | RDS | Partial/stale/invalid text, station change | No stale display |
 | Экспорт Журнала | Fake DownloadStore: запись, повторный экспорт, ошибка | Путь Download, точный размер в байтах, уникальные имена; ошибка не сообщает успех |
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
+| Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
 
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
 Real fixtures имеют hash/provenance. Synthetic bytes доказывают negative handling, не hardware protocol.
