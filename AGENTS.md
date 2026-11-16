@@ -48,6 +48,7 @@ Android toolchain и dependencies закрепляй после получени
 
 Для запуска аудита и разработки используй [режимы прав Codex](docs/agents/codex-permissions.md). Проверяй права активной сессии до действий.
 Каждый согласованный пункт оптимизации среды выполняй в отдельном чате, ветке-worktree и PR. Следующий начинай после merge владельцем.
+На время изменения среды действует [пауза GitHub CI](docs/agents/ci-pause.md). После завершения работ восстанови CI и обязательные проверки.
 
 Разработка выполняется только с Codex. Он реализует, проверяет, коммитит изменения и открывает PR.
 Код тикетов `ready-for-agent` пишет Codex по [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md); тикеты `ready-for-human` берёт человек.
