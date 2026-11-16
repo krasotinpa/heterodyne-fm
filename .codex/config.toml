@@ -1,0 +1,12 @@
+# super-radio-android/.codex/config.toml
+# Проектные переопределения. Codex применяет их, только если проект доверенный.
+#
+# Здесь НЕЛЬЗЯ задавать model_provider, model_providers, profile(s),
+# openai_base_url, notify, otel — Codex их игнорирует в проектном слое.
+# Провайдер берётся из ~/.codex/config.toml.
+
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+model_context_window = 1048576
