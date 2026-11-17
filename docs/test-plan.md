@@ -17,6 +17,7 @@
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
 | Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
 | Validation gate | Fixture Python/Gradle: all, python, android, отказ | Выбранные команды выполнены; первый отказ возвращает исходный exit code и останавливает следующие проверки |
+| Run 4 Visual | Свой AVD, 3 разрешения × 2 масштаба × 2 темы | PNG каждого экрана и ошибки сверены по размерам и просмотрены. Отчёт указывает дефекты и условия |
 | Visual regression | Два фиксированных Efir состояния, API 35 native graphics | Bitmap совпадает с техническим PNG-эталоном; различия сохраняют actual PNG; это не приёмка ГУ |
 | Run 4 Android UI | CLI, собственный AVD, обычный restart, Compose UI и MediaStore | Паспорт до ADB; A/B/C/X, сохранение после reinstall/restart; fixtures и HTTPS отдельно |
 | Preflight APK | Fake transport, синтетические ответы, PCM, manifest guard | Receiver подтверждает только RX; PCM имеет формат s16le stereo; физическая среда отвергается до Application wiring |
