@@ -45,8 +45,22 @@ Synthetic failure reader не доказывает отключение сети
 
 ### Gate и review
 
-Полный `./build-support/validate.sh` и независимая review-волна выполняются после завершения изменений текущей ветки.
-Окончательные результаты будут добавлены до открытия PR.
+Полный `JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64 ./build-support/validate.sh`: exit 0, Android build 1 мин 18 с.
+Research: 71 тест; build-version: 5; debug unit: 451; preflight unit: 455. Ошибок и пропусков нет.
+Дополнительно `./gradlew -Pheterodyne.testBuildType=preflight lintPreflight assemblePreflightAndroidTest`: exit 0, 22 с.
+DEX проверен: PreflightCatalog есть только в preflight APK, обычный debug его не содержит.
+Локальные ссылки и `git diff --check`: exit 0.
+Gate logs: `.scratch/run4-block3/gate.log`, `.scratch/run4-block3/preflight-lint-test-build.log`.
+
+После последних изменений runner выполнен повторный полный Android-прогон с `--https`, exit 0.
+Проверенный чистый source commit: `60a29f0dd7f2870c716e1e03c2a6bc7025c1379f`.
+APK SHA-256: `e30dd32ee21bde4e6ecf9050c8d440ac470786cef7c8b08e3dfc2140c325cf4f`.
+Test APK SHA-256: `ec0700aa7adbb0878412543df011df3530288cdda3bd36abca3a3424e40ecc74`.
+Обычный новый процесс: 2506 → 2694.
+Пять фаз снова вернули `OK (1 test)`; HTTPS: «Нет обновлений»; оба MediaStore файла сверены после `adb pull`.
+Evidence: `.scratch/preflight-fixtures/run4-block3-final/runs/e703d139328845d2952b86e01efe028b/`.
+Emulator и отдельный ADB завершились штатно. Исходный config сохранил прежний SHA-256.
+Независимые Standards и Spec проверяют всю ветку одной волной после gate.
 
 ## Defect and Issue Report
 
@@ -76,4 +90,4 @@ PNG последнего инфраструктурного отказа сня�
 4. `tdd`: PreflightCatalogTest сначала не компилировался из-за отсутствующего класса; после минимальной реализации прошёл.
 5. `diagnosing-bugs`: реальные Android-отказы сохранены; уточнены UI-селекторы и жизненный цикл instrumentation; успешный прогон повторил весь путь.
 6. `writing-for-agents`: команды и ограничения собраны в существующей инструкции; план и test-plan связаны с ней.
-7. `code-review` Standards/Spec и `pr` применяются после полного gate; итог будет записан до PR.
+7. `code-review`: независимые Standards/Spec проверяют всю ветку после полного gate. `pr`: описание PR готовится по шаблону с доказательствами.
