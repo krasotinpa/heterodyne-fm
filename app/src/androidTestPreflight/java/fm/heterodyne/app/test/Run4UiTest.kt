@@ -42,7 +42,7 @@ class Run4UiTest {
     @Test fun prepareData() {
         parked()
         click("О приложении")
-        compose.onNodeWithText(BuildConfig.VERSION_NAME).assertIsDisplayed()
+        compose.onNodeWithText("Версия ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
         assertFalse(BuildConfig.VERSION_NAME.contains("dirty"))
         click("Настройки")
         setting("Тёмная").performClick()
@@ -83,9 +83,9 @@ class Run4UiTest {
         verifyEntry()
         // Explicit Stop persists lastPlayed=false before the host starts a fresh process.
         click("← Эфир")
-        compose.onNodeWithContentDescription("Старт").performClick()
+        click("Старт")
         waitFor { app.module.audioState == AudioState.Playing }
-        compose.onNodeWithContentDescription("Стоп").performClick()
+        click("Стоп")
         waitFor { app.module.audioState == AudioState.Stopped }
         // The public callback queues behind pending storage writes; no private-file polling.
         val stored = java.util.concurrent.atomic.AtomicBoolean(false)
