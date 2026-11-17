@@ -60,6 +60,8 @@ AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 
 Script выполняет офлайн-часть gate и останавливается при первом отказе.
 Android gate также запускает preflight unit tests и собирает отдельный `app-preflight.apk`.
+Runner A/B/C/X устанавливает APK, проверяет UI и повторное открытие, обновляет Справочник и читает MediaStore export.
+HTTPS запускается отдельно от fixtures; отчёт различает их результаты.
 Проверка нового процесса и AudioTrack описана в [инструкции preflight APK](agents/run4-preflight-apk.md).
 Режимы `python` и `android` используются теми же job CI; имена обязательных проверок сохраняются.
 Офлайн-успех не подтверждает instrumented или аппаратную приёмку.

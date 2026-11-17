@@ -1,7 +1,9 @@
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -252,3 +254,35 @@ class PreflightTest(unittest.TestCase):
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("requires preflight", result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_busy_private_adb_port_refuses_before_starting_tools(self):
+        self.write_badging(package="fm.heterodyne.app.preflight")
+        result = self.cli("passport", "--apk", str(self.apk), "--source-commit", self.commit, "--purpose", "preflight")
+        passport = self.root / "preflight-passport.json"
+        passport.write_text(result.stdout)
+        template = self.root / "template.ini"
+        template.write_text("abi.type=x86_64\n")
+        image = self.sdk / "system-images/android-30/default/x86_64"
+        image.mkdir(parents=True)
+        (image / "system.img").write_bytes(b"installed image")
+        aapt = self.sdk / "build-tools/36.0.0/aapt"
+        aapt.write_text('#!/bin/sh\nif [ "$2" = xmltree ]; then\ncat <<\'XML\'\npackage="fm.heterodyne.app.preflight.test"\ntargetPackage="fm.heterodyne.app.preflight"\nname="fm.heterodyne.app.test.EmulatorOnlyRunner"\nXML\nelse\ncat "$PREFLIGHT_TEST_BADGING"\nfi\n')
+        for name in ("platform-tools/adb", "emulator/emulator", "emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"):
+            tool = self.sdk / name
+            tool.parent.mkdir(parents=True, exist_ok=True)
+            tool.write_text('#!/bin/sh\nprintf invoked >> "$PREFLIGHT_TEST_TRACE"\n')
+            tool.chmod(0o755)
+        with socket.socket() as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen()
+            result = self.cli("prepare", "--name", "busy", "--template", str(template),
+                              "--adb-port", str(occupied.getsockname()[1]))
+            self.assertEqual(0, result.returncode, result.stderr)
+            manifest = self.root / ".scratch/preflight-fixtures/busy/fixture.json"
+            result = self.cli("run", "android-ui", "--apk", str(self.apk), "--passport", str(passport),
+                "--manifest", str(manifest), "--test-apk", str(self.apk),
+                "--test-sha256", hashlib.sha256(self.apk.read_bytes()).hexdigest())
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("Address already in use", result.stderr)
+            self.assertFalse(self.trace.exists())
+            self.assertFalse((manifest.parent / "runs").exists())

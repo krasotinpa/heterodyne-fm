@@ -107,6 +107,13 @@ def owned_process(info, executable, ports):
     return proc.joinpath("cmdline").read_bytes().decode().rstrip("\0").split("\0")
 
 
+def verify_adb(data, sdk):
+    argv = owned_process(data["adb_process"], sdk / "platform-tools/adb", (data["adb_port"],))
+    require(len(argv) == 9 and argv[1:6] == ["-L", f'tcp:{data["adb_port"]}', "fork-server", "server", "--reply-fd"]
+            and argv[6].isdigit() and argv[7:] == ["--one-device", data["serial"]],
+            "ADB process is not restricted to this serial")
+
+
 def fixture(args):
     manifest = args.manifest.absolute()
     root = manifest.parent
@@ -129,14 +136,9 @@ def fixture(args):
     if running:
         qemu = args.sdk / "emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"
         argv = owned_process(data["emulator_process"], qemu, (port, port + 1))
-        require(argv[1:] == ["-avd", name, "-datadir", str(avd), "-port", str(port),
-            "-no-window", "-no-audio", "-no-boot-anim", "-no-snapshot", "-gpu", "swiftshader",
-            "-camera-back", "none", "-camera-front", "none", "-no-metrics", "-memory", "2048"],
+        require(argv[1:] == emulator_arguments(data, root),
             "unapproved emulator process arguments")
-        argv = owned_process(data["adb_process"], args.sdk / "platform-tools/adb", (data["adb_port"],))
-        require(len(argv) == 9 and argv[1:6] == ["-L", f'tcp:{data["adb_port"]}', "fork-server", "server", "--reply-fd"]
-                and argv[6].isdigit() and argv[7:] == ["--one-device", data["serial"]],
-                "ADB process is not restricted to this serial")
+        verify_adb(data, args.sdk)
     for path in root.rglob("*"):
         require(not path.is_symlink(), "fixture symlink")
         require(path.is_dir() or path.is_file(), "unsupported fixture file")
@@ -221,7 +223,7 @@ def prepare(args):
         "hw.sdCard": "no", "image.sysdir.1": str(image) + "/", "tag.id": "default", "target": "android-30",
         "disk.dataPartition.path": str(avd / "userdata-qemu.img"), "disk.dataPartition.size": "2G",
         "fastboot.forceColdBoot": "yes", "fastboot.forceFastBoot": "no",
-        "firstboot.bootFromLocalSnapshot": "no", "firstboot.saveToLocalSnapshot": "no"})
+        "firstboot.bootFromDownloadableSnapshot": "no", "firstboot.bootFromLocalSnapshot": "no", "firstboot.saveToLocalSnapshot": "no"})
     (avd / "config.ini").write_text("".join(f"{k}={v}\n" for k, v in sorted(config.items())))
     (root / "avd" / (args.name + ".ini")).write_text(f"path={avd}\ntarget=android-30\n")
     manifest = root / "fixture.json"
@@ -294,7 +296,7 @@ def android_ui(args, passport_data):
     run_dir = root / 'runs' / uuid.uuid4().hex
     run_dir.mkdir(parents=True)
     report = {'schema': 1, 'mode': 'android-ui', 'source_commit': passport_data['source_commit'],
-              'apk': passport_data['apk'], 'test_apk_sha256': args.test_sha256, 'steps': [], 'status': 'failed',
+              'apk': passport_data['apk'], 'passport': passport_data, 'test_apk_sha256': args.test_sha256, 'steps': [], 'status': 'failed',
               'Defect and Issue Report': {'status': 'requires Codex triage', 'issues': []},
               'Remaining Car Tests': ['All HU/USB/FM/audio route acceptance; Emulator does not confirm it',
                                      'Visual, F, G and D/E remain separate blocks'],
@@ -308,10 +310,6 @@ def android_ui(args, passport_data):
         report['steps'].append(dict(step=label, exit_code=result.returncode, evidence=label + '.log'))
         require(result.returncode == 0, f'{label} exited {result.returncode}')
         return result.stdout
-    def verify_adb():
-        argv = owned_process(data['adb_process'], adb, (data['adb_port'],))
-        require(len(argv) == 9 and argv[1:6] == ['-L', f"tcp:{data['adb_port']}", 'fork-server', 'server', '--reply-fd']
-                and argv[6].isdigit() and argv[7:] == ['--one-device', data['serial']], 'foreign ADB server')
     def device(label, *argv, timeout=60):
         fixture(args)
         return command(label, [*adb_prefix, *argv], timeout)
@@ -322,7 +320,7 @@ def android_ui(args, passport_data):
         command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
         data['adb_process'] = find_process(adb, f"tcp:{data['adb_port']}")
         require(data['adb_process'], 'private ADB server missing')
-        verify_adb()
+        verify_adb(data, args.sdk)
         child = subprocess.Popen([str(emulator), *emulator_arguments(data, root)], cwd=ROOT, env=env,
                                  stdout=emulator_log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 180
@@ -374,8 +372,10 @@ def android_ui(args, passport_data):
             result = device(name, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class',
                 'fm.heterodyne.app.test.Run4UiTest#' + name,
                 package + '.test/fm.heterodyne.app.test.EmulatorOnlyRunner', timeout=360)
-            require('OK (1 test)' in result and 'FAILURES!!!' not in result and 'INSTRUMENTATION_FAILED' not in result,
-                    f'{name} instrumentation failed')
+            passed = 'OK (1 test)' in result and 'FAILURES!!!' not in result and 'INSTRUMENTATION_FAILED' not in result
+            report['steps'][-1].update(status='passed' if passed else 'failed', expected='OK (1 test)',
+                source='real HTTPS' if name == 'realHttps' else 'Emulator and fixtures')
+            require(passed, f'{name} instrumentation failed')
             return result
         prepared = phase('prepareData')
         previous = re.search(r'PREPARE_PID=(\d+)', prepared)
@@ -440,7 +440,7 @@ def android_ui(args, passport_data):
                             'unexpected Emulator lock file')
                     stale_lock.unlink()
             if 'adb_process' in data:
-                verify_adb()
+                verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))

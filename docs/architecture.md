@@ -171,6 +171,9 @@ Fixture заменяет транспорт, PCM source и аудиопорт; �
 USB manager, broadcast registration и аппаратный транспорт не используются в ветке fixture.
 Общий AudioPlayback продолжает писать в настоящий AudioTrack.
 Обычные debug/release возвращают null fixture; синтетические классы в них не компилируются.
+Фабрика onlineCatalog в Application сохраняет штатный HTTPS по умолчанию.
+Preflight переопределяет её для отдельных сценариев HTTPS, synthetic failure и набора fixtures.
+Выбор источника хранится в отдельном preflight package; normal debug/release не содержат PreflightCatalog.
 Ограничения и команды описаны в [инструкции preflight APK](agents/run4-preflight-apk.md).
 
 ## Ручное обновление Справочника
