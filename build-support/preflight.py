@@ -295,6 +295,92 @@ def visual_matrix(device, phase, run_dir, report):
                                       sha256=sha256(path), width=width, height=height))
 
 
+def receiver_lifecycle(device, phase, launch, package, report):
+    import time
+    import xml.etree.ElementTree as ET
+
+    journal_path = "files/module-diagnostics/diagnostic.log"
+
+    def journal(label):
+        return device(label, "shell", "run-as", package, "cat", journal_path)
+
+    def wait_playing(label, pid):
+        deadline = time.monotonic() + 20
+        marker = f"F_AUDIO pid={pid} state=Playing freq=97700 streaming=true"
+        for attempt in range(40):
+            log = journal(f"{label}-{attempt}")
+            if marker in log:
+                # Per-process fixture marker separates historical lines from this launch.
+                current = log.split(f"PREFLIGHT pid={pid} ", 1)[1]
+                require(current.count(" Audio start") == 1, "playback started more than once")
+                require("autostart reason=application-open result=selected" in current
+                        or "autostart reason=application-open result=already-selected" in current,
+                        "missing ordinary launch autostart evidence")
+                return
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.5)
+        raise ValueError(f"{label}: selected station did not stream after ordinary launch")
+
+    def force_stop(label):
+        device(label, "shell", "am", "force-stop", package)
+        # pidof exits 1 when the process is gone. Redirect only its output and preserve a detectable marker.
+        state = device(label + "-pid", "shell", f"pidof {package} || echo STOPPED").strip()
+        require(state == "STOPPED", "application process survived force-stop")
+
+    phase("seedPlayback", test_class="Run4LifecycleTest")
+    first = launch("f-live-before-stop")
+    wait_playing("f-live-before", first)
+    force_stop("f-force-stop-playing")
+    reopened = launch("f-reopened-playing")
+    require(first != reopened, "force-stop must create a new playing process")
+    wait_playing("f-playing-reopened", reopened)
+
+    # Resolve the ordinary Activity's Stop button at its actual bounds rather than using a coordinate constant.
+    xml_file = "/data/local/tmp/run4-stop.xml"
+    device("f-stop-tree", "shell", "uiautomator", "dump", xml_file)
+    xml = ET.fromstring(device("f-stop-tree-read", "shell", "cat", xml_file))
+    nodes = [node for node in xml.iter("node") if node.get("package") == package
+             and node.get("text") == "Стоп" and node.get("enabled") == "true"]
+    require(len(nodes) == 1, "ordinary Stop button is missing or ambiguous")
+    bounds = re.fullmatch(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", nodes[0].get("bounds", ""))
+    require(bounds, "ordinary Stop button has no bounds")
+    left, top, right, bottom = map(int, bounds.groups())
+    require(left < right and top < bottom, "ordinary Stop button has empty bounds")
+    device("f-stop-button", "shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+    for attempt in range(20):
+        log = journal(f"f-user-stop-{attempt}")
+        if f"F_AUDIO pid={reopened} state=Stopped freq=97700 streaming=false" in log:
+            saved = json.loads(device(f"f-stop-storage-{attempt}", "shell", "run-as", package,
+                                      "cat", "files/stations.json"))
+            if saved.get("lastPlayed") is False:
+                break
+        time.sleep(0.5)
+    else:
+        raise ValueError("Stop did not end the ordinary audio stream")
+    force_stop("f-force-stop-stopped")
+    stopped = launch("f-reopened-stopped")
+    require(stopped not in (first, reopened), "force-stop must create a new stopped process")
+    time.sleep(10)
+    current = journal("f-stopped-observation").split(f"PREFLIGHT pid={stopped} ", 1)[1]
+    require("autostart reason=application-open result=skipped" in current and " Audio start" not in current
+            and f"F_AUDIO pid={stopped} state=Playing" not in current,
+            "unwanted autostart after Stop")
+    report["force_stop"] = dict(playing_before=first, playing_reopened=reopened, stopped_reopened=stopped,
+                                station_khz=97700, stopped_observation_seconds=10)
+    replug = phase("replug", test_class="Run4LifecycleTest", timeout=420)
+    cycles = re.findall(r"F_REPLUG cycle=(\d+) confirmed=(\d+) audio=(Playing|Stopped) restarts=(\d+)", replug)
+    require(len(cycles) == 10 and [int(cycle[0]) for cycle in cycles] == list(range(1, 11)), "missing replug evidence")
+    require(all(cycle[1:] == ("97700", "Playing", "1") for cycle in cycles[:8])
+            and all(cycle[2:] == ("Stopped", "0") for cycle in cycles[8:]), "unexpected replug audio state")
+    report["fake_replugs"] = [dict(cycle=int(n), frequency_khz=int(f), audio=a, starts=int(s)) for n, f, a, s in cycles]
+    require("F_COOLDOWN" in replug, "missing cooldown evidence")
+    faults = phase("faults", test_class="Run4LifecycleTest")
+    report["faults"] = [line.split("stream=", 1)[-1] for line in faults.splitlines()
+                        if any(tag in line for tag in ("F_DELAY", "F_STALE", "F_PCM_LOSS"))]
+    require(len(report["faults"]) == 3, "missing fault evidence")
+
+
 def run_emulator(args, passport_data):
     import fcntl
     import socket
@@ -413,11 +499,11 @@ def run_emulator(args, passport_data):
             require(f'PREFLIGHT pid={pid} receiver=FakeReceiver' in journal, 'ordinary process has no fixture marker')
             return pid
         launch('ordinary-before')
-        def phase(name, label=None, *parameters):
+        def phase(name, label=None, *parameters, test_class="Run4UiTest", timeout=360):
             extras = [arg for i in range(0, len(parameters), 2) for arg in ('-e', *parameters[i:i+2])]
             result = device(label or name, 'shell', 'am', 'instrument', '-w', '-r', *extras, '-e', 'class',
-                'fm.heterodyne.app.test.Run4UiTest#' + name,
-                package + '.test/fm.heterodyne.app.test.EmulatorOnlyRunner', timeout=360)
+                f'fm.heterodyne.app.test.{test_class}#{name}',
+                package + '.test/fm.heterodyne.app.test.EmulatorOnlyRunner', timeout=timeout)
             passed = 'OK (1 test)' in result and 'FAILURES!!!' not in result and 'INSTRUMENTATION_FAILED' not in result
             report['steps'][-1].update(status='passed' if passed else 'failed', expected='OK (1 test)',
                 source='real HTTPS' if name == 'realHttps' else 'Emulator and fixtures')
@@ -426,6 +512,9 @@ def run_emulator(args, passport_data):
         if args.mode == 'visual':
             visual_matrix(device, phase, run_dir, report)
             report['status'] = 'captured'
+        elif args.mode == 'simulated-receiver':
+            receiver_lifecycle(device, phase, launch, package, report)
+            report['status'] = 'passed'
         else:
             prepared = phase('prepareData')
             previous = re.search(r'PREPARE_PID=(\d+)', prepared)
@@ -456,7 +545,7 @@ def run_emulator(args, passport_data):
                 require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
                 report['exports'].append(dict(name=name, size=int(size), sha256=digest))
             report['status'] = 'passed'
-    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
         failure = error
         report['error'] = str(error)
         if data['state'] == 'running':
@@ -498,7 +587,7 @@ def run_emulator(args, passport_data):
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
-        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+        except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
             report['cleanup_error'] = str(error)
             report['status'] = 'failed'
             failure = error
@@ -549,17 +638,17 @@ def main():
             print(json.dumps(fixture(args), indent=2))
             return 0
         if args.command == "run":
-            require(args.mode in ("offline", "android-ui", "visual"), f"mode {args.mode} is not admitted; no actions executed")
-            require(not args.https or args.mode != "visual", "--https requires android-ui mode")
+            require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.https or args.mode not in ("visual", "simulated-receiver"), "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
-            if args.mode in ("android-ui", "visual"):
+            if args.mode in ("android-ui", "visual", "simulated-receiver"):
                 return run_emulator(args, data)
             require(data["purpose"] != "historical", "historical APK is inspection-only")
             return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
-    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
         print(f"preflight refused: {error}", file=sys.stderr)
         return 2
 

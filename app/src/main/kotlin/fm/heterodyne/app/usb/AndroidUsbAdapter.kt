@@ -407,8 +407,20 @@ class AndroidUsbAdapter(
         }
     }
 
+    private var fixtureConnected = true
+    internal fun setFixtureConnected(connected: Boolean) {
+        val current = checkNotNull(fixture)
+        worker.execute {
+            if (fixtureConnected != connected) {
+                fixtureConnected = connected
+                if (!connected) moduleGone(current.profile.deviceId)
+                discover()
+            }
+        }
+    }
+
     private fun discover() {
-        val devices = fixture?.let { listOf(it.profile) } ?: manager.deviceList.values.mapNotNull { device ->
+        val devices = fixture?.let { if (fixtureConnected) listOf(it.profile) else emptyList() } ?: manager.deviceList.values.mapNotNull { device ->
             UsbDiscovery.find(device.description(), profiles)
         }
         val before = selection.selectedKind

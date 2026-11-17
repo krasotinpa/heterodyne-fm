@@ -91,7 +91,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("simulated-receiver", "emulator-reboot",
+        for mode in ("emulator-reboot",
                      "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
@@ -331,4 +331,11 @@ subprocess.run = run
         result = self.cli("run", "visual", "--https", "--apk", str(self.apk), "--passport", str(passport))
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("--https requires android-ui mode", result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_simulated_receiver_requires_preflight_identity_before_adb(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "simulated-receiver", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("simulated-receiver requires preflight APK", result.stderr)
         self.assertFalse(self.trace.exists())

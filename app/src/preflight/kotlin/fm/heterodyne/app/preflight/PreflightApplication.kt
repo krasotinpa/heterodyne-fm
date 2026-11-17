@@ -8,6 +8,10 @@ import fm.heterodyne.app.receiver.ReceiverFixture
 
 /** The manifest selects this class on every ordinary process start. */
 class PreflightApplication : StationsApplication() {
+    val fakeTransport = FakeModuleTransport()
+    val syntheticPcm = SyntheticPcmSource()
+    fun setReceiverConnected(connected: Boolean) = module.usb.setFixtureConnected(connected)
+
     override fun onCreate() {
         check(Build.HARDWARE in setOf("ranchu", "goldfish")) { "Preflight requires an Emulator" }
         check(getSystemService(UsbManager::class.java)?.deviceList?.isEmpty() == true) {
@@ -16,13 +20,27 @@ class PreflightApplication : StationsApplication() {
         super.onCreate()
         module.usb.probeEvent("PREFLIGHT pid=${android.os.Process.myPid()} receiver=FakeReceiver " +
             "transport=FakeTransport pcm=synthetic-48000-s16le-stereo")
+        // Reports actual AudioTrack/receiver state during ordinary launches, without instrumentation.
+        val handler = android.os.Handler(mainLooper)
+        handler.post(object : Runnable {
+            private var previous = ""
+            override fun run() {
+                val audio = module.audioCounters
+                val state = "${audio.state} freq=${module.transition.confirmed?.frequencyKhz} " +
+                    "streaming=${audio.bytes >= 96000 && audio.state == fm.heterodyne.app.audio.AudioState.Playing}"
+                if (state != previous) {
+                    module.usb.probeEvent("F_AUDIO pid=${android.os.Process.myPid()} state=$state")
+                    previous = state
+                }
+                handler.postDelayed(this, 100)
+            }
+        })
     }
 
     override fun onlineCatalog(): fm.heterodyne.app.stations.CatalogReader =
         PreflightCatalog(this, getSharedPreferences("preflight", MODE_PRIVATE).getString("catalog", "https")!!)
 
     override fun receiverFixture(): ReceiverFixture {
-        val transport = FakeModuleTransport()
-        return ReceiverFixture(DeviceProfile("preflight-fake-module"), transport, SyntheticPcmSource(), transport)
+        return ReceiverFixture(DeviceProfile("preflight-fake-module"), fakeTransport, syntheticPcm, fakeTransport)
     }
 }
