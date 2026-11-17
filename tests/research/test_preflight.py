@@ -255,7 +255,7 @@ class PreflightTest(unittest.TestCase):
         self.assertIn("requires preflight", result.stderr)
         self.assertFalse(self.trace.exists())
 
-    def test_busy_private_adb_port_refuses_before_starting_tools(self):
+    def android_arguments(self, adb_port):
         self.write_badging(package="fm.heterodyne.app.preflight")
         result = self.cli("passport", "--apk", str(self.apk), "--source-commit", self.commit, "--purpose", "preflight")
         passport = self.root / "preflight-passport.json"
@@ -272,17 +272,49 @@ class PreflightTest(unittest.TestCase):
             tool.parent.mkdir(parents=True, exist_ok=True)
             tool.write_text('#!/bin/sh\nprintf invoked >> "$PREFLIGHT_TEST_TRACE"\n')
             tool.chmod(0o755)
+        result = self.cli("prepare", "--name", "owned", "--template", str(template), "--adb-port", str(adb_port))
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = self.root / ".scratch/preflight-fixtures/owned/fixture.json"
+        return ["run", "android-ui", "--apk", str(self.apk), "--passport", str(passport),
+                "--manifest", str(manifest), "--test-apk", str(self.apk),
+                "--test-sha256", hashlib.sha256(self.apk.read_bytes()).hexdigest()]
+
+    def test_busy_private_adb_port_refuses_before_starting_tools(self):
         with socket.socket() as occupied:
             occupied.bind(("127.0.0.1", 0))
             occupied.listen()
-            result = self.cli("prepare", "--name", "busy", "--template", str(template),
-                              "--adb-port", str(occupied.getsockname()[1]))
-            self.assertEqual(0, result.returncode, result.stderr)
-            manifest = self.root / ".scratch/preflight-fixtures/busy/fixture.json"
-            result = self.cli("run", "android-ui", "--apk", str(self.apk), "--passport", str(passport),
-                "--manifest", str(manifest), "--test-apk", str(self.apk),
-                "--test-sha256", hashlib.sha256(self.apk.read_bytes()).hexdigest())
+            result = self.cli(*self.android_arguments(occupied.getsockname()[1]))
             self.assertEqual(2, result.returncode, result.stderr)
             self.assertIn("Address already in use", result.stderr)
             self.assertFalse(self.trace.exists())
-            self.assertFalse((manifest.parent / "runs").exists())
+            self.assertFalse((self.root / ".scratch/preflight-fixtures/owned/runs").exists())
+
+    def test_timeout_retains_partial_output_and_failed_step(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        args = self.android_arguments(port)
+        # Fault injection at the external process boundary; no ADB process is started.
+        hook = self.root / "python-hook"
+        hook.mkdir()
+        (hook / "sitecustomize.py").write_text("""import subprocess
+original = subprocess.run
+def run(argv, *args, **kwargs):
+    if str(argv[0]).endswith('/platform-tools/adb') and argv[-1] == 'start-server':
+        raise subprocess.TimeoutExpired(argv, 60, output=b'partial stdout\\n', stderr=b'partial stderr\\n')
+    return original(argv, *args, **kwargs)
+subprocess.run = run
+""")
+        self.env["PYTHONPATH"] = str(hook)
+        result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        reports = list((self.root / ".scratch/preflight-fixtures/owned/runs").glob("*/report.json"))
+        self.assertEqual(1, len(reports))
+        report = json.loads(reports[0].read_text())
+        self.assertEqual("failed", report["status"])
+        steps = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual(1, len(steps))
+        self.assertEqual("timeout", steps[0]["status"])
+        self.assertIsNone(steps[0]["exit_code"])
+        self.assertEqual("partial stdout\npartial stderr\n", (reports[0].parent / steps[0]["evidence"]).read_text())
+        self.assertFalse(self.trace.exists())

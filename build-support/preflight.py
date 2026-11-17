@@ -305,7 +305,15 @@ def android_ui(args, passport_data):
                ADB_SERVER_SOCKET=f"tcp:localhost:{data['adb_port']}")
     adb_prefix = [str(adb), '-P', str(data['adb_port']), '-s', data['serial']]
     def command(label, argv, timeout=60):
-        result = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True, timeout=timeout)
+        try:
+            result = subprocess.run(argv, cwd=ROOT, env=env, capture_output=True, text=True, timeout=timeout)
+        except subprocess.TimeoutExpired as error:
+            partial = ''.join(value.decode(errors='replace') if isinstance(value, bytes) else value or ''
+                              for value in (error.stdout, error.stderr))
+            (run_dir / (label + '.log')).write_text(partial)
+            report['steps'].append(dict(step=label, status='timeout', exit_code=None,
+                                       timeout_seconds=error.timeout, evidence=label + '.log'))
+            raise
         (run_dir / (label + '.log')).write_text(result.stdout + result.stderr)
         report['steps'].append(dict(step=label, exit_code=result.returncode, evidence=label + '.log'))
         require(result.returncode == 0, f'{label} exited {result.returncode}')
