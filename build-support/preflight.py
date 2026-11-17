@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.12
-"""Run 4 preflight: inspect APKs, prepare private AVDs and run offline or Android UI checks."""
+"""Run 4 preflight: inspect APKs, prepare private AVDs and run offline, Android UI or visual checks."""
 import argparse
 import hashlib
 import json
@@ -260,18 +260,53 @@ def emulator_arguments(data, root):
             '-no-snapshot', '-gpu', 'swiftshader', '-camera-back', 'none', '-camera-front', 'none', '-no-metrics', '-memory', '2048']
 
 
-def android_ui(args, passport_data):
+VISUAL_SCREENS = ("efir", "parking", "settings", "regions", "stations", "station-error",
+                  "catalog-error", "diagnostics", "about")
+
+
+def visual_matrix(device, phase, run_dir, report):
+    shots = report["screenshots"] = []
+    report["visual_review"] = "pending"
+    device("visual-density", "shell", "wm", "density", "160")
+    device("visual-keyboard", "shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "0")
+    for width, height in ((1920, 1080), (1280, 720), (1024, 600)):
+        resolution = f"{width}x{height}"
+        device(f"size-{resolution}", "shell", "wm", "size", resolution)
+        for font in ("1.0", "1.3"):
+            device(f"font-{resolution}-{font}", "shell", "settings", "put", "system", "font_scale", font)
+            for theme in ("Light", "Dark"):
+                case = f"{resolution}-{font}-{theme.lower()}"
+                guest_id = f"{run_dir.name}-{case}"
+                phase("visualScreens", case, "capture", guest_id, "font", font, "theme", theme)
+                folder = run_dir / case
+                device(f"pull-{case}", "pull", f"/data/local/tmp/run4-visual-{guest_id}", str(folder))
+                for screen in VISUAL_SCREENS:
+                    path = folder / f"{screen}.png"
+                    with path.open("rb") as stream:
+                        header = stream.read(24)
+                        stream.seek(-12, os.SEEK_END)
+                        end = stream.read()
+                    require(end == bytes.fromhex("0000000049454e44ae426082")
+                            and header[:16] == bytes.fromhex("89504e470d0a1a0a0000000d49484452")
+                            and int.from_bytes(header[16:20], "big") == width
+                            and int.from_bytes(header[20:24], "big") == height,
+                            f"screenshot has invalid PNG boundaries or dimensions: {case}/{screen}")
+                    shots.append(dict(case=case, screen=screen, path=str(path.relative_to(run_dir)),
+                                      sha256=sha256(path), width=width, height=height))
+
+
+def run_emulator(args, passport_data):
     import fcntl
     import socket
     import time
     import uuid
-    require(passport_data['purpose'] == 'preflight', 'android-ui requires preflight APK')
-    require(args.manifest and args.test_apk and args.test_sha256, 'android-ui requires manifest, test APK and its trusted SHA-256')
+    require(passport_data['purpose'] == 'preflight', f'{args.mode} requires preflight APK')
+    require(args.manifest and args.test_apk and args.test_sha256, f'{args.mode} requires manifest, test APK and its trusted SHA-256')
     fixture(args)
     root = args.manifest.absolute().parent
     data = json.loads(args.manifest.read_text())
     require(data['state'] == 'stopped', 'runner requires a stopped fixture')
-    require(not (root / 'runs').exists(), 'android-ui requires a freshly prepared fixture; previous evidence is retained')
+    require(not (root / 'runs').exists(), 'runner requires a freshly prepared fixture; previous evidence is retained')
     require(sha256(args.test_apk) == args.test_sha256, 'test APK SHA-256 mismatch')
     tools = args.sdk / 'build-tools' / args.build_tools
     signature = output(str(tools / 'apksigner'), 'verify', '--print-certs', str(args.test_apk))
@@ -295,12 +330,14 @@ def android_ui(args, passport_data):
             probe.bind(('::', port))
     run_dir = root / 'runs' / uuid.uuid4().hex
     run_dir.mkdir(parents=True)
-    report = {'schema': 1, 'mode': 'android-ui', 'source_commit': passport_data['source_commit'],
+    report = {'schema': 1, 'mode': args.mode, 'source_commit': passport_data['source_commit'],
               'apk': passport_data['apk'], 'passport': passport_data, 'test_apk_sha256': args.test_sha256, 'steps': [], 'status': 'failed',
               'Defect and Issue Report': {'status': 'requires Codex triage', 'issues': []},
               'Remaining Car Tests': ['All HU/USB/FM/audio route acceptance; Emulator does not confirm it',
-                                     'Visual, F, G and D/E remain separate blocks'],
+                                     'F, G and D/E remain separate blocks'],
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
+    report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
+    report["fixture"]["template_sha256"] = data.get("template_sha256")
     env = dict(os.environ, ANDROID_AVD_HOME=str(root / 'avd'), ANDROID_ADB_SERVER_PORT=str(data['adb_port']),
                ADB_SERVER_SOCKET=f"tcp:localhost:{data['adb_port']}")
     adb_prefix = [str(adb), '-P', str(data['adb_port']), '-s', data['serial']]
@@ -376,8 +413,9 @@ def android_ui(args, passport_data):
             require(f'PREFLIGHT pid={pid} receiver=FakeReceiver' in journal, 'ordinary process has no fixture marker')
             return pid
         launch('ordinary-before')
-        def phase(name):
-            result = device(name, 'shell', 'am', 'instrument', '-w', '-r', '-e', 'class',
+        def phase(name, label=None, *parameters):
+            extras = [arg for i in range(0, len(parameters), 2) for arg in ('-e', *parameters[i:i+2])]
+            result = device(label or name, 'shell', 'am', 'instrument', '-w', '-r', *extras, '-e', 'class',
                 'fm.heterodyne.app.test.Run4UiTest#' + name,
                 package + '.test/fm.heterodyne.app.test.EmulatorOnlyRunner', timeout=360)
             passed = 'OK (1 test)' in result and 'FAILURES!!!' not in result and 'INSTRUMENTATION_FAILED' not in result
@@ -385,35 +423,39 @@ def android_ui(args, passport_data):
                 source='real HTTPS' if name == 'realHttps' else 'Emulator and fixtures')
             require(passed, f'{name} instrumentation failed')
             return result
-        prepared = phase('prepareData')
-        previous = re.search(r'PREPARE_PID=(\d+)', prepared)
-        require(previous, 'missing preparation process evidence')
-        previous = previous[1]
-        device('force-stop-for-persistence', 'shell', 'am', 'force-stop', package)
-        installed = device('reinstall-preserving-data', 'install', '-r', '-t', str(args.apk), timeout=120)
-        require('Success' in installed, 'reinstallation failed')
-        current = launch('ordinary-after')
-        require(previous != current, 'persistence must use a new process')
-        report['ordinary_restart'] = dict(before=previous, after=current)
-        phase('verifyPersistence')
-        if args.https:
-            phase('realHttps')
-            report['https'] = 'passed; actual HttpsCatalogReader, separate from fixtures'
+        if args.mode == 'visual':
+            visual_matrix(device, phase, run_dir, report)
+            report['status'] = 'captured'
         else:
-            report['https'] = 'not tested: --https not selected'
-        phase('catalogFixtures')
-        device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
-        launch('ordinary-catalog-after')
-        exported = phase('verifyCatalogAndExport')
-        exports = re.findall(r'MEDIASTORE name=([a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/', exported)
-        require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, 'missing export evidence')
-        report['exports'] = []
-        for index, (name, size, digest) in enumerate(exports):
-            path = run_dir / name
-            device(f'pull-export-{index}', 'pull', '/sdcard/Download/' + name, str(path))
-            require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
-            report['exports'].append(dict(name=name, size=int(size), sha256=digest))
-        report['status'] = 'passed'
+            prepared = phase('prepareData')
+            previous = re.search(r'PREPARE_PID=(\d+)', prepared)
+            require(previous, 'missing preparation process evidence')
+            previous = previous[1]
+            device('force-stop-for-persistence', 'shell', 'am', 'force-stop', package)
+            installed = device('reinstall-preserving-data', 'install', '-r', '-t', str(args.apk), timeout=120)
+            require('Success' in installed, 'reinstallation failed')
+            current = launch('ordinary-after')
+            require(previous != current, 'persistence must use a new process')
+            report['ordinary_restart'] = dict(before=previous, after=current)
+            phase('verifyPersistence')
+            if args.https:
+                phase('realHttps')
+                report['https'] = 'passed; actual HttpsCatalogReader, separate from fixtures'
+            else:
+                report['https'] = 'not tested: --https not selected'
+            phase('catalogFixtures')
+            device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
+            launch('ordinary-catalog-after')
+            exported = phase('verifyCatalogAndExport')
+            exports = re.findall(r'MEDIASTORE name=([a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/', exported)
+            require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, 'missing export evidence')
+            report['exports'] = []
+            for index, (name, size, digest) in enumerate(exports):
+                path = run_dir / name
+                device(f'pull-export-{index}', 'pull', '/sdcard/Download/' + name, str(path))
+                require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
+                report['exports'].append(dict(name=name, size=int(size), sha256=digest))
+            report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
         report['error'] = str(error)
@@ -430,7 +472,8 @@ def android_ui(args, passport_data):
     finally:
         # Graceful commands only. A missing/reused/foreign PID must never be killed.
         try:
-            if 'emulator_process' in data:
+            emulator_info = data.get('emulator_process')
+            if emulator_info and Path('/proc', str(emulator_info['pid'])).exists():
                 fixture(args)
                 command('emulator-graceful-stop', [*adb_prefix, 'emu', 'kill'])
                 deadline = time.monotonic() + 45
@@ -439,7 +482,10 @@ def android_ui(args, passport_data):
                         child.poll()
                     time.sleep(1)
                 require(not Path('/proc', str(data['emulator_process']['pid'])).exists(), 'Emulator did not exit; forced termination requires permission')
-            if 'emulator_process' in data:
+            if emulator_info:
+                require(not find_process(qemu, data['avd_name']), 'fixture Emulator still exists')
+                if child and child.poll() is not None:
+                    report['emulator_exit_code'] = child.returncode
                 # Emulator leaves this empty lock file after a confirmed graceful exit.
                 stale_lock = root / 'avd' / (data['avd_name'] + '.avd') / 'multiinstance.lock'
                 if stale_lock.exists():
@@ -503,11 +549,12 @@ def main():
             print(json.dumps(fixture(args), indent=2))
             return 0
         if args.command == "run":
-            require(args.mode in ("offline", "android-ui"), f"mode {args.mode} is not admitted; no actions executed")
+            require(args.mode in ("offline", "android-ui", "visual"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.https or args.mode != "visual", "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
-            if args.mode == "android-ui":
-                return android_ui(args, data)
+            if args.mode in ("android-ui", "visual"):
+                return run_emulator(args, data)
             require(data["purpose"] != "historical", "historical APK is inspection-only")
             return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
         print(json.dumps(data, ensure_ascii=False, indent=2))
