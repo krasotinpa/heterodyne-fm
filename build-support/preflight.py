@@ -289,6 +289,7 @@ def android_ui(args, passport_data):
     for port in (data['adb_port'], data['emulator_port'], data['emulator_port'] + 1):
         with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             probe.bind(('::', port))
     run_dir = root / 'runs' / uuid.uuid4().hex
     run_dir.mkdir(parents=True)
