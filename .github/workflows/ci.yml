@@ -29,3 +29,11 @@ jobs:
       - name: Install pinned Android SDK packages
         run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;36.0.0" "ndk;28.2.13676358"'
       - run: ./build-support/validate.sh android
+      - name: Screenshot failure images
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2, MIT
+        with:
+          name: screenshot-failures
+          path: app/build/reports/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
