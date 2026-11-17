@@ -325,3 +325,10 @@ subprocess.run = run
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("visual requires preflight APK", result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_visual_rejects_https_before_inspecting_apk_or_using_adb(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "visual", "--https", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("--https requires android-ui mode", result.stderr)
+        self.assertFalse(self.trace.exists())

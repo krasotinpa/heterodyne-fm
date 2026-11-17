@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.12
-"""Run 4 preflight: inspect APKs, prepare private AVDs and run offline or Android UI checks."""
+"""Run 4 preflight: inspect APKs, prepare private AVDs and run offline, Android UI or visual checks."""
 import argparse
 import hashlib
 import json
@@ -276,17 +276,21 @@ def visual_matrix(device, phase, run_dir, report):
             device(f"font-{resolution}-{font}", "shell", "settings", "put", "system", "font_scale", font)
             for theme in ("Light", "Dark"):
                 case = f"{resolution}-{font}-{theme.lower()}"
-                phase("visualScreens", case, "case", case, "font", font, "theme", theme)
+                guest_id = f"{run_dir.name}-{case}"
+                phase("visualScreens", case, "capture", guest_id, "font", font, "theme", theme)
                 folder = run_dir / case
-                device(f"pull-{case}", "pull", f"/data/local/tmp/run4-visual-{case}", str(folder))
+                device(f"pull-{case}", "pull", f"/data/local/tmp/run4-visual-{guest_id}", str(folder))
                 for screen in VISUAL_SCREENS:
                     path = folder / f"{screen}.png"
                     with path.open("rb") as stream:
                         header = stream.read(24)
-                    require(header[:16] == bytes.fromhex("89504e470d0a1a0a0000000d49484452")
+                        stream.seek(-12, os.SEEK_END)
+                        end = stream.read()
+                    require(end == bytes.fromhex("0000000049454e44ae426082")
+                            and header[:16] == bytes.fromhex("89504e470d0a1a0a0000000d49484452")
                             and int.from_bytes(header[16:20], "big") == width
                             and int.from_bytes(header[20:24], "big") == height,
-                            f"screenshot has wrong PNG header or dimensions: {case}/{screen}")
+                            f"screenshot has invalid PNG boundaries or dimensions: {case}/{screen}")
                     shots.append(dict(case=case, screen=screen, path=str(path.relative_to(run_dir)),
                                       sha256=sha256(path), width=width, height=height))
 
@@ -332,6 +336,8 @@ def run_emulator(args, passport_data):
               'Remaining Car Tests': ['All HU/USB/FM/audio route acceptance; Emulator does not confirm it',
                                      'F, G and D/E remain separate blocks'],
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
+    report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
+    report["fixture"]["template_sha256"] = data.get("template_sha256")
     env = dict(os.environ, ANDROID_AVD_HOME=str(root / 'avd'), ANDROID_ADB_SERVER_PORT=str(data['adb_port']),
                ADB_SERVER_SOCKET=f"tcp:localhost:{data['adb_port']}")
     adb_prefix = [str(adb), '-P', str(data['adb_port']), '-s', data['serial']]
@@ -540,6 +546,7 @@ def main():
             return 0
         if args.command == "run":
             require(args.mode in ("offline", "android-ui", "visual"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.https or args.mode != "visual", "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
             if args.mode in ("android-ui", "visual"):

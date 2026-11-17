@@ -51,9 +51,9 @@ class Run4UiTest {
             android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
                 .use { it.readBytes() }
         }
-        val case = requireNotNull(args.getString("case"))
-        require(case.matches(Regex("[0-9]+x[0-9]+-1\\.[03]-(light|dark)")))
-        val folder = "/data/local/tmp/run4-visual-$case"
+        val capture = requireNotNull(args.getString("capture"))
+        require(capture.matches(Regex("[0-9a-f]{32}-[0-9]+x[0-9]+-1\\.[03]-(light|dark)")))
+        val folder = "/data/local/tmp/run4-visual-$capture"
         shell("mkdir $folder")
         fun snap(screen: String) {
             compose.waitForIdle()
