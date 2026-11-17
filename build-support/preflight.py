@@ -269,7 +269,7 @@ def visual_matrix(device, phase, run_dir, report):
     report["visual_review"] = "pending"
     device("visual-density", "shell", "wm", "density", "160")
     device("visual-keyboard", "shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "0")
-    for width, height in ((1280, 720), (1024, 600), (1920, 1080)):
+    for width, height in ((1920, 1080), (1280, 720), (1024, 600)):
         resolution = f"{width}x{height}"
         device(f"size-{resolution}", "shell", "wm", "size", resolution)
         for font in ("1.0", "1.3"):
@@ -472,7 +472,8 @@ def run_emulator(args, passport_data):
     finally:
         # Graceful commands only. A missing/reused/foreign PID must never be killed.
         try:
-            if 'emulator_process' in data:
+            emulator_info = data.get('emulator_process')
+            if emulator_info and Path('/proc', str(emulator_info['pid'])).exists():
                 fixture(args)
                 command('emulator-graceful-stop', [*adb_prefix, 'emu', 'kill'])
                 deadline = time.monotonic() + 45
@@ -481,7 +482,10 @@ def run_emulator(args, passport_data):
                         child.poll()
                     time.sleep(1)
                 require(not Path('/proc', str(data['emulator_process']['pid'])).exists(), 'Emulator did not exit; forced termination requires permission')
-            if 'emulator_process' in data:
+            if emulator_info:
+                require(not find_process(qemu, data['avd_name']), 'fixture Emulator still exists')
+                if child and child.poll() is not None:
+                    report['emulator_exit_code'] = child.returncode
                 # Emulator leaves this empty lock file after a confirmed graceful exit.
                 stale_lock = root / 'avd' / (data['avd_name'] + '.avd') / 'multiinstance.lock'
                 if stale_lock.exists():
