@@ -2,6 +2,8 @@
 
 ## Run 4 Preflight Report
 
+Блок 3 реализован. Полный gate и Android A/B/C/X прошли; два замечания review исправлены.
+
 Дата: 17.11.2026. База: `7ce5bdfe813dc6a1b53c62e4a82abefc82826073`, после merge PR #310.
 Работа: отдельная ветка `feat/run4-ui-preflight` в WSL2 Ubuntu.
 Фактические права: `danger-full-access`, approval policy `never`; программный объём разрешён владельцем.
@@ -65,7 +67,18 @@ Standards: 1 замечание P2 — timeout терял частичный std
 Spec: 1 замечание P2 — C2 не проверял прежние Регионы после ошибки reader.
 Оба замечания исправлены одним пакетом: журнал timeout сохраняется с `exit_code: null`, C2 проверяет Москву и Ярославль.
 Новый CLI regression test сначала подтвердил отсутствие шага (0 вместо 1), после исправления прошёл.
-Повторный gate и Android-прогон после пакета выполняются до PR.
+После исправлений полный gate завершился с exit 0: research 72, build-version 5, debug unit 451, preflight unit 455; ошибок и пропусков нет.
+Android build: 1 мин 14 с; `lintPreflight assemblePreflightAndroidTest`: exit 0, 14 с.
+В новой проверке уточнён селектор выбранного Региона «Москва ✓»; весь gate и Android-прогон выполнены после этой правки.
+Окончательный проверенный source commit: `744f5447a44a871f4f15ffa1903534bdd0c9ac06`; версия `0.1.0+744f544`.
+APK SHA-256: `03919c7d15a6eda94644fe09e643141c6d13ca9c57fdd8cd33b71cf6131963a0`.
+Test APK SHA-256: `afccacf56b19f6ae9d153e1c39235969eec0d9d092a04472cfd15918cd0d1b7d`.
+CLI exit 0; все пять фаз `OK (1 test)`; C2 подтвердил оба Региона после ошибки.
+Обычный новый процесс: 2478 → 2693; HTTPS снова «Нет обновлений».
+Экспорты: 7217 и 7217 байт; разные имена, опубликованы и сверены после pull.
+Evidence: `.scratch/preflight-fixtures/run4-block3-accepted/runs/72261950d1fe4f7c84ca63673a8b477f/`.
+Окончательный gate log: `.scratch/run4-block3/gate-final.log`; timeout regression red log: `.scratch/run4-block3/timeout-red.log`.
+Emulator и частный ADB завершились штатно; новых существенных findings нет. Новая review-волна не требуется.
 
 ## Defect and Issue Report
 
