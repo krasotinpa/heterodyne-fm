@@ -93,6 +93,7 @@ class Run4UiTest {
         val stored = java.util.concurrent.atomic.AtomicBoolean(false)
         app.session.readLaunchStation { stored.set(true) }
         waitFor { stored.get() }
+        note("PREPARE_PID=${android.os.Process.myPid()}")
         note("A/B prepared: version, settings, regions, create/edit/invalid station, explicit Stop")
     }
 
@@ -110,18 +111,25 @@ class Run4UiTest {
         note("B6 passed in new process: settings, active selection, renamed 90500, stopped")
     }
 
+    private fun updateCatalog(timeout: Long = 15000) {
+        setting("Обновить Справочник").performClick()
+        val queued = java.util.concurrent.atomic.AtomicBoolean(false)
+        app.session.readLaunchStation { queued.set(true) }
+        waitFor { queued.get() }
+        compose.waitForIdle()
+        compose.waitUntil(timeout) { app.session.screen.catalogUpdateResult != null && !app.session.screen.catalogUpdateBusy }
+    }
+
     @Test fun realHttps() {
         assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "https").commit())
         parked()
         click("Настройки")
-        setting("Обновить Справочник").performClick()
-        compose.waitUntil(150000) { app.session.screen.catalogUpdateResult != null && !app.session.screen.catalogUpdateBusy }
+        updateCatalog(150000)
         val result = app.session.screen.catalogUpdateResult!!
         note("REAL_HTTPS outcome=$result")
         assertTrue("Actual HTTPS failed: $result", result == "Нет обновлений" || result.startsWith("Справочник обновлён: Ревизия "))
         // A repeated successful real request must not reinstall the same release.
-        setting("Обновить Справочник").performClick()
-        compose.waitUntil(150000) { app.session.screen.catalogUpdateResult != null && !app.session.screen.catalogUpdateBusy }
+        updateCatalog(150000)
         setting("Нет обновлений").assertIsDisplayed()
         click("Подборки")
         verifyEntry()
@@ -131,18 +139,16 @@ class Run4UiTest {
         parked()
         click("Настройки")
         assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "failure").commit())
-        setting("Обновить Справочник").performClick()
-        waitFor { app.session.screen.catalogUpdateResult != null && !app.session.screen.catalogUpdateBusy }
+        updateCatalog()
         setting("Не удалось обновить Справочник").assertIsDisplayed()
         click("Подборки")
         verifyEntry()
         click("Настройки")
         assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "fixture").commit())
-        setting("Обновить Справочник").performClick()
-        waitFor { app.session.screen.catalogUpdateResult == "Справочник обновлён: Ревизия 9999-01-01" }
+        updateCatalog()
         setting("Справочник обновлён: Ревизия 9999-01-01").assertIsDisplayed()
-        setting("Обновить Справочник").performClick()
-        waitFor { app.session.screen.catalogUpdateResult == "Нет обновлений" }
+        updateCatalog()
+        assertEquals("Нет обновлений", app.session.screen.catalogUpdateResult)
         setting("Нет обновлений").assertIsDisplayed()
         click("Подборки")
         verifyEntry()
@@ -155,8 +161,8 @@ class Run4UiTest {
         verifyEntry()
         click("Настройки")
         assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "fixture").commit())
-        setting("Обновить Справочник").performClick()
-        waitFor { app.session.screen.catalogUpdateResult == "Нет обновлений" }
+        updateCatalog()
+        assertEquals("Нет обновлений", app.session.screen.catalogUpdateResult)
         click("Диагностика")
         compose.onNodeWithTag("developer-switch").performClick()
         compose.onNodeWithText("Режим разработчика: Вкл").assertIsDisplayed()

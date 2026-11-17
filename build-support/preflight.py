@@ -376,8 +376,11 @@ def android_ui(args, passport_data):
                 package + '.test/fm.heterodyne.app.test.EmulatorOnlyRunner', timeout=360)
             require('OK (1 test)' in result and 'FAILURES!!!' not in result and 'INSTRUMENTATION_FAILED' not in result,
                     f'{name} instrumentation failed')
-        phase('prepareData')
-        previous = device('before-stop-pid', 'shell', 'pidof', package).strip()
+            return result
+        prepared = phase('prepareData')
+        previous = re.search(r'PREPARE_PID=(\d+)', prepared)
+        require(previous, 'missing preparation process evidence')
+        previous = previous[1]
         device('force-stop-for-persistence', 'shell', 'am', 'force-stop', package)
         installed = device('reinstall-preserving-data', 'install', '-r', '-t', str(args.apk), timeout=120)
         require('Success' in installed, 'reinstallation failed')
@@ -393,7 +396,15 @@ def android_ui(args, passport_data):
         phase('catalogFixtures')
         device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
         launch('ordinary-catalog-after')
-        phase('verifyCatalogAndExport')
+        exported = phase('verifyCatalogAndExport')
+        exports = re.findall(r'MEDIASTORE name=([a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/', exported)
+        require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, 'missing export evidence')
+        report['exports'] = []
+        for index, (name, size, digest) in enumerate(exports):
+            path = run_dir / name
+            device(f'pull-export-{index}', 'pull', '/sdcard/Download/' + name, str(path))
+            require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
+            report['exports'].append(dict(name=name, size=int(size), sha256=digest))
         report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
