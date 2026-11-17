@@ -111,3 +111,12 @@ Security-исправления выходят в bug fix релизах каж�
 Вторая находка: BouncyCastle `bcprov-jdk18on` 1.81 приходил только через Robolectric 4.16.1 в unit-тестах и не попадал в APK. Четыре advisory (CVE-2025-14813, CVE-2026-8763, CVE-2026-13506, CVE-2026-0636) закрыты в 1.85. Решение: ключ `bouncycastle` в `gradle/libs.versions.toml` и `testImplementation(libs.bouncycastle)` в `app/build.gradle.kts` поднимают `bcprov` до 1.86 только в тестах. Когда Robolectric сам перейдёт на `bcprov` не ниже 1.86, строку и ключ можно удалить. OSV не показывает уязвимостей для 1.85, 1.85.2 и 1.86.
 
 **Дополнение 27.10.2026.** Для RTL-SDR допустим нативный код (NDK, JNI): librtlsdr и libusb по [ADR 0006](0006-project-license.md).
+
+## Эмуляторные проверки, 17.11.2026
+
+Целевой ABI ГУ и release остаётся arm64-v8a.
+Debug дополнительно содержит x86_64 для локального instrumented smoke на AVD API 30.
+Оба ABI debug и только arm64 release проверяются в APK, включая ELF machine.
+Это тестовая упаковка, а не подтверждение радио/USB/audio на x86_64.
+Тестовый runner проверяет virtual hardware и отсутствие USB устройств до создания StationsApplication.
+Полная процедура и ограничения описаны в [инструкции Emulator](../agents/android-emulator.md).

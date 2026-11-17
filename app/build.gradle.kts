@@ -28,7 +28,14 @@ android {
         targetSdk = libs.versions.target.sdk.get().toInt()
         versionCode = 1
         versionName = appVersionName
+        testInstrumentationRunner = "fm.heterodyne.app.test.EmulatorOnlyRunner"
         ndk { abiFilters += "arm64-v8a" }
+    }
+
+    buildTypes {
+        debug {
+            ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+        }
     }
 
     externalNativeBuild {
@@ -69,4 +76,8 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
     testImplementation(libs.junit)
     testImplementation(libs.json)
+    androidTestImplementation(platform(libs.compose.bom))
+    androidTestImplementation(libs.compose.ui.test)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.junit)
 }
