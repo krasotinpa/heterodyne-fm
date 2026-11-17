@@ -17,6 +17,7 @@
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
 | Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
 | Validation gate | Fixture Python/Gradle: all, python, android, отказ | Выбранные команды выполнены; первый отказ возвращает исходный exit code и останавливает следующие проверки |
+| Visual regression | Два фиксированных Efir состояния, API 35 native graphics | Bitmap совпадает с техническим PNG-эталоном; различия сохраняют actual PNG; это не приёмка ГУ |
 
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
 Real fixtures имеют hash/provenance. Synthetic bytes доказывают negative handling, не hardware protocol.
@@ -55,6 +56,7 @@ AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Script выполняет офлайн-часть gate и останавливается при первом отказе.
 Режимы `python` и `android` используются теми же job CI; имена обязательных проверок сохраняются.
 Офлайн-успех не подтверждает instrumented или аппаратную приёмку.
+Обновление технических PNG-эталонов выполняй только по [инструкции визуальных тестов](agents/visual-tests.md), с просмотром diff.
 
 Hardware blocked не превращается в passed.
 После полного gate независимый reviewer проверяет всю ветку.
