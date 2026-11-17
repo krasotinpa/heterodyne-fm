@@ -269,6 +269,7 @@ def android_ui(args, passport_data):
     root = args.manifest.absolute().parent
     data = json.loads(args.manifest.read_text())
     require(data['state'] == 'stopped', 'runner requires a stopped fixture')
+    require(not (root / 'runs').exists(), 'android-ui requires a freshly prepared fixture; previous evidence is retained')
     require(sha256(args.test_apk) == args.test_sha256, 'test APK SHA-256 mismatch')
     tools = args.sdk / 'build-tools' / args.build_tools
     signature = output(str(tools / 'apksigner'), 'verify', '--print-certs', str(args.test_apk))
@@ -364,6 +365,8 @@ def android_ui(args, passport_data):
             require('Status: ok' in result, 'ordinary launch failed')
             pid = device(label + '-pid', 'shell', 'pidof', package).strip()
             require(pid.isdigit(), 'ordinary application process missing')
+            journal = device(label + '-journal', 'shell', 'run-as', package, 'cat', 'files/module-diagnostics/diagnostic.log')
+            require(f'PREFLIGHT pid={pid} receiver=FakeReceiver' in journal, 'ordinary process has no fixture marker')
             return pid
         launch('ordinary-before')
         def phase(name):
@@ -394,6 +397,16 @@ def android_ui(args, passport_data):
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
         report['error'] = str(error)
+        if data['state'] == 'running':
+            try:
+                fixture(args)
+                captured = subprocess.run([*adb_prefix, 'exec-out', 'screencap', '-p'], env=env,
+                                          capture_output=True, timeout=20)
+                if captured.returncode == 0 and captured.stdout.startswith(b'\x89PNG'):
+                    (run_dir / 'failure.png').write_bytes(captured.stdout)
+                    report['failure_screenshot'] = 'failure.png'
+            except (OSError, ValueError, KeyError, subprocess.SubprocessError):
+                pass
     finally:
         # Graceful commands only. A missing/reused/foreign PID must never be killed.
         try:

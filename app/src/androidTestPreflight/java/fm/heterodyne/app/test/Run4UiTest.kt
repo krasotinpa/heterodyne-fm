@@ -26,7 +26,7 @@ class Run4UiTest {
     private val selectionName = "Проверка 4"
     private fun note(text: String) = instrumentation.sendStatus(0, Bundle().apply { putString("stream", "$text\n") })
     private fun waitFor(test: () -> Boolean) = compose.waitUntil(15000, test)
-    private fun click(text: String) = compose.onNodeWithText(text).performClick()
+    private fun click(text: String) = compose.onNode(hasText(text) and hasClickAction() and !hasSetTextAction()).performClick()
     private fun setting(text: String) = compose.onNodeWithText(text).performScrollTo()
     private fun parked() {
         waitFor { app.session.screen.state != null }
@@ -52,6 +52,8 @@ class Run4UiTest {
         setting("Регион: Москва ›").performClick()
         compose.onNodeWithText("Москва ✓").assertIsDisplayed()
         compose.onNodeWithText("Ярославль").assertIsDisplayed()
+        assertTrue(compose.onNodeWithText("Москва ✓").getUnclippedBoundsInRoot().top <
+            compose.onNodeWithText("Ярославль").getUnclippedBoundsInRoot().top)
         click("Ярославль")
         waitFor { app.session.screen.state?.selectedRegion == "yaroslavl" }
         setting("Регион: Ярославль ›").performClick()
@@ -156,6 +158,8 @@ class Run4UiTest {
         setting("Обновить Справочник").performClick()
         waitFor { app.session.screen.catalogUpdateResult == "Нет обновлений" }
         click("Диагностика")
+        compose.onNodeWithTag("developer-switch").performClick()
+        compose.onNodeWithText("Режим разработчика: Вкл").assertIsDisplayed()
         val downloads = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         fun names(): Set<String> = app.contentResolver.query(downloads, arrayOf(MediaStore.Downloads.DISPLAY_NAME),
             null, null, null)!!.use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) } }
