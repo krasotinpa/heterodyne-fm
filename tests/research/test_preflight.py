@@ -91,7 +91,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("visual", "simulated-receiver", "emulator-reboot",
+        for mode in ("simulated-receiver", "emulator-reboot",
                      "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
@@ -317,4 +317,11 @@ subprocess.run = run
         self.assertEqual("timeout", steps[0]["status"])
         self.assertIsNone(steps[0]["exit_code"])
         self.assertEqual("partial stdout\npartial stderr\n", (reports[0].parent / steps[0]["evidence"]).read_text())
+        self.assertFalse(self.trace.exists())
+
+    def test_visual_rejects_non_preflight_apk_before_using_adb(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "visual", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("visual requires preflight APK", result.stderr)
         self.assertFalse(self.trace.exists())

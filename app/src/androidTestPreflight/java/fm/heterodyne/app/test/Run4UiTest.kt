@@ -39,6 +39,71 @@ class Run4UiTest {
         assertEquals(1, app.session.activeEntries.size)
     }
 
+    @Test fun visualScreens() {
+        val args = InstrumentationRegistry.getArguments()
+        val theme = requireNotNull(args.getString("theme"))
+        require(theme in setOf("Light", "Dark"))
+        val configuration = compose.activity.resources.configuration
+        assertEquals(args.getString("font")!!.toFloat(), configuration.fontScale, 0.01f)
+        assertEquals(160, configuration.densityDpi)
+        val automation = instrumentation.uiAutomation
+        fun shell(command: String) {
+            val result = android.os.ParcelFileDescriptor.AutoCloseInputStream(
+                automation.executeShellCommand("$command && echo OK")).use { it.bufferedReader().readText() }
+            assertEquals(command, "OK", result.trim())
+        }
+        val case = requireNotNull(args.getString("case"))
+        require(case.matches(Regex("[0-9]+x[0-9]+-1\\.[03]-(light|dark)")))
+        val folder = "/data/local/tmp/run4-visual-$case"
+        shell("mkdir $folder")
+        fun snap(screen: String) {
+            compose.waitForIdle()
+            // Capture the compositor through Android's shell screencap while this screen is open.
+            shell("screencap -p $folder/$screen.png")
+        }
+        fun activate(text: String) =
+            compose.onNode(hasText(text) and hasClickAction() and !hasSetTextAction())
+                .performSemanticsAction(androidx.compose.ui.semantics.SemanticsActions.OnClick)
+
+        parked()
+        click("Настройки")
+        setting(if (theme == "Light") "Светлая" else "Тёмная").performClick().assertIsSelected()
+        assertEquals(theme, app.getSharedPreferences("appearance", 0).getString("theme", null))
+        click("← Эфир")
+        waitFor { app.module.transition.confirmed != null }
+        snap("efir")
+        parked()
+        compose.onNodeWithTag("parking-menu").assertIsDisplayed()
+        snap("parking")
+        click("Настройки")
+        compose.onNodeWithText("Запуск").assertIsDisplayed()
+        snap("settings")
+        setting("Регион: Москва ›").performClick()
+        compose.onNodeWithText("Москва ✓").assertIsDisplayed()
+        snap("regions")
+        click("Подборки")
+        compose.onNodeWithText("Справочник →").assertIsDisplayed()
+        snap("stations")
+        click("Добавить Станцию")
+        compose.onNodeWithTag("station-name").performTextInput("Проверка")
+        compose.onNodeWithTag("station-frequency").performTextInput("200,0")
+        // Invoke the action without moving the viewport, so clipping remains visible in the PNG.
+        activate("Сохранить Станцию")
+        compose.onNodeWithText("Введите FM-частоту 87,5–108,0 МГц с шагом 0,1").assertExists()
+        snap("station-error")
+        click("Настройки")
+        assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "failure").commit())
+        updateCatalog()
+        setting("Не удалось обновить Справочник").assertIsDisplayed()
+        snap("catalog-error")
+        click("Диагностика")
+        compose.onNodeWithTag("diagnostics-version").assertIsDisplayed()
+        snap("diagnostics")
+        click("О приложении")
+        compose.onNodeWithText("Версия ${BuildConfig.VERSION_NAME}").assertIsDisplayed()
+        snap("about")
+    }
+
     @Test fun prepareData() {
         parked()
         click("О приложении")
