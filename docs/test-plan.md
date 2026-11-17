@@ -43,6 +43,9 @@ getPreferredDevice не подтверждает фактический route.
 
 ## Отчёт и gate
 
+Автоматизацию предварительной приёмки Run 4 выполняй по [отдельному плану](plans/run4-preflight-automation.md).
+Исторический APK и актуальный preflight APK проверяются отдельно.
+
 Каждая строка R01–R28 имеет passed/failed/blocked/not tested; conditional RDS допускает not applicable с причиной.
 Запиши device/API/build/commit, steps, expected/actual, evidence и date.
 AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
