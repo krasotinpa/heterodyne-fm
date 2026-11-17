@@ -78,18 +78,73 @@ adb -P 5038 -s emulator-5580 shell am start -W -n fm.heterodyne.app.preflight/fm
 
 ```bash
 adb -P 5038 -s emulator-5580 install -r -t app/build/outputs/apk/androidTest/preflight/app-preflight-androidTest.apk
-adb -P 5038 -s emulator-5580 shell am instrument -w -r -e disableAnalytics true fm.heterodyne.app.preflight.test/fm.heterodyne.app.test.EmulatorOnlyRunner
+adb -P 5038 -s emulator-5580 shell am instrument -w -r -e disableAnalytics true -e class fm.heterodyne.app.test.PreflightReceiverSmokeTest fm.heterodyne.app.preflight.test/fm.heterodyne.app.test.EmulatorOnlyRunner
 ```
 
-Проверь `OK (4 tests)` в stream и exit code. Один exit 0 ADB не устанавливает успех.
+Проверь `OK (1 test)` в stream и exit code. Один exit 0 ADB не устанавливает успех.
 Новый smoke настраивает 97,7 МГц, ждёт Playing и более 96 000 байт PCM, затем выполняет Stop.
 Он использует Application из manifest и не подставляет fixture из теста.
 После работы штатно останови только собственный Emulator и его отдельный ADB server.
 
-## Границы блока 2
+## Сквозной runner A/B/C/X
 
-`preflight.py` поддерживает новый паспорт; он пока не устанавливает и не запускает APK автоматически.
-Режимы Android, simulated-receiver, reboot, power-loss, hardware и preflight-all-safe остаются закрыты.
-Следующий блок добавляет сквозные A/B/C/X и оркестрацию, то есть управление шагами прогона.
-Visual, десять replug, fault injection, reboot, 30 минут звука и проверки ГУ здесь не заявляются.
+`preflight.py run android-ui` управляет собственным стендом и выбирает фазы `Run4UiTest` по одной.
+Не запускай все методы этого класса общей командой instrumentation: между фазами нужны обычные запуски нового процесса.
+Каждый прогон A/B/C/X требует новую копию AVD; runner сохраняет прежние данные и evidence.
+Существующий AVD служит только источником настроек устройства; его диски и snapshots не копируются и не меняются.
+Команда `prepare` создаёт новые диски из установленного API 30 x86_64 image при первом cold boot.
+Она сохраняет SHA-256 исходного config и проверяет его после чтения.
+
+1. Из чистого worktree собери preflight APK и test APK командами выше.
+2. Сохрани паспорт с полным текущим SHA и назначением `preflight`.
+3. Подготовь стенд с новым именем и свободными портами.
+4. Проверь SHA-256 test APK и передай доверенное значение runner.
+5. Запусти `android-ui`; добавь `--https` для отдельной проверки настоящей сети.
+6. Прочитай `report.json` и журналы в `fixture-root/runs/<id>/`.
+
+```text
+Паспорт → изоляция → cold boot → установка → UI → новый процесс → HTTPS / fixtures → MediaStore → штатная остановка → отчёт
+```
+
+```bash
+python3.12 build-support/preflight.py prepare --name run4-ui-01 --template /absolute/source.avd/config.ini --adb-port 5038 --emulator-port 5580
+sha256sum app/build/outputs/apk/androidTest/preflight/app-preflight-androidTest.apk
+python3.12 build-support/preflight.py run android-ui \
+  --apk app/build/outputs/apk/preflight/app-preflight.apk \
+  --passport .scratch/preflight-passport.json \
+  --manifest .scratch/preflight-fixtures/run4-ui-01/fixture.json \
+  --test-apk app/build/outputs/apk/androidTest/preflight/app-preflight-androidTest.apk \
+  --test-sha256 TRUSTED_TEST_APK_SHA256 --https
+```
+
+Runner проверяет подпись, package, targetPackage и EmulatorOnlyRunner test APK до запуска ADB.
+Явный SHA-256 test APK задаёт доверенный артефакт; одна подпись не устанавливает соответствие исходникам.
+Он отвергает занятые порты, чужие процессы, PID reuse, внешние диски и стенд с историей прогона до воздействия.
+Отдельный ADB server ограничен `--one-device`; каждая команда устройства содержит `-P` и `-s`.
+Перед командами runner повторяет проверку принадлежности процессов, аргументов, портов и дисков.
+Штатное завершение использует `adb emu kill`; аварийного fallback нет.
+Неуспешная остановка даёт failed и сохраняет сведения для диагностики.
+
+Проверки UI проходят через настоящий MainActivity и общую очередь хранения.
+Повторная установка `-r -t` сохраняет настройки и Подборку; обычный запуск подтверждает новый PID и fixture marker в Журнале.
+Фазы сверяют тему, автозапуск, сигнал, предел Поиска, Регионы, редактор, неправильную частоту и сохранённую запись.
+Экспорт создаёт два уникальных файла MediaStore в Download, без разрешений на хранилище.
+Тест читает опубликованные байты, размер, `IS_PENDING=0` и путь; runner копирует файлы через ADB и сверяет SHA-256.
+
+`PreflightCatalog` существует только в preflight source set.
+Режим `https` использует штатный HttpsCatalogReader; отсутствие `--https` даёт отдельный `not tested`.
+Режим `failure` воспроизводит отказ reader без сети; он не доказывает отключение реальной сети Android.
+Режим `fixture` использует встроенные файлы и синтетическую Ревизию `9999-01-01` в index.
+Все данные проходят штатную валидацию и атомарную установку; повтор даёт «Нет обновлений».
+Следующий процесс подтверждает сохранение установленного набора.
+Ревизия fixtures остаётся только в данных отдельного preflight package собственного AVD.
+Настоящий HTTPS выполняется раньше fixtures и имеет отдельный журнал `realHttps.log`.
+
+## Границы
+
+Доступны `offline` и `android-ui`. Остальные режимы отказывают до воздействия.
+Visual, десять replug, fault injection, reboot, 30 минут звука и проверки ГУ остаются следующими блоками.
+Условные C7–C8 с удалённым Регионом и перенос файлов на SSD остаются `not tested`.
+Синтетический отказ reader не заменяет проверку сети ГУ; одинаковая настоящая Ревизия не доказывает установку через HTTPS.
 RTL-SDR driver/DSP остаются задачами #159/#160.
+Результаты: [блок 2](../validation/run4-preflight-block2.md), [блок 3](../validation/run4-preflight-block3.md).

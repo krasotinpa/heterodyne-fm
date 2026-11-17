@@ -1,0 +1,111 @@
+# Run 4: блок 3, сквозные A/B/C/X
+
+## Run 4 Preflight Report
+
+Блок 3 реализован. Полный gate и Android A/B/C/X прошли; два замечания review исправлены.
+
+Дата: 17.11.2026. База: `7ce5bdfe813dc6a1b53c62e4a82abefc82826073`, после merge PR #310.
+Работа: отдельная ветка `feat/run4-ui-preflight` в WSL2 Ubuntu.
+Фактические права: `danger-full-access`, approval policy `never`; программный объём разрешён владельцем.
+Стенд: собственная копия настроек AVD, API 30 default x86_64, Emulator 37.2.13, ADB 37.0.1, JDK 17.
+Исходный AVD и его диски не менялись; config SHA-256 до и после: `dde2bbd3708985974a6ca83269faafe4c5db525ad306777cb61369d42eca7ae9`.
+Новых программ и зависимостей нет.
+
+```text
+Паспорт → частный ADB/AVD → установка → A/B → reinstall и новый процесс → HTTPS → fixtures → новый процесс → X → штатная остановка
+```
+
+### Выполненный Android-прогон
+
+Проверенный чистый source commit: `6681bc97876909dfb7e0f07526422e7fe1fc4faf`.
+Версия: `0.1.0+6681bc9`; package: `fm.heterodyne.app.preflight`; ABI: ARM64 и x86_64.
+APK SHA-256: `a036c95df729608b124b2d630937448fe2ba160c01eba68a67e0117d7a80d92e`.
+Test APK SHA-256: `907e5e7b69d4365ef3c3abd7bcbb7e45d433788bc50104c5e69f1ef94b36c85d`.
+Сертификат SHA-256: `fffe5a0eb242b18405acdf5b6c7f1954e46fb3ca458fe444f51e799cad69d40f`.
+Команда: `python3.12 build-support/preflight.py run android-ui` с паспортом, manifest, test APK, его SHA-256 и `--https`.
+Runner завершился с exit 0, `status: passed`; все пять фаз вернули `OK (1 test)`.
+
+| Фаза | Ожидание и фактический результат | Время | Статус |
+|---|---|---|---|
+| A/B, `prepareData` | Версия на экране; тёмная тема, Тон, 20 с, автозапуск; Москва → Ярославль → Москва; отдельная Подборка; 90,5 МГц; переименование без дубля; отказ 200,0 МГц; Start и Stop | 14,989 с | passed |
+| B6, `verifyPersistence` | Повторная установка `-r -t` и обычный новый процесс; настройки, активная Подборка и `Тест FM 2 · 90500 кГц` сохранены; звук остановлен | 4,480 с | passed |
+| C4–C6, `realHttps` | Штатный HTTPS к релизу Справочника, затем повтор; оба результата «Нет обновлений»; Подборка сохранена | 8,218 с | passed |
+| C2/C4/C5, `catalogFixtures` | Отдельный synthetic failure; прежние данные доступны; установка 9999-01-01; повтор «Нет обновлений»; Подборка сохранена | 3,588 с | passed |
+| C6/X, `verifyCatalogAndExport` | Следующий процесс читает установленный набор; два уникальных опубликованных MediaStore файла; путь и размер на экране совпадают с байтами | 3,051 с | passed |
+
+Обычный запуск после переустановки получил другой PID: 2469 → 2687.
+Обычные процессы записали собственные PREFLIGHT markers в Журнал.
+Оба файла Download содержали 7217 байт; SHA-256 каждого: `49096524252108a650b4c8a9e29a8cd4f758d80012acbf43d845572c9066b67e`.
+Имена различны; `IS_PENDING=0`; байты прочитаны через MediaStore и повторно сверены после `adb pull`.
+Настоящий HTTPS здесь не устанавливал новую Ревизию; установку проверяет только отдельный fixture.
+Synthetic failure reader не доказывает отключение сети Android.
+
+Локальные evidence: `.scratch/preflight-fixtures/run4-block3-v3/runs/a4fcf955e7b64fe6b16c58b755caecbc/`.
+Каталог содержит report.json, командные журналы, installed-version, markers и оба экспортированных файла.
+Он не коммитится: локальные журналы могут содержать пути машины и runtime identifiers.
+Исходники runner и тестов доступны в Git; порядок повторения описан в [инструкции](../agents/run4-preflight-apk.md#сквозной-runner-abcx).
+
+### Gate и review
+
+Полный `JAVA_HOME=/usr/lib/jvm/temurin-17-jdk-amd64 ./build-support/validate.sh`: exit 0, Android build 1 мин 18 с.
+Research: 71 тест; build-version: 5; debug unit: 451; preflight unit: 455. Ошибок и пропусков нет.
+Дополнительно `./gradlew -Pheterodyne.testBuildType=preflight lintPreflight assemblePreflightAndroidTest`: exit 0, 22 с.
+DEX проверен: PreflightCatalog есть только в preflight APK, обычный debug его не содержит.
+Локальные ссылки и `git diff --check`: exit 0.
+Gate logs: `.scratch/run4-block3/gate.log`, `.scratch/run4-block3/preflight-lint-test-build.log`.
+
+После последних изменений runner выполнен повторный полный Android-прогон с `--https`, exit 0.
+Проверенный чистый source commit: `60a29f0dd7f2870c716e1e03c2a6bc7025c1379f`.
+APK SHA-256: `e30dd32ee21bde4e6ecf9050c8d440ac470786cef7c8b08e3dfc2140c325cf4f`.
+Test APK SHA-256: `ec0700aa7adbb0878412543df011df3530288cdda3bd36abca3a3424e40ecc74`.
+Обычный новый процесс: 2506 → 2694.
+Пять фаз снова вернули `OK (1 test)`; HTTPS: «Нет обновлений»; оба MediaStore файла сверены после `adb pull`.
+Evidence: `.scratch/preflight-fixtures/run4-block3-final/runs/e703d139328845d2952b86e01efe028b/`.
+Emulator и отдельный ADB завершились штатно. Исходный config сохранил прежний SHA-256.
+Независимая волна проверила все 12 файлов и точные SHA снимка ветки `491603f` после gate.
+Standards: 1 замечание P2 — timeout терял частичный stdout/stderr и шаг отчёта.
+Spec: 1 замечание P2 — C2 не проверял прежние Регионы после ошибки reader.
+Оба замечания исправлены одним пакетом: журнал timeout сохраняется с `exit_code: null`, C2 проверяет Москву и Ярославль.
+Новый CLI regression test сначала подтвердил отсутствие шага (0 вместо 1), после исправления прошёл.
+После исправлений полный gate завершился с exit 0: research 72, build-version 5, debug unit 451, preflight unit 455; ошибок и пропусков нет.
+Android build: 1 мин 14 с; `lintPreflight assemblePreflightAndroidTest`: exit 0, 14 с.
+В новой проверке уточнён селектор выбранного Региона «Москва ✓»; весь gate и Android-прогон выполнены после этой правки.
+Окончательный проверенный source commit: `744f5447a44a871f4f15ffa1903534bdd0c9ac06`; версия `0.1.0+744f544`.
+APK SHA-256: `03919c7d15a6eda94644fe09e643141c6d13ca9c57fdd8cd33b71cf6131963a0`.
+Test APK SHA-256: `afccacf56b19f6ae9d153e1c39235969eec0d9d092a04472cfd15918cd0d1b7d`.
+CLI exit 0; все пять фаз `OK (1 test)`; C2 подтвердил оба Региона после ошибки.
+Обычный новый процесс: 2478 → 2693; HTTPS снова «Нет обновлений».
+Экспорты: 7217 и 7217 байт; разные имена, опубликованы и сверены после pull.
+Evidence: `.scratch/preflight-fixtures/run4-block3-accepted/runs/72261950d1fe4f7c84ca63673a8b477f/`.
+Окончательный gate log: `.scratch/run4-block3/gate-final.log`; timeout regression red log: `.scratch/run4-block3/timeout-red.log`.
+Emulator и частный ADB завершились штатно; новых существенных findings нет. Новая review-волна не требуется.
+
+## Defect and Issue Report
+
+Продуктовых actionable findings в выполненном прогоне нет.
+Проверен список открытых Issues через `gh`; новый дубликат не создавался.
+Ошибки разработки относились к новому harness: селектор составной строки версии, неоднозначный текст Подборки и завершение процесса instrumentation.
+Harness исправлен; повтор достиг всех пяти фаз.
+Runner также учитывает пустой multiinstance.lock после штатного выхода и закрытые TCP connections без listener.
+PNG последнего инфраструктурного отказа снят через ADB и просмотрен агентом; это экран Launcher после завершения instrumentation.
+Это не визуальная приёмка.
+
+## Remaining Car Tests
+
+1. Все проверки реального ГУ, установки поверх личных данных, USB, FM и автомобильного аудиомаршрута остаются `not tested`.
+2. C7–C8 с исчезнувшим Регионом: `not tested`; текущий реальный релиз и fixture сохраняют оба Региона.
+3. Алфавитный порядок с «ё» остаётся unit tests; этот UI-прогон содержит Москву и Ярославль.
+4. Visual-матрица, F, G и D/E остаются следующими блоками плана.
+5. Перенос файлов на SSD требует проверки владельцем; здесь доказан MediaStore Download собственного AVD.
+6. RTL-SDR driver/DSP остаются открытыми #159/#160; повторно проверены через `gh`.
+7. Hardware, reboot, power-loss, visual, simulated-receiver и preflight-all-safe режимы runner остаются закрытыми.
+
+## Skills Execution Report
+
+1. `ponytail full`: повторно использованы Compose tests, штатные хранение, parser, MediaStore и validate.sh; новых зависимостей нет.
+2. `heterodyne-graphify`: граф обновлён, выполнены query; связи проверены по исходникам. Пять Kotlin файлов имеют известный частичный разбор.
+3. `tdd`: CLI prepare сначала дал invalid choice; затем прошёл. Требование preflight identity сначала дало отказ старого режима; затем прошло.
+4. `tdd`: PreflightCatalogTest сначала не компилировался из-за отсутствующего класса; после минимальной реализации прошёл.
+5. `diagnosing-bugs`: реальные Android-отказы сохранены; уточнены UI-селекторы и жизненный цикл instrumentation; успешный прогон повторил весь путь.
+6. `writing-for-agents`: команды и ограничения собраны в существующей инструкции; план и test-plan связаны с ней.
+7. `code-review`: одна независимая волна Standards/Spec; по одному замечанию P2 исправлено общим пакетом. `pr`: описание PR готовится по шаблону с доказательствами.

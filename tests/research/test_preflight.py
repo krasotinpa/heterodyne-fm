@@ -1,7 +1,9 @@
+import hashlib
 import json
 import os
 from pathlib import Path
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -89,7 +91,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("android-ui", "visual", "simulated-receiver", "emulator-reboot",
+        for mode in ("visual", "simulated-receiver", "emulator-reboot",
                      "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
@@ -222,4 +224,97 @@ class PreflightTest(unittest.TestCase):
         passport.write_text(json.dumps(data))
         result = self.cli("check", "--apk", str(self.apk), "--passport", str(passport))
         self.assertEqual(2, result.returncode, result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_prepare_copies_config_without_shared_disks_and_refuses_reuse(self):
+        template = self.root / "user-avd/config.ini"
+        template.parent.mkdir()
+        original = "abi.type=x86_64\nhw.lcd.width=1280\ndisk.dataPartition.path=/personal/userdata.img\nimage.sysdir.1=system-images/android-30/default/x86_64/\n"
+        template.write_text(original)
+        image = self.sdk / "system-images/android-30/default/x86_64"
+        image.mkdir(parents=True)
+        (image / "system.img").write_bytes(b"SDK image")
+        result = self.cli("prepare", "--name", "owned", "--template", str(template))
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = self.root / ".scratch/preflight-fixtures/owned/fixture.json"
+        self.assertEqual("stopped", json.loads(manifest.read_text())["state"])
+        self.assertEqual(original, template.read_text())
+        config = (manifest.parent / "avd/owned.avd/config.ini").read_text()
+        self.assertNotIn("/personal", config)
+        self.assertIn("fastboot.forceColdBoot=yes", config)
+        result = self.cli("fixture", "--manifest", str(manifest))
+        self.assertEqual(0, result.returncode, result.stderr)
+        result = self.cli("prepare", "--name", "owned", "--template", str(template))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_android_ui_requires_preflight_identity_before_any_adb_action(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "android-ui", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("requires preflight", result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def android_arguments(self, adb_port):
+        self.write_badging(package="fm.heterodyne.app.preflight")
+        result = self.cli("passport", "--apk", str(self.apk), "--source-commit", self.commit, "--purpose", "preflight")
+        passport = self.root / "preflight-passport.json"
+        passport.write_text(result.stdout)
+        template = self.root / "template.ini"
+        template.write_text("abi.type=x86_64\n")
+        image = self.sdk / "system-images/android-30/default/x86_64"
+        image.mkdir(parents=True)
+        (image / "system.img").write_bytes(b"installed image")
+        aapt = self.sdk / "build-tools/36.0.0/aapt"
+        aapt.write_text('#!/bin/sh\nif [ "$2" = xmltree ]; then\ncat <<\'XML\'\npackage="fm.heterodyne.app.preflight.test"\ntargetPackage="fm.heterodyne.app.preflight"\nname="fm.heterodyne.app.test.EmulatorOnlyRunner"\nXML\nelse\ncat "$PREFLIGHT_TEST_BADGING"\nfi\n')
+        for name in ("platform-tools/adb", "emulator/emulator", "emulator/qemu/linux-x86_64/qemu-system-x86_64-headless"):
+            tool = self.sdk / name
+            tool.parent.mkdir(parents=True, exist_ok=True)
+            tool.write_text('#!/bin/sh\nprintf invoked >> "$PREFLIGHT_TEST_TRACE"\n')
+            tool.chmod(0o755)
+        result = self.cli("prepare", "--name", "owned", "--template", str(template), "--adb-port", str(adb_port))
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = self.root / ".scratch/preflight-fixtures/owned/fixture.json"
+        return ["run", "android-ui", "--apk", str(self.apk), "--passport", str(passport),
+                "--manifest", str(manifest), "--test-apk", str(self.apk),
+                "--test-sha256", hashlib.sha256(self.apk.read_bytes()).hexdigest()]
+
+    def test_busy_private_adb_port_refuses_before_starting_tools(self):
+        with socket.socket() as occupied:
+            occupied.bind(("127.0.0.1", 0))
+            occupied.listen()
+            result = self.cli(*self.android_arguments(occupied.getsockname()[1]))
+            self.assertEqual(2, result.returncode, result.stderr)
+            self.assertIn("Address already in use", result.stderr)
+            self.assertFalse(self.trace.exists())
+            self.assertFalse((self.root / ".scratch/preflight-fixtures/owned/runs").exists())
+
+    def test_timeout_retains_partial_output_and_failed_step(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        args = self.android_arguments(port)
+        # Fault injection at the external process boundary; no ADB process is started.
+        hook = self.root / "python-hook"
+        hook.mkdir()
+        (hook / "sitecustomize.py").write_text("""import subprocess
+original = subprocess.run
+def run(argv, *args, **kwargs):
+    if str(argv[0]).endswith('/platform-tools/adb') and argv[-1] == 'start-server':
+        raise subprocess.TimeoutExpired(argv, 60, output=b'partial stdout\\n', stderr=b'partial stderr\\n')
+    return original(argv, *args, **kwargs)
+subprocess.run = run
+""")
+        self.env["PYTHONPATH"] = str(hook)
+        result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        reports = list((self.root / ".scratch/preflight-fixtures/owned/runs").glob("*/report.json"))
+        self.assertEqual(1, len(reports))
+        report = json.loads(reports[0].read_text())
+        self.assertEqual("failed", report["status"])
+        steps = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual(1, len(steps))
+        self.assertEqual("timeout", steps[0]["status"])
+        self.assertIsNone(steps[0]["exit_code"])
+        self.assertEqual("partial stdout\npartial stderr\n", (reports[0].parent / steps[0]["evidence"]).read_text())
         self.assertFalse(self.trace.exists())
