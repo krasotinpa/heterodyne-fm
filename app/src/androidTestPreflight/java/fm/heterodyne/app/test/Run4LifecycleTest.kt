@@ -46,6 +46,20 @@ class Run4LifecycleTest {
         }
     }
 
+    private fun lastModuleReturn(): String? {
+        val journal = AtomicReference<String>()
+        app.diagnostics.readJournal { journal.set(it) }
+        waitFor { journal.get() != null }
+        return journal.get().lineSequence().lastOrNull { "autostart reason=module-return result=" in it }
+    }
+
+    private fun assertReturnDecision(previous: String?, expected: String) {
+        val decision = lastModuleReturn()
+        assertNotEquals("Return must emit a fresh decision", previous, decision)
+        assertTrue("Expected $expected for this return, got $decision",
+            decision?.endsWith("result=$expected") == true)
+    }
+
     @Test fun seedPlayback() {
         ready()
         compose.runOnIdle { module.pickStation(StationEntry(97700)) }
@@ -79,6 +93,7 @@ class Run4LifecycleTest {
             // Preserve the production 30-second module-return cooldown between playing returns.
             if (cycle in 2..8) SystemClock.sleep((lastReturn + 31_000 - SystemClock.elapsedRealtime()).coerceAtLeast(0))
             val previous = pcm.starts.get()
+            val previousDecision = lastModuleReturn()
             detach()
             assertEquals(AudioState.Stopped, module.audioCounters.state)
             app.setReceiverConnected(true)
@@ -93,21 +108,25 @@ class Run4LifecycleTest {
                 assertEquals(previous, pcm.starts.get())
                 assertEquals(AudioState.Stopped, module.audioCounters.state)
             }
+            val decision = if (cycle <= 8) "selected" else "skipped"
+            assertReturnDecision(previousDecision, decision)
             note("F_REPLUG cycle=$cycle confirmed=${module.transition.confirmed?.frequencyKhz} " +
-                "audio=${module.audioCounters.state} restarts=${pcm.starts.get() - previous}")
+                "audio=${module.audioCounters.state} restarts=${pcm.starts.get() - previous} decision=$decision")
         }
         // A quick second return while eligible must not bypass the cooldown.
         compose.runOnIdle { module.pickStation(StationEntry(97700)) }
         playing(97700)
         val before = pcm.starts.get()
+        val previousDecision = lastModuleReturn()
         detach()
         app.setReceiverConnected(true)
         ready()
         unchangedStarts(2_000)
         assertEquals(before, pcm.starts.get())
         assertEquals(AudioState.Stopped, module.audioCounters.state)
+        assertReturnDecision(previousDecision, "rate-limited")
         compose.runOnIdle { module.userStop() }
-        note("F_COOLDOWN quick return did not restart")
+        note("F_COOLDOWN decision=rate-limited restarts=0")
     }
 
     @Test fun faults() {

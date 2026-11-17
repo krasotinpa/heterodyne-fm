@@ -13,7 +13,6 @@ class FakeModuleTransport : UsbTransport, UsbAudioPort {
     private var fm = true
     private var sequence = 0
     private var claimed = false
-    private var alternate = false
 
     @Synchronized override fun open(profile: DeviceProfile) {
         fake.open(profile)
@@ -77,14 +76,9 @@ class FakeModuleTransport : UsbTransport, UsbAudioPort {
         return if (fake.pendingCount == 0) byteArrayOf() else fake.receive()
     }
     override fun claim() { check(fake.isOpen && !claimed); claimed = true }
-    override fun alt1() { check(claimed); alternate = true }
-    override fun alt0() { check(claimed); alternate = false }
-    override fun release() {
-        check(claimed)
-        // A detached USB session cannot send alt0. Releasing discards its alternate setting.
-        alternate = false
-        claimed = false
-    }
+    override fun alt1() { check(claimed) }
+    override fun alt0() { check(claimed) }
+    override fun release() { check(claimed); claimed = false }
     @Synchronized override fun close() {
         check(!claimed)
         nextSplit = null

@@ -304,23 +304,37 @@ def receiver_lifecycle(device, phase, launch, package, report):
     def journal(label):
         return device(label, "shell", "run-as", package, "cat", journal_path)
 
+    def process_journal(label, pid):
+        _, marker, current = journal(label).rpartition(f"PREFLIGHT pid={pid} ")
+        require(marker, f"{label}: missing journal for current application process")
+        return current
+
+    def latest_audio(current, pid):
+        states = re.findall(rf"F_AUDIO pid={pid} state=([^\n]+)", current)
+        return states[-1] if states else None
+
+    def assert_playing(current, pid):
+        require(latest_audio(current, pid) == "Playing freq=97700 streaming=true",
+                "ordinary process is not streaming the saved station")
+        require(current.count(" Audio start") == 1, "playback did not start exactly once")
+        require(re.search(r"autostart reason=application-open result=(selected|already-selected)", current),
+                "missing ordinary launch autostart evidence")
+
     def wait_playing(label, pid):
         deadline = time.monotonic() + 20
-        marker = f"F_AUDIO pid={pid} state=Playing freq=97700 streaming=true"
         for attempt in range(40):
-            log = journal(f"{label}-{attempt}")
-            if marker in log:
-                # Per-process fixture marker separates historical lines from this launch.
-                current = log.split(f"PREFLIGHT pid={pid} ", 1)[1]
-                require(current.count(" Audio start") == 1, "playback started more than once")
-                require("autostart reason=application-open result=selected" in current
-                        or "autostart reason=application-open result=already-selected" in current,
-                        "missing ordinary launch autostart evidence")
+            current = process_journal(f"{label}-{attempt}", pid)
+            if latest_audio(current, pid) == "Playing freq=97700 streaming=true":
+                assert_playing(current, pid)
                 return
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.5)
         raise ValueError(f"{label}: selected station did not stream after ordinary launch")
+
+    def assert_pid(label, expected):
+        require(device(label, "shell", "pidof", package).strip() == expected,
+                "ordinary application PID changed during observation")
 
     def force_stop(label):
         device(label, "shell", "am", "force-stop", package)
@@ -335,11 +349,17 @@ def receiver_lifecycle(device, phase, launch, package, report):
     reopened = launch("f-reopened-playing")
     require(first != reopened, "force-stop must create a new playing process")
     wait_playing("f-playing-reopened", reopened)
+    time.sleep(10)
+    assert_playing(process_journal("f-playing-observation", reopened), reopened)
+    assert_pid("f-playing-observation-pid", reopened)
 
     # Resolve the ordinary Activity's Stop button at its actual bounds rather than using a coordinate constant.
     xml_file = "/data/local/tmp/run4-stop.xml"
     device("f-stop-tree", "shell", "uiautomator", "dump", xml_file)
-    xml = ET.fromstring(device("f-stop-tree-read", "shell", "cat", xml_file))
+    try:
+        xml = ET.fromstring(device("f-stop-tree-read", "shell", "cat", xml_file))
+    except ET.ParseError as error:
+        raise ValueError("ordinary Stop accessibility tree is invalid XML") from error
     nodes = [node for node in xml.iter("node") if node.get("package") == package
              and node.get("text") == "Стоп" and node.get("enabled") == "true"]
     require(len(nodes) == 1, "ordinary Stop button is missing or ambiguous")
@@ -362,19 +382,22 @@ def receiver_lifecycle(device, phase, launch, package, report):
     stopped = launch("f-reopened-stopped")
     require(stopped not in (first, reopened), "force-stop must create a new stopped process")
     time.sleep(10)
-    current = journal("f-stopped-observation").split(f"PREFLIGHT pid={stopped} ", 1)[1]
+    current = process_journal("f-stopped-observation", stopped)
+    assert_pid("f-stopped-observation-pid", stopped)
     require("autostart reason=application-open result=skipped" in current and " Audio start" not in current
             and f"F_AUDIO pid={stopped} state=Playing" not in current,
             "unwanted autostart after Stop")
     report["force_stop"] = dict(playing_before=first, playing_reopened=reopened, stopped_reopened=stopped,
-                                station_khz=97700, stopped_observation_seconds=10)
+                                station_khz=97700, playing_observation_seconds=10, stopped_observation_seconds=10)
     replug = phase("replug", test_class="Run4LifecycleTest", timeout=420)
-    cycles = re.findall(r"F_REPLUG cycle=(\d+) confirmed=(\d+) audio=(Playing|Stopped) restarts=(\d+)", replug)
+    cycles = re.findall(r"F_REPLUG cycle=(\d+) confirmed=(\d+) audio=(Playing|Stopped) restarts=(\d+) decision=(selected|skipped)", replug)
     require(len(cycles) == 10 and [int(cycle[0]) for cycle in cycles] == list(range(1, 11)), "missing replug evidence")
-    require(all(cycle[1:] == ("97700", "Playing", "1") for cycle in cycles[:8])
-            and all(cycle[2:] == ("Stopped", "0") for cycle in cycles[8:]), "unexpected replug audio state")
-    report["fake_replugs"] = [dict(cycle=int(n), frequency_khz=int(f), audio=a, starts=int(s)) for n, f, a, s in cycles]
-    require("F_COOLDOWN" in replug, "missing cooldown evidence")
+    require(all(cycle[1:] == ("97700", "Playing", "1", "selected") for cycle in cycles[:8])
+            and all(cycle[2:] == ("Stopped", "0", "skipped") for cycle in cycles[8:]), "unexpected replug audio state")
+    report["fake_replugs"] = [dict(cycle=int(n), frequency_khz=int(f), audio=a, starts=int(s), decision=d)
+                             for n, f, a, s, d in cycles]
+    require("F_COOLDOWN decision=rate-limited restarts=0" in replug, "missing cooldown evidence")
+    report["quick_return"] = {"decision": "rate-limited", "starts": 0}
     faults = phase("faults", test_class="Run4LifecycleTest")
     report["faults"] = [line.split("stream=", 1)[-1] for line in faults.splitlines()
                         if any(tag in line for tag in ("F_DELAY", "F_STALE", "F_PCM_LOSS"))]
@@ -545,7 +568,7 @@ def run_emulator(args, passport_data):
                 require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
                 report['exports'].append(dict(name=name, size=int(size), sha256=digest))
             report['status'] = 'passed'
-    except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
         report['error'] = str(error)
         if data['state'] == 'running':
@@ -587,7 +610,7 @@ def run_emulator(args, passport_data):
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
-        except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
+        except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
             report['cleanup_error'] = str(error)
             report['status'] = 'failed'
             failure = error
@@ -648,7 +671,7 @@ def main():
             return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
-    except (OSError, ValueError, KeyError, TypeError, IndexError, subprocess.SubprocessError) as error:
+    except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         print(f"preflight refused: {error}", file=sys.stderr)
         return 2
 
