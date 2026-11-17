@@ -22,6 +22,7 @@ class StationsModule(
     private val session: StationsSession,
     private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
     private val additionalReceivers: List<fm.heterodyne.app.receiver.Receiver> = emptyList(),
+    private val fixture: fm.heterodyne.app.receiver.ReceiverFixture? = null,
     private val startPlayback: () -> Unit,
 ) {
     fun receiverName(kind: fm.heterodyne.app.receiver.ReceiverKind): String = profiles.displayName(kind)
@@ -130,7 +131,7 @@ class StationsModule(
         private set
 
     init {
-        usb = AndroidUsbAdapter(context, profiles = profiles, additionalReceivers = additionalReceivers,
+        usb = AndroidUsbAdapter(context, profiles = profiles, additionalReceivers = additionalReceivers, fixture = fixture,
             selectionChanged = { kind, features ->
                 selectedReceiver = kind
                 capabilities = features ?: fm.heterodyne.app.receiver.ReceiverCapabilities(false, false, false, false, false)

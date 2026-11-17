@@ -15,7 +15,8 @@ import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowAudioTrack
 
 @RunWith(RobolectricTestRunner::class)
-@Config(sdk = [30], shadows = [StaticTransitionToneTest.StaticPcmAudioTrack::class])
+@Config(sdk = [30], application = android.app.Application::class,
+    shadows = [StaticTransitionToneTest.StaticPcmAudioTrack::class])
 @LooperMode(LooperMode.Mode.PAUSED)
 class StaticTransitionToneTest {
     @Implements(AudioTrack::class)

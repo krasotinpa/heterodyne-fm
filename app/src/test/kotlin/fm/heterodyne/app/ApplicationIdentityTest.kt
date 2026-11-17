@@ -6,6 +6,7 @@ import org.junit.Test
 class ApplicationIdentityTest {
     @Test
     fun applicationIdIdentifiesHeterodyneFm() {
-        assertEquals("fm.heterodyne.app", BuildConfig.APPLICATION_ID)
+        val expected = if (BuildConfig.BUILD_TYPE == "preflight") "fm.heterodyne.app.preflight" else "fm.heterodyne.app"
+        assertEquals(expected, BuildConfig.APPLICATION_ID)
     }
 }

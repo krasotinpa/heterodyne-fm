@@ -8,8 +8,8 @@ python_checks() {
 }
 
 android_checks() {
-    ./gradlew test lint assembleDebug
-    sha256sum app/build/outputs/apk/debug/app-debug.apk
+    ./gradlew test lint assembleDebug assemblePreflight
+    sha256sum app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/preflight/app-preflight.apk
 }
 
 case "${1:-all}" in

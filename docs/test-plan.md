@@ -18,6 +18,7 @@
 | Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
 | Validation gate | Fixture Python/Gradle: all, python, android, отказ | Выбранные команды выполнены; первый отказ возвращает исходный exit code и останавливает следующие проверки |
 | Visual regression | Два фиксированных Efir состояния, API 35 native graphics | Bitmap совпадает с техническим PNG-эталоном; различия сохраняют actual PNG; это не приёмка ГУ |
+| Preflight APK | Fake transport, синтетические ответы, PCM, manifest guard | Receiver подтверждает только RX; PCM имеет формат s16le stereo; физическая среда отвергается до Application wiring |
 
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
 Real fixtures имеют hash/provenance. Synthetic bytes доказывают negative handling, не hardware protocol.
@@ -57,6 +58,8 @@ AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 4. Запиши actual exit codes, версии, SHA и APK hash.
 
 Script выполняет офлайн-часть gate и останавливается при первом отказе.
+Android gate также запускает preflight unit tests и собирает отдельный `app-preflight.apk`.
+Проверка нового процесса и AudioTrack описана в [инструкции preflight APK](agents/run4-preflight-apk.md).
 Режимы `python` и `android` используются теми же job CI; имена обязательных проверок сохраняются.
 Офлайн-успех не подтверждает instrumented или аппаратную приёмку.
 `EmulatorSmokeTest` предназначен только для собственного AVD без USB устройств; запускай его по [инструкции Emulator](agents/android-emulator.md).

@@ -163,6 +163,16 @@ AudioFocusController ─→ PlaybackService (FGS mediaPlayback) ─→ AudioBack
 2. Версии Kotlin, Compose, Gradle — [ADR 0002](adr/0002-stack-kotlin-compose-gradle.md).
 3. Базовые функции работают без сети. Диагностика автоматически не отправляется.
 
+## Стенд предварительной проверки
+
+Отдельный build type `preflight` выбирает `PreflightApplication` через собственный manifest.
+Application передаёт `ReceiverFixture` в общий адаптер до discovery.
+Fixture заменяет транспорт, PCM source и аудиопорт; правила `Receiver` остаются в `ModuleController`.
+USB manager, broadcast registration и аппаратный транспорт не используются в ветке fixture.
+Общий AudioPlayback продолжает писать в настоящий AudioTrack.
+Обычные debug/release возвращают null fixture; синтетические классы в них не компилируются.
+Ограничения и команды описаны в [инструкции preflight APK](agents/run4-preflight-apk.md).
+
 ## Ручное обновление Справочника
 
 Кнопка «Обновить Справочник» находится в «Настройках» Режима стоянки.

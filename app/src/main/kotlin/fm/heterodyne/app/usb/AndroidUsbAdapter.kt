@@ -33,6 +33,7 @@ class AndroidUsbAdapter(
     private val readLaunchStation: ((TuneTarget?) -> Unit) -> Unit = { it(null) },
     private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
     private val additionalReceivers: List<Receiver> = emptyList(),
+    private val fixture: fm.heterodyne.app.receiver.ReceiverFixture? = null,
     private val selectionChanged: (fm.heterodyne.app.receiver.ReceiverKind?, fm.heterodyne.app.receiver.ReceiverCapabilities?) -> Unit = { _, _ -> },
 ) {
     private val preferences = fm.heterodyne.app.ui.ReceiverPreferences(
@@ -75,16 +76,19 @@ class AndroidUsbAdapter(
             done(result ?: TuneResult.NotConnected)
         }
     }
-    private val manager = context.getSystemService(UsbManager::class.java)
+    private val manager by lazy { context.getSystemService(UsbManager::class.java) }
     private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Module") }
     private val log by lazy {
         AsyncDiagnosticLog(create = {
-            DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics")).also {
+            DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics"),
+                receiverKind = if (fixture == null) fm.heterodyne.app.receiver.ReceiverKind.Module
+                    else fm.heterodyne.app.receiver.ReceiverKind("preflight")).also {
                 it.buildVersion(context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown")
             }
         }, priority = { android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND) })
     }
-    private val transport: AndroidUsbTransport = AndroidUsbTransport(manager) { audio.stop() }
+    private val hardwareTransport by lazy { AndroidUsbTransport(manager) { audio.stop() } }
+    private val transport: UsbTransport get() = fixture?.transport ?: hardwareTransport
     private var activeDeviceId: String? = null
     private var permissionEpoch = 0L
     private var openingStation: TuneTarget? = null
@@ -223,7 +227,8 @@ class AndroidUsbAdapter(
         audioManager), sink, log, signalVolume = transitionSignal::setFocusVolume) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ receiver?.state == ConnectionState.Observing },
-            UsbIsoSource { transport.fileDescriptor }, sink, transport, log, focus,
+            fixture?.source ?: UsbIsoSource { hardwareTransport.fileDescriptor }, sink,
+            fixture?.audioPort ?: hardwareTransport, log, focus,
             threadFactory = { task -> Thread({
                 android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_URGENT_AUDIO)
                 task.run()
@@ -274,8 +279,10 @@ class AndroidUsbAdapter(
             addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
             addAction(permissionAction)
         }
-        if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(broadcasts, filter, Context.RECEIVER_NOT_EXPORTED)
-        else context.registerReceiver(broadcasts, filter)
+        if (fixture == null) {
+            if (Build.VERSION.SDK_INT >= 33) context.registerReceiver(broadcasts, filter, Context.RECEIVER_NOT_EXPORTED)
+            else context.registerReceiver(broadcasts, filter)
+        }
         started = true
         polling = worker.scheduleWithFixedDelay({
             audio.receive()
@@ -401,21 +408,22 @@ class AndroidUsbAdapter(
     }
 
     private fun discover() {
-        val devices = manager.deviceList.values.mapNotNull { device ->
-            UsbDiscovery.find(device.description(), profiles)?.let { device to it }
+        val devices = fixture?.let { listOf(it.profile) } ?: manager.deviceList.values.mapNotNull { device ->
+            UsbDiscovery.find(device.description(), profiles)
         }
         val before = selection.selectedKind
-        selection.discover(devices.map { it.second })
+        selection.discover(devices)
         if (before != selection.selectedKind) { launchInstance?.cancel(); launchInstance = null }
         publishSelection()
         startPendingOpening()
         val selected = receiver ?: return
-        val (device, profile) = devices.firstOrNull { it.second.kind == selection.selectedKind } ?: return
-        if (selected === controller && controller.deviceId != null && controller.deviceId != device.deviceName) return
-        activeDeviceId = device.deviceName
+        val profile = devices.firstOrNull { it.kind == selection.selectedKind } ?: return
+        if (selected === controller && controller.deviceId != null && controller.deviceId != profile.deviceId) return
+        activeDeviceId = profile.deviceId
         selected.found(profile)
         val token = selected.requestPermission() ?: return
-        if (manager.hasPermission(device)) selected.permissionResult(token, true)
+        val device = if (fixture == null) manager.deviceList[profile.deviceId] ?: return else null
+        if (fixture != null || manager.hasPermission(checkNotNull(device))) selected.permissionResult(token, true)
         else {
             val intent = Intent(permissionAction).setPackage(context.packageName)
                 .setData(Uri.parse("heterodyne-usb://$instance/$permissionEpoch/$token"))
@@ -426,7 +434,7 @@ class AndroidUsbAdapter(
     }
     fun close() {
         if (!started) return
-        context.unregisterReceiver(broadcasts)
+        if (fixture == null) context.unregisterReceiver(broadcasts)
         started = false
         polling?.cancel(false)
         closing = true
