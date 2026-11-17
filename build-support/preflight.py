@@ -406,6 +406,14 @@ def android_ui(args, passport_data):
                         child.poll()
                     time.sleep(1)
                 require(not Path('/proc', str(data['emulator_process']['pid'])).exists(), 'Emulator did not exit; forced termination requires permission')
+            if 'emulator_process' in data:
+                # Emulator leaves this empty lock file after a confirmed graceful exit.
+                stale_lock = root / 'avd' / (data['avd_name'] + '.avd') / 'multiinstance.lock'
+                if stale_lock.exists():
+                    require(not stale_lock.is_symlink() and stale_lock.is_file()
+                            and stale_lock.stat().st_size == 0 and stale_lock.stat().st_nlink == 1,
+                            'unexpected Emulator lock file')
+                    stale_lock.unlink()
             if 'adb_process' in data:
                 verify_adb()
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
