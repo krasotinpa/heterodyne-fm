@@ -16,6 +16,7 @@
 | Экспорт Журнала | Fake DownloadStore: запись, повторный экспорт, ошибка | Путь Download, точный размер в байтах, уникальные имена; ошибка не сообщает успех |
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
 | Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
+| Validation gate | Fixture Python/Gradle: all, python, android, отказ | Выбранные команды выполнены; первый отказ возвращает исходный exit code и останавливает следующие проверки |
 
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
 Real fixtures имеют hash/provenance. Synthetic bytes доказывают negative handling, не hardware protocol.
@@ -46,12 +47,14 @@ getPreferredDevice не подтверждает фактический route.
 AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.
 
-1. Выполни `python3.12 -m unittest discover -s tests/research`.
-2. Выполни `./gradlew test lint assembleDebug` для Kotlin unit tests, lint и APK build.
-3. Запиши SHA-256: `sha256sum app/build/outputs/apk/debug/app-debug.apk`.
-4. Выполни доступные instrumented tests.
-5. Сверь hardware matrix; укажи blocked/not tested.
-6. Запиши actual exit codes, версии, SHA и APK hash.
+1. Выполни `./build-support/validate.sh`: Python research и build-version tests, Gradle tests/lint/APK и SHA-256.
+2. Выполни доступные instrumented tests.
+3. Сверь hardware matrix; укажи blocked/not tested.
+4. Запиши actual exit codes, версии, SHA и APK hash.
+
+Script выполняет офлайн-часть gate и останавливается при первом отказе.
+Режимы `python` и `android` используются теми же job CI; имена обязательных проверок сохраняются.
+Офлайн-успех не подтверждает instrumented или аппаратную приёмку.
 
 Hardware blocked не превращается в passed.
 После полного gate независимый reviewer проверяет всю ветку.

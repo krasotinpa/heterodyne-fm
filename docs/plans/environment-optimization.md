@@ -21,7 +21,7 @@ Codex проверяет точный head SHA перед merge. Прямой pu
 | 8 | P1 | Выполнимые инструкции Skills для Codex | Выполнен; [отчёт](../validation/codex-skill-adapter-p1.md) |
 | 9 | P1 | Только нужные проекту MCP и hooks | Выполнен; [отчёт](../validation/project-integrations-p1.md) |
 | 10 | P1 | Явная установка закреплённого NDK в CI | Выполнен; [отчёт](../validation/pinned-ndk-ci-p1.md) |
-| 11 | P2 | Единый простой запуск local gate, если нужен | Ожидает |
+| 11 | P2 | Единый простой запуск local gate, если нужен | Выполнен; [отчёт](../validation/local-validation-gate-p2.md) |
 | 12 | P2 | Небольшой набор визуальных проверок UI | Ожидает |
 | 13 | P2 | Рабочий Emulator и instrumented-сценарий | Ожидает |
 | 14 | P2 | Проверенная защита Git | Ожидает |
