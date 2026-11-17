@@ -89,7 +89,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("android-ui", "visual", "simulated-receiver", "emulator-reboot",
+        for mode in ("visual", "simulated-receiver", "emulator-reboot",
                      "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
@@ -222,4 +222,33 @@ class PreflightTest(unittest.TestCase):
         passport.write_text(json.dumps(data))
         result = self.cli("check", "--apk", str(self.apk), "--passport", str(passport))
         self.assertEqual(2, result.returncode, result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_prepare_copies_config_without_shared_disks_and_refuses_reuse(self):
+        template = self.root / "user-avd/config.ini"
+        template.parent.mkdir()
+        original = "abi.type=x86_64\nhw.lcd.width=1280\ndisk.dataPartition.path=/personal/userdata.img\nimage.sysdir.1=system-images/android-30/default/x86_64/\n"
+        template.write_text(original)
+        image = self.sdk / "system-images/android-30/default/x86_64"
+        image.mkdir(parents=True)
+        (image / "system.img").write_bytes(b"SDK image")
+        result = self.cli("prepare", "--name", "owned", "--template", str(template))
+        self.assertEqual(0, result.returncode, result.stderr)
+        manifest = self.root / ".scratch/preflight-fixtures/owned/fixture.json"
+        self.assertEqual("stopped", json.loads(manifest.read_text())["state"])
+        self.assertEqual(original, template.read_text())
+        config = (manifest.parent / "avd/owned.avd/config.ini").read_text()
+        self.assertNotIn("/personal", config)
+        self.assertIn("fastboot.forceColdBoot=yes", config)
+        result = self.cli("fixture", "--manifest", str(manifest))
+        self.assertEqual(0, result.returncode, result.stderr)
+        result = self.cli("prepare", "--name", "owned", "--template", str(template))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_android_ui_requires_preflight_identity_before_any_adb_action(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "android-ui", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("requires preflight", result.stderr)
         self.assertFalse(self.trace.exists())

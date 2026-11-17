@@ -18,6 +18,9 @@ class PreflightApplication : StationsApplication() {
             "transport=FakeTransport pcm=synthetic-48000-s16le-stereo")
     }
 
+    override fun onlineCatalog(): fm.heterodyne.app.stations.CatalogReader =
+        PreflightCatalog(this, getSharedPreferences("preflight", MODE_PRIVATE).getString("catalog", "https")!!)
+
     override fun receiverFixture(): ReceiverFixture {
         val transport = FakeModuleTransport()
         return ReceiverFixture(DeviceProfile("preflight-fake-module"), transport, SyntheticPcmSource(), transport)
