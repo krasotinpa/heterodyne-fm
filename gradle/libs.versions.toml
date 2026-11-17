@@ -13,8 +13,12 @@ min-sdk = "30"
 build-tools = "36.0.0"
 jdk = "17"
 ndk = "28.2.13676358"
+androidx-test-runner = "1.5.0"
+androidx-test-junit = "1.1.5"
 
 [libraries]
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
+androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 compose-foundation = { module = "androidx.compose.foundation:foundation" }

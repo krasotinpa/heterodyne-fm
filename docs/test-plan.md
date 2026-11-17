@@ -56,6 +56,8 @@ AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Script выполняет офлайн-часть gate и останавливается при первом отказе.
 Режимы `python` и `android` используются теми же job CI; имена обязательных проверок сохраняются.
 Офлайн-успех не подтверждает instrumented или аппаратную приёмку.
+`EmulatorSmokeTest` предназначен только для собственного AVD без USB устройств; запускай его по [инструкции Emulator](agents/android-emulator.md).
+Не запускай общий connectedAndroidTest на произвольных подключённых устройствах: Application начинает USB discovery до Activity.
 Обновление технических PNG-эталонов выполняй только по [инструкции визуальных тестов](agents/visual-tests.md), с просмотром diff.
 
 Hardware blocked не превращается в passed.

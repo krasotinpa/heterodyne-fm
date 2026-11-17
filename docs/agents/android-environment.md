@@ -3,7 +3,7 @@
 Среда разработки — WSL2, дистрибутив `Ubuntu`.
 Общий путь SDK задаёт `ANDROID_HOME`; версия инструментов закреплена в [каталоге](../../gradle/libs.versions.toml).
 Helper [android-env.sh](../../build-support/android-env.sh) использует существующий `ANDROID_HOME` либо `$HOME/Android/Sdk`.
-Он добавляет Platform Tools и Command-line Tools в PATH без повторных элементов.
+Он добавляет Platform Tools, Command-line Tools и Emulator в PATH без повторных элементов.
 Java обнаруживается существующим JDK 17; `JAVA_HOME` эта настройка не меняет.
 
 ## Локальная установка
