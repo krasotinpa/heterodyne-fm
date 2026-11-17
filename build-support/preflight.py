@@ -420,7 +420,7 @@ def run_emulator(args, passport_data):
               'apk': passport_data['apk'], 'passport': passport_data, 'test_apk_sha256': args.test_sha256, 'steps': [], 'status': 'failed',
               'Defect and Issue Report': {'status': 'requires Codex triage', 'issues': []},
               'Remaining Car Tests': ['All HU/USB/FM/audio route acceptance; Emulator does not confirm it',
-                                     'F, G and D/E remain separate blocks'],
+                                     'Physical replug, G and D/E remain separate checks'],
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
     report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
     report["fixture"]["template_sha256"] = data.get("template_sha256")

@@ -27,8 +27,8 @@ Merge выполняет владелец. Каждый связный блок 
 | 1 | Паспорт APK и проверки изоляции runner. Чужая сборка и неподходящий стенд отвергаются до воздействия. | Влит: PR #309, main 7de3b4d, CI успешен |
 | 2 | Отдельный preflight APK: Fake Receiver, fake transport, синтетический PCM. Подстановка работает при обычном запуске нового процесса. | Влит: PR #310, main 7ce5bdf, CI успешен; [инструкция](../agents/run4-preflight-apk.md), [отчёт](../validation/run4-preflight-block2.md) |
 | 3 | Сквозные A/B/C/X: установка, версия, настройки, Регионы, редактор Станций, сохранение, обновление Справочника, MediaStore export. | Влит через PR #311. CI main 3d8551e прошёл. [Отчёт](../validation/run4-preflight-block3.md) |
-| 4 | Visual: экраны и ошибки, обе темы, три разрешения, два масштаба шрифта. PNG сняты через ADB и просмотрены агентом. | [Отчёт](../validation/run4-preflight-block4.md) |
-| 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | Ожидает |
+| 4 | Visual: экраны и ошибки, обе темы, три разрешения, два масштаба шрифта. PNG сняты через ADB и просмотрены агентом. | Влит через PR #314. [Отчёт](../validation/run4-preflight-block4.md) |
+| 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | [Отчёт](../validation/run4-preflight-block5.md) |
 | 6 | G: adb reboot и cold boot без Quick Boot; сохранность данных, Станции, lastPlayed, Журналов; отсутствие повторных запусков. | Ожидает |
 | 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | Ожидает |
 | 8 | Итоговый безопасный прогон, четыре отчёта и triage findings через gh. | Ожидает |
@@ -72,7 +72,7 @@ Merge выполняет владелец. Каждый связный блок 
 | `offline` | Существующий офлайн validation gate |
 | `android-ui` | Сквозные UI-сценарии собственного AVD |
 | `visual` | PNG и визуальная матрица |
-| `simulated-receiver` | Fake Receiver, transport и PCM |
+| `simulated-receiver` | F на Fake Receiver: force-stop, replug, задержка и потеря PCM |
 | `emulator-reboot` | Обычный reboot собственного стенда |
 | `emulator-power-loss` | Проверка потери питания; требует отдельного разрешения на аварийное завершение |
 | `super-radio-hardware` | Super Radio; требует отдельного разрешения на активный USB-сеанс |
@@ -112,7 +112,8 @@ Runner проверяет бинарные файлы, время запуска
 Успех `fixture` всегда содержит `launch_admitted: false`: сама команда только проверяет стенд.
 С блока 3 запуском и штатной остановкой управляет `run android-ui`; см. [инструкцию](../agents/run4-preflight-apk.md#сквозной-runner-abcx).
 С блока 4 режим `visual` снимает PNG. См. [инструкцию визуального прогона](../agents/visual-tests.md#визуальный-прогон-run-4).
-Остальные режимы, кроме `offline`, `android-ui` и `visual`, отказывают до воздействия.
+С блока 5 режим `simulated-receiver` выполняет проверки F. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-f).
+Остальные режимы отказывают до воздействия.
 
 Результаты первого блока: [отчёт проверки](../validation/run4-preflight-block1.md).
 
