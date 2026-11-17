@@ -330,6 +330,12 @@ def receiver_lifecycle(device, phase, launch, package, report):
             if time.monotonic() >= deadline:
                 break
             time.sleep(0.5)
+        for name, command in (("audio-flinger", ("dumpsys", "media.audio_flinger")),
+                              ("android-log", ("logcat", "-d", "-t", "400"))):
+            try:
+                device(f"{label}-{name}", "shell", *command, timeout=20)
+            except (OSError, ValueError, subprocess.SubprocessError):
+                pass  # Keep the streaming failure as the primary error.
         raise ValueError(f"{label}: selected station did not stream after ordinary launch")
 
     def assert_pid(label, expected):
