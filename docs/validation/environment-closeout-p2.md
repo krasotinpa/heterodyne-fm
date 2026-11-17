@@ -44,3 +44,14 @@ Standards — 0 findings; Spec — 0 существенных findings.
 Неблокирующее уточнение Spec о strict-required-status-checks исправлено явным значением false.
 Все шесть исходных SHA совпали со снимком; reviewers не меняли файлы или GitHub settings.
 После записи итогов ссылки и diff повторно проверены, exit 0.
+
+## Первая фактическая проверка восстановленного CI
+
+Run [44029613125](https://github.com/krasotinpa/heterodyne-fm/actions/runs/44029613125) проверил head `ef9083c9b0d27e6632358d9af8f935e830aeaac6`.
+Оба обязательных jobs python/android — SUCCESS; PR перешёл из BLOCKED в CLEAN.
+Python logs: 60 research tests и 5 build-version tests, OK.
+Android: явная установка SDK/NDK successful, общий gate BUILD SUCCESSFUL, 3 мин 16 с.
+CI APK SHA-256: `7c79bdf950d7e20549b4ecbbb18010ab3baee60ead581b14990e5d9940c0b9ba`.
+Точные PNG regression checks прошли и на GitHub runner; поднятие tolerance или обновление эталонов не потребовалось.
+Failure artifact step skipped при успехе, его ветка upload остаётся неисполненной.
+Эта запись меняет только документацию: актуальный итоговый head закрывающего PR будет повторно проверен перед merge, затем проверяется CI main.

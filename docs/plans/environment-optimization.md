@@ -24,7 +24,7 @@ Codex проверяет точный head SHA перед merge. Прямой pu
 | 11 | P2 | Единый простой запуск local gate, если нужен | Выполнен; [отчёт](../validation/local-validation-gate-p2.md) |
 | 12 | P2 | Небольшой набор визуальных проверок UI | Выполнен; [отчёт](../validation/visual-regression-p2.md) |
 | 13 | P2 | Рабочий Emulator и instrumented-сценарий | Выполнен; [отчёт](../validation/android-emulator-p2.md) |
-| 14 | P2 | Проверенная защита Git | GitHub rules и CI восстановлены; закрывается CI/merge текущего PR |
+| 14 | P2 | Проверенная защита Git | Выполнен; [отчёт](../validation/environment-closeout-p2.md), окончание разрешения после CI main |
 
 PR #294 сохраняет отдельно одобренную паузу CI и порядок восстановления обязательных проверок.
 Пауза CI завершена 17.11.2026: workflow active, обязательные python/android восстановлены по [инструкции](../agents/ci-pause.md).
