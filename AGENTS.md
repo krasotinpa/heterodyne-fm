@@ -14,7 +14,7 @@ API, USB host и audio route требуют измерений. VID/PID не у�
 
 Агент создаёт feature-ветки, делает их push и открывает PR в `main` без отдельного запроса.
 Прямой push в `main` запрещён; merge по умолчанию выполняет пользователь.
-Временное исключение: Codex выполняет merge проверенных PR [плана из 14 пунктов](docs/plans/environment-optimization.md) по разрешению владельца от 16.11.2026.
+Временное исключение: Codex выполняет merge проверенных PR [плана из 14 пунктов](docs/plans/environment-optimization.md) по разрешению владельца от 16.11.2026 до завершения плана и успешного CI итогового main. Затем снова действует merge владельцем.
 Whitelist radio TX пуст, кроме команд из `docs/research/command-catalog.md`, внесённых решением владельца. У каждого Приёмника свой whitelist ([ADR 0007](docs/adr/0007-receivers.md)); для RTL-SDR он описывает управляющие передачи USB, запись EEPROM исключена.
 Исключение — автозапуск последней Станции (R25, [ADR 0005](docs/adr/0005-autostart-last-station.md)): playSelect/BAND у Модуля и разрешённые записи whitelist RTL-SDR (частота, выборка, усиление), один раз на запуск, при `lastPlayed`, на выбранном Приёмнике, с аудиофокусом, без автоповтора.
 Исключены unknown radio/vendor commands, DFU, bootloader, EEPROM, factory/reset и firmware operations.
@@ -49,7 +49,7 @@ Android toolchain и dependencies закрепляй после получени
 
 Для запуска аудита и разработки используй [режимы прав Codex](docs/agents/codex-permissions.md). Проверяй права активной сессии до действий.
 Каждый пункт оптимизации среды выполняй в отдельной ветке-worktree и PR. Следующий начинай после merge; правила чата и временного разрешения заданы в плане.
-На время изменения среды действует [пауза GitHub CI](docs/agents/ci-pause.md). После завершения работ восстанови CI и обязательные проверки.
+GitHub CI и обязательные `python`/`android` восстановлены после [паузы среды](docs/agents/ci-pause.md). Проверяй актуальные checks перед merge.
 
 Разработка выполняется только с Codex. Он реализует, проверяет, коммитит изменения и открывает PR.
 Код тикетов `ready-for-agent` пишет Codex по [docs/agents/codex-implementation.md](docs/agents/codex-implementation.md); тикеты `ready-for-human` берёт человек.
