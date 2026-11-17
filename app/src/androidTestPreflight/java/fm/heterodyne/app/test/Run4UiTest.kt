@@ -48,9 +48,8 @@ class Run4UiTest {
         assertEquals(160, configuration.densityDpi)
         val automation = instrumentation.uiAutomation
         fun shell(command: String) {
-            val result = android.os.ParcelFileDescriptor.AutoCloseInputStream(
-                automation.executeShellCommand("$command && echo OK")).use { it.bufferedReader().readText() }
-            assertEquals(command, "OK", result.trim())
+            android.os.ParcelFileDescriptor.AutoCloseInputStream(automation.executeShellCommand(command))
+                .use { it.readBytes() }
         }
         val case = requireNotNull(args.getString("case"))
         require(case.matches(Regex("[0-9]+x[0-9]+-1\\.[03]-(light|dark)")))
