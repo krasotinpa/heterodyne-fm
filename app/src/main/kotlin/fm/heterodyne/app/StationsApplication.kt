@@ -7,7 +7,8 @@ import android.os.Looper
 import fm.heterodyne.app.audio.PlaybackService
 
 /** Wires process-wide storage, module control and diagnostics. */
-class StationsApplication : Application() {
+open class StationsApplication : Application() {
+    protected open fun receiverFixture(): fm.heterodyne.app.receiver.ReceiverFixture? = null
     lateinit var session: StationsSession
         private set
     lateinit var module: StationsModule
@@ -19,7 +20,7 @@ class StationsApplication : Application() {
         super.onCreate()
         val main = Handler(Looper.getMainLooper())
         session = StationsSession(this, main)
-        module = StationsModule(this, main, session) {
+        module = StationsModule(this, main, session, fixture = receiverFixture()) {
             startForegroundService(Intent(this, PlaybackService::class.java))
         }
         diagnostics = StationsDiagnostics(this, main, module.usb)

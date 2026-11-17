@@ -181,12 +181,13 @@ def check(args):
             and type(expected["dirty"]) is bool, "invalid passport source identity")
     actual = measure(args.apk, args.sdk, args.build_tools)
     require(actual == expected["apk"], "APK passport mismatch")
-    require(actual["package"] == "fm.heterodyne.app", "foreign package")
+    require(expected["purpose"] in ("historical", "current", "preflight"), "unknown passport purpose")
+    package = "fm.heterodyne.app.preflight" if expected["purpose"] == "preflight" else "fm.heterodyne.app"
+    require(actual["package"] == package, "foreign package")
     require(actual["min_sdk"] == 30 and actual["target_sdk"] == 30, "incompatible SDK")
-    require(expected["purpose"] in ("historical", "current"), "unknown passport purpose")
     require(actual["version_name"] == "0.1.0+" + expected["source_commit"][:7]
             + ("-dirty" if expected["dirty"] else ""), "inconsistent source identity")
-    if expected["purpose"] == "current":
+    if expected["purpose"] in ("current", "preflight"):
         require(not expected["dirty"], "dirty APK cannot run preflight")
         require(expected["source_commit"] == output("git", "rev-parse", "HEAD"), "stale APK source commit")
         require(not output("git", "status", "--porcelain", "--untracked-files=no"), "source tree is dirty")
@@ -211,7 +212,7 @@ def main():
         command.add_argument("--build-tools", default="36.0.0")
         if name == "passport":
             command.add_argument("--source-commit", required=True)
-            command.add_argument("--purpose", choices=("historical", "current"), default="current")
+            command.add_argument("--purpose", choices=("historical", "current", "preflight"), default="current")
         else:
             command.add_argument("--passport", type=Path, required=True)
     args = parser.parse_args()
@@ -223,7 +224,7 @@ def main():
             require(args.mode == "offline", f"mode {args.mode} is not admitted; no actions executed")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
-            require(data["purpose"] == "current", "historical APK is inspection-only")
+            require(data["purpose"] != "historical", "historical APK is inspection-only")
             return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0

@@ -36,6 +36,16 @@ android {
         debug {
             ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
         }
+        create("preflight") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".preflight"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "debug"
+        }
+    }
+
+    testBuildType = providers.gradleProperty("heterodyne.testBuildType").getOrElse("debug").also {
+        require(it in listOf("debug", "preflight"))
     }
 
     externalNativeBuild {
@@ -65,6 +75,11 @@ kotlin {
     jvmToolchain(libs.versions.jdk.get().toInt())
 }
 
+// AGP 9 otherwise creates unit tests only for testBuildType (normally debug).
+androidComponents.beforeVariants(androidComponents.selector().withBuildType("preflight")) {
+    it.hostTests[com.android.build.api.variant.HostTestBuilder.UNIT_TEST_TYPE]?.enable = true
+}
+
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
@@ -74,6 +89,7 @@ dependencies {
     testImplementation(libs.robolectric)
     testImplementation(libs.bouncycastle)
     debugImplementation(libs.compose.ui.test.manifest)
+    "preflightImplementation"(libs.compose.ui.test.manifest)
     testImplementation(libs.junit)
     testImplementation(libs.json)
     androidTestImplementation(platform(libs.compose.bom))

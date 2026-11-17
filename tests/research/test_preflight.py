@@ -207,3 +207,19 @@ class PreflightTest(unittest.TestCase):
         result = self.cli("run", "offline", "--apk", str(self.apk), "--passport", str(passport))
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_preflight_passport_keeps_distinct_package_identity(self):
+        self.write_badging(package="fm.heterodyne.app.preflight")
+        result = self.cli("passport", "--apk", str(self.apk), "--source-commit", self.commit,
+                          "--purpose", "preflight")
+        self.assertEqual(0, result.returncode, result.stderr)
+        passport = self.root / "preflight-passport.json"
+        passport.write_text(result.stdout)
+        result = self.cli("check", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(0, result.returncode, result.stderr)
+        data = json.loads(passport.read_text())
+        data["purpose"] = "current"
+        passport.write_text(json.dumps(data))
+        result = self.cli("check", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertFalse(self.trace.exists())
