@@ -144,7 +144,7 @@ class Run4UiTest {
         setting("Регион: Москва ›").performClick()
         compose.onNodeWithText("Москва ✓").assertIsDisplayed()
         compose.onNodeWithText("Ярославль").assertIsDisplayed()
-        click("Москва")
+        click("Москва ✓")
         click("Подборки")
         verifyEntry()
         click("Настройки")
