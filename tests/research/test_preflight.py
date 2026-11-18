@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import json
 import os
@@ -449,3 +450,15 @@ subprocess.run = run
         self.assertIn("ADB server missing", abcx["error"])
         self.assertTrue(all(phase["status"] == "blocked" for phase in remaining))
         self.assertEqual("gateinvoked", self.trace.read_text())
+
+    def test_android_runner_refuses_a_leased_endpoint_before_launching_tools(self):
+        args = self.android_arguments(6038)
+        leases = self.root / ".git/preflight-leases"
+        leases.mkdir()
+        with (leases / "6038").open("a") as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("preflight port is already leased", result.stderr)
+        self.assertFalse(self.trace.exists())
+        self.assertFalse((self.root / ".scratch/preflight-fixtures/owned/runs").exists())

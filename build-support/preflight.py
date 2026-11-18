@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.12
 """Run 4 preflight: inspect APKs and run checks on private Android fixtures."""
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -556,32 +557,58 @@ def verify_test_apk(args, passport_data):
         require(f'="{identity}"' in xml, 'foreign test APK manifest')
 
 
+def require_free_ports(ports):
+    import socket
+
+    for port in ports:
+        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            probe.bind(('::', port))
+
+
 def run_emulator(args, passport_data):
     import fcntl
-    import socket
-    import time
-    import uuid
+
     require(passport_data['purpose'] == 'preflight', f'{args.mode} requires preflight APK')
     require(args.manifest and args.test_apk and args.test_sha256, f'{args.mode} requires manifest, test APK and its trusted SHA-256')
     fixture(args)
     root = args.manifest.absolute().parent
     data = json.loads(args.manifest.read_text())
     require(data['state'] == 'stopped', 'runner requires a stopped fixture')
-    require(not (root / 'runs').exists(), 'runner requires a freshly prepared fixture; previous evidence is retained')
     verify_test_apk(args, passport_data)
+    port = data['emulator_port']
+    ports = sorted((data['adb_port'], port, port + 1))
+    common = Path(output("git", "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    lease_dir = common / "preflight-leases"
+    require(not lease_dir.is_symlink(), "preflight lease directory symlink")
+    lease_dir.mkdir(exist_ok=True)
+    with ExitStack() as leases:
+        for path in (root / "runner.lease", *(lease_dir / str(endpoint) for endpoint in ports)):
+            require(not path.is_symlink(), "preflight lease symlink")
+            lock = leases.enter_context(path.open("a"))
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ValueError(f"preflight port is already leased: {path.name}") from error
+        fixture(args)
+        require(json.loads(args.manifest.read_text()) == data, 'fixture changed while acquiring port leases')
+        require(not (root / 'runs').exists(), 'runner requires a freshly prepared fixture; previous evidence is retained')
+        return run_locked_emulator(args, passport_data, root, data, ports)
+
+
+def run_locked_emulator(args, passport_data, root, data, ports):
+    import time
+    import uuid
+
     adb = args.sdk / 'platform-tools/adb'
     emulator = args.sdk / 'emulator/emulator'
     qemu = args.sdk / 'emulator/qemu/linux-x86_64/qemu-system-x86_64-headless'
     require(all(p.is_file() for p in (adb, emulator, qemu)), 'installed Android tools required')
-    lock = (root / 'runner.lease').open('w')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    # No ADB command is allowed until all private ports and fixture process names are unused.
-    require(not find_process(qemu, data['avd_name']) and not find_process(adb, f"tcp:{data['adb_port']}"), 'fixture process already exists')
-    for port in (data['adb_port'], data['emulator_port'], data['emulator_port'] + 1):
-        with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
-            probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
-            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            probe.bind(('::', port))
+    # Keep leases until all processes have been checked. Reject port use even outside this repository.
+    adb_marker = f"tcp:{data['adb_port']}"
+    require(not find_process(qemu, data['avd_name']) and not find_process(adb, adb_marker), 'fixture process already exists')
+    require_free_ports(ports)
     run_dir = root / 'runs' / uuid.uuid4().hex
     run_dir.mkdir(parents=True)
     report = {'schema': 1, 'mode': args.mode, 'source_commit': passport_data['source_commit'],
@@ -592,6 +619,9 @@ def run_emulator(args, passport_data):
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
     report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
     report["fixture"]["template_sha256"] = data.get("template_sha256")
+    if args.mode == "android-ui":
+        report.update(https="blocked" if args.https else "not tested: --https not selected",
+                      catalog_fixtures="blocked", media_store_export="blocked")
     env = dict(os.environ, ANDROID_AVD_HOME=str(root / 'avd'), ANDROID_ADB_SERVER_PORT=str(data['adb_port']),
                ADB_SERVER_SOCKET=f"tcp:localhost:{data['adb_port']}")
     adb_prefix = [str(adb), '-P', str(data['adb_port']), '-s', data['serial']]
@@ -694,7 +724,7 @@ def run_emulator(args, passport_data):
 
     try:
         command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
-        adb_process = find_process(adb, f"tcp:{data['adb_port']}")
+        adb_process = find_process(adb, adb_marker)
         require(adb_process, 'private ADB server missing')
         data['adb_process'] = adb_process
         verify_adb(data, args.sdk)
@@ -796,15 +826,18 @@ def run_emulator(args, passport_data):
             report['ordinary_restart'] = dict(before=previous, after=current)
             phase('verifyPersistence')
             if args.https:
+                report['https'] = 'failed; see realHttps.log'
                 phase('realHttps')
                 report['https'] = 'passed; actual HttpsCatalogReader, separate from fixtures'
-            else:
-                report['https'] = 'not tested: --https not selected'
+            report['catalog_fixtures'] = 'failed'
             phase('catalogFixtures')
+            report['catalog_fixtures'] = 'passed'
             device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
             launch('ordinary-catalog-after')
+            report['media_store_export'] = 'failed'
             exported = phase('verifyCatalogAndExport')
             report['exports'] = verify_journals(device, run_dir, None, exported_journals(exported))
+            report['media_store_export'] = 'passed'
             report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
@@ -829,6 +862,14 @@ def run_emulator(args, passport_data):
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
+                deadline = time.monotonic() + 10
+                while remaining := find_process(adb, adb_marker):
+                    require(remaining == data['adb_process'], 'private ADB identity changed after stop')
+                    require(time.monotonic() < deadline, 'private ADB server did not exit')
+                    time.sleep(0.1)
+                require_free_ports((data['adb_port'],))
+                report['adb_server_stopped'] = True
+                data.pop('adb_process')
             if report['status'] in ('passed', 'captured', 'completed-with-findings'):
                 require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
@@ -841,7 +882,6 @@ def run_emulator(args, passport_data):
         emulator_log.close()
         report['Run 4 Preflight Report'] = dict(status=report['status'], steps=report.pop('steps'))
         (run_dir / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
-        lock.close()
         print(json.dumps(dict(report=str(run_dir / 'report.json'), status=report['status'])))
     if failure:
         raise ValueError(str(failure))
@@ -909,23 +949,26 @@ def run_safe_suite(args, passport_data):
                 and child["apk"] == passport_data["apk"] and child["test_apk_sha256"] == args.test_sha256,
                 "unexpected child report")
         step.update(evidence=str(path.relative_to(ROOT)), status=child["status"])
-        if "https" in child:
-            step["https"] = child["https"]
+        for outcome in ("https", "catalog_fixtures", "media_store_export"):
+            if outcome in child:
+                step[outcome] = child[outcome]
         if "audio" in child:
             step["audio_metrics"] = child["audio"]
         if "visual_review" in child:
             report["Run 4 Preflight Report"]["visual_review"] = child["visual_review"]
             step["screenshots"] = len(child["screenshots"])
-        stopped = any(s["step"] == "adb-stop" and s["exit_code"] == 0
-                      for s in child["Run 4 Preflight Report"]["steps"])
-        return child.get("emulator_exit_code") == 0 and stopped and "cleanup_error" not in child
+        return (child.get("emulator_exit_code") == 0 and child.get("adb_server_stopped") is True
+                and "cleanup_error" not in child)
 
     save()
     print(json.dumps(dict(report=str(suite_file), status="running")), flush=True)
     offline["status"] = "running"
     save()
-    with (root / "offline.log").open("w") as log:
-        offline["exit_code"] = offline_validation(log)
+    try:
+        with (root / "offline.log").open("w") as log:
+            offline["exit_code"] = offline_validation(log)
+    except (OSError, subprocess.SubprocessError) as error:
+        offline.update(exit_code=2, error=str(error))
     offline["status"] = "passed" if offline["exit_code"] == 0 else "failed"
     if offline["status"] == "passed":
         for step in steps[1:]:
