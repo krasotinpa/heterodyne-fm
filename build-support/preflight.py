@@ -607,7 +607,8 @@ def run_emulator(args, passport_data):
 
     def wait_boot(previous_count=None):
         deadline = time.monotonic() + 180
-        guest_query = 'getprop sys.boot_completed; settings get global boot_count'
+        guest_query = ('getprop sys.boot_completed; settings get global boot_count; '
+                       'am get-current-user; am get-started-user-state 0')
         while time.monotonic() < deadline:
             fixture(args)
             try:
@@ -617,8 +618,8 @@ def run_emulator(args, passport_data):
                 continue
             if result.returncode == 0:
                 ready = result.stdout.strip().splitlines()
-                if ready and ready[0] == '1' and (previous_count is None or
-                        (len(ready) == 2 and ready[1].isdigit() and int(ready[1]) > previous_count)):
+                if (len(ready) == 4 and ready[0] == '1' and ready[2:] == ['0', 'RUNNING_UNLOCKED']
+                        and (previous_count is None or (ready[1].isdigit() and int(ready[1]) > previous_count))):
                     return
             time.sleep(2)
         raise ValueError('Android boot timeout')
@@ -676,10 +677,11 @@ def run_emulator(args, passport_data):
             device('grant-' + permission, 'shell', 'pm', 'grant', package, 'android.permission.' + permission)
         def launch(label, previous_log=None):
             activity = package + '/fm.heterodyne.app.MainActivity'
-            start = f'am start -W -n {activity}'
+            start = ('am', 'start', '-W', '--user', '0', '-n', activity)
             if previous_log is not None:
-                start = f'if pidof {package} >/dev/null; then exit 1; fi; {start}'
-            result = device(label, 'shell', start)
+                guard = f'if pidof {package} >/dev/null; then exit 1; fi;'
+                start = (guard + ' ' + ' '.join(start),)
+            result = device(label, 'shell', *start)
             previous_log = previous_log or ""
             require('Status: ok' in result, 'ordinary launch failed')
             deadline = time.monotonic() + 15
