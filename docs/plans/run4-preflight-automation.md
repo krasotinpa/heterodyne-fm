@@ -30,7 +30,7 @@
 | 4 | Visual: экраны и ошибки, обе темы, три разрешения, два масштаба шрифта. PNG сняты через ADB и просмотрены агентом. | Влит через PR #314. [Отчёт](../validation/run4-preflight-block4.md) |
 | 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | Влит через PR #315. [Отчёт](../validation/run4-preflight-block5.md) |
 | 6 | G: adb reboot и cold boot без Quick Boot; сохранность данных, Станции, lastPlayed, Журналов; отсутствие повторных запусков. | Влит через PR #316. [Отчёт](../validation/run4-preflight-block6.md) |
-| 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | Ожидает |
+| 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | [Отчёт](../validation/run4-preflight-block7.md) |
 | 8 | Итоговый безопасный прогон, четыре отчёта и triage findings через gh. | Ожидает |
 
 ```text
