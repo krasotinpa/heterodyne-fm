@@ -30,8 +30,8 @@
 | 4 | Visual: экраны и ошибки, обе темы, три разрешения, два масштаба шрифта. PNG сняты через ADB и просмотрены агентом. | Влит через PR #314. [Отчёт](../validation/run4-preflight-block4.md) |
 | 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | Влит через PR #315. [Отчёт](../validation/run4-preflight-block5.md) |
 | 6 | G: adb reboot и cold boot без Quick Boot; сохранность данных, Станции, lastPlayed, Журналов; отсутствие повторных запусков. | Влит через PR #316. [Отчёт](../validation/run4-preflight-block6.md) |
-| 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | [Отчёт](../validation/run4-preflight-block7.md) |
-| 8 | Итоговый безопасный прогон, четыре отчёта и triage findings через gh. | Ожидает |
+| 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | Влит через PR #317. [Отчёт](../validation/run4-preflight-block7.md) |
+| 8 | Итоговый безопасный прогон, четыре отчёта и triage findings через gh. | [Сводный отчёт](../validation/run4-preflight-summary.md) |
 
 ```text
 Паспорт и изоляция → preflight APK → A/B/C/X → Visual → F → G → D/E → отчёты и triage
@@ -77,7 +77,7 @@
 | `emulator-power-loss` | Проверка потери питания; требует отдельного разрешения на аварийное завершение |
 | `super-radio-hardware` | Super Radio; требует отдельного разрешения на активный USB-сеанс |
 | `rtl-sdr-hardware` | RTL-SDR V4 после Super Radio; требует разрешения и готового драйвера/DSP |
-| `preflight-all-safe` | Только реализованные безопасные режимы; неполный набор не выдаёт общий passed |
+| `preflight-all-safe` | Offline, A/B/C/X, Visual, F, G и D/E. Свежий AVD на каждую Android-фазу |
 
 Нереализованные и недопущенные режимы отказывают до воздействия.
 Наличие имени режима не означает его готовность.
@@ -115,7 +115,8 @@ Runner проверяет бинарные файлы, время запуска
 С блока 5 режим `simulated-receiver` выполняет проверки F. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-f).
 С блока 6 режим `emulator-reboot` выполняет G. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-g).
 С блока 7 параметр `simulated-receiver --audio` выполняет D/E. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-de).
-Остальные режимы отказывают до воздействия.
+С блока 8 режим `preflight-all-safe` запускает весь безопасный набор. См. [инструкцию](../agents/run4-preflight-apk.md#общий-безопасный-прогон).
+Аппаратные и аварийный режимы отказывают до воздействия.
 
 Результаты первого блока: [отчёт проверки](../validation/run4-preflight-block1.md).
 
@@ -142,3 +143,5 @@ Reviewer только читает. Исполнитель объединяет 
 
 План завершён после реализации блоков, проверок и успешного CI последнего PR.
 Готовность предварительных проверок не закрывает аппаратную приёмку [#89](https://github.com/krasotinpa/heterodyne-fm/issues/89).
+
+Для проверки автомобиля используй отдельный [плану приёмки актуального APK на ГУ](../acceptance/test-plan-current-head-unit.md).
