@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import shutil
 import socket
 import subprocess
@@ -91,8 +92,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("emulator-reboot",
-                     "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
+        for mode in ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
                 self.assertEqual(2, result.returncode, result.stderr)
@@ -242,6 +242,7 @@ class PreflightTest(unittest.TestCase):
         config = (manifest.parent / "avd/owned.avd/config.ini").read_text()
         self.assertNotIn("/personal", config)
         self.assertIn("fastboot.forceColdBoot=yes", config)
+        self.assertIn("hw.audioOutput=yes", config)
         result = self.cli("fixture", "--manifest", str(manifest))
         self.assertEqual(0, result.returncode, result.stderr)
         result = self.cli("prepare", "--name", "owned", "--template", str(template))
@@ -339,3 +340,37 @@ subprocess.run = run
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("simulated-receiver requires preflight APK", result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_emulator_reboot_requires_preflight_before_adb(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "emulator-reboot", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("emulator-reboot requires preflight APK", result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_reboot_observation_rejects_an_extra_app_launch_or_focus_request(self):
+        observe = runpy.run_path(str(SCRIPT))["assert_reboot_playback"]
+        baseline = "PREFLIGHT pid=42 receiver=FakeReceiver\n"
+        playback = (baseline + "EVENT autostart reason=application-open result=focus-request\n"
+                    "EVENT autostart reason=application-open result=selected\n"
+                    "EVENT Audio start\nF_AUDIO pid=42 state=Playing freq=97700 streaming=true\n")
+        observe(baseline + playback, baseline, "42")
+        with self.assertRaisesRegex(ValueError, "exactly one new application process"):
+            observe(baseline + "PREFLIGHT pid=43 receiver=FakeReceiver\n" + playback, baseline, "42")
+        with self.assertRaisesRegex(ValueError, "exactly one autostart focus request"):
+            observe(baseline + playback + "EVENT autostart reason=application-open result=focus-request\n",
+                    baseline, "42")
+
+    def test_launch_can_poll_before_the_first_journal_write(self):
+        read = runpy.run_path(str(SCRIPT))["read_journal"]
+
+        def device(_label, _shell, script):
+            result = subprocess.run(["bash", "-c", 'run-as() { shift; "$@"; }; ' + script],
+                                    cwd=self.root, capture_output=True, text=True, check=True)
+            return result.stdout
+
+        self.assertEqual("", read(device, "first", "fm.heterodyne.app.preflight", pending=True))
+        path = self.root / "files/module-diagnostics/diagnostic.log"
+        path.parent.mkdir(parents=True)
+        path.write_text("PREFLIGHT pid=42 receiver=FakeReceiver\n")
+        self.assertEqual(path.read_text(), read(device, "second", "fm.heterodyne.app.preflight", pending=True))

@@ -220,7 +220,7 @@ def prepare(args):
     avd.mkdir(parents=True)
     config.update({"abi.type": "x86_64", "hw.cpu.arch": "x86_64", "hw.initialOrientation": "landscape",
         "hw.lcd.width": "1280", "hw.lcd.height": "720", "hw.lcd.density": "160", "hw.ramSize": "2048",
-        "hw.sdCard": "no", "image.sysdir.1": str(image) + "/", "tag.id": "default", "target": "android-30",
+        "hw.audioInput": "no", "hw.audioOutput": "yes", "hw.sdCard": "no", "image.sysdir.1": str(image) + "/", "tag.id": "default", "target": "android-30",
         "disk.dataPartition.path": str(avd / "userdata-qemu.img"), "disk.dataPartition.size": "2G",
         "fastboot.forceColdBoot": "yes", "fastboot.forceFastBoot": "no",
         "firstboot.bootFromDownloadableSnapshot": "no", "firstboot.bootFromLocalSnapshot": "no", "firstboot.saveToLocalSnapshot": "no"})
@@ -295,48 +295,60 @@ def visual_matrix(device, phase, run_dir, report):
                                       sha256=sha256(path), width=width, height=height))
 
 
-def receiver_lifecycle(device, phase, launch, package, report):
+def read_journal(device, label, package, *, pending=False):
+    path = "files/module-diagnostics/diagnostic.log"
+    if pending:
+        # A fresh process can reach the foreground before the async writer creates the file.
+        return device(label, "shell", f"run-as {package} sh -c 'if [ -e {path} ]; then cat {path}; fi'")
+    return device(label, "shell", "run-as", package, "cat", path)
+
+
+def process_journal(log, pid):
+    _, marker, current = log.rpartition(f"PREFLIGHT pid={pid} ")
+    require(marker, "missing journal for current application process")
+    return current
+
+
+def latest_audio(current, pid):
+    states = re.findall(rf"F_AUDIO pid={pid} state=([^\n]+)", current)
+    return states[-1] if states else None
+
+
+def assert_playing(current, pid):
+    require(latest_audio(current, pid) == "Playing freq=97700 streaming=true",
+            "ordinary process is not streaming the saved station")
+    require(current.count(" Audio start") == 1, "playback did not start exactly once")
+    require(len(re.findall(r"autostart reason=application-open result=(selected|already-selected)", current)) == 1,
+            "expected one successful ordinary launch autostart")
+
+
+def wait_playing(device, label, pid, package, previous_log=""):
     import time
-    import xml.etree.ElementTree as ET
-
-    journal_path = "files/module-diagnostics/diagnostic.log"
-
-    def journal(label):
-        return device(label, "shell", "run-as", package, "cat", journal_path)
-
-    def process_journal(label, pid):
-        _, marker, current = journal(label).rpartition(f"PREFLIGHT pid={pid} ")
-        require(marker, f"{label}: missing journal for current application process")
-        return current
-
-    def latest_audio(current, pid):
-        states = re.findall(rf"F_AUDIO pid={pid} state=([^\n]+)", current)
-        return states[-1] if states else None
-
-    def assert_playing(current, pid):
-        require(latest_audio(current, pid) == "Playing freq=97700 streaming=true",
-                "ordinary process is not streaming the saved station")
-        require(current.count(" Audio start") == 1, "playback did not start exactly once")
-        require(re.search(r"autostart reason=application-open result=(selected|already-selected)", current),
-                "missing ordinary launch autostart evidence")
-
-    def wait_playing(label, pid):
-        deadline = time.monotonic() + 20
-        for attempt in range(40):
-            current = process_journal(f"{label}-{attempt}", pid)
+    deadline = time.monotonic() + 20
+    for attempt in range(40):
+        log = read_journal(device, f"{label}-{attempt}", package)
+        require(log.startswith(previous_log), "existing journal was replaced")
+        new_log = log[len(previous_log):]
+        if f"PREFLIGHT pid={pid} " in new_log:
+            current = process_journal(new_log, pid)
             if latest_audio(current, pid) == "Playing freq=97700 streaming=true":
                 assert_playing(current, pid)
                 return
-            if time.monotonic() >= deadline:
-                break
-            time.sleep(0.5)
-        for name, command in (("audio-flinger", ("dumpsys", "media.audio_flinger")),
-                              ("android-log", ("logcat", "-d", "-t", "400"))):
-            try:
-                device(f"{label}-{name}", "shell", *command, timeout=20)
-            except (OSError, ValueError, subprocess.SubprocessError):
-                pass  # Keep the streaming failure as the primary error.
-        raise ValueError(f"{label}: selected station did not stream after ordinary launch")
+        if time.monotonic() >= deadline:
+            break
+        time.sleep(0.5)
+    for name, command in (("audio-flinger", ("dumpsys", "media.audio_flinger")),
+                          ("android-log", ("logcat", "-d", "-t", "400"))):
+        try:
+            device(f"{label}-{name}", "shell", *command, timeout=20)
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass  # Keep the streaming failure as the primary error.
+    raise ValueError(f"{label}: selected station did not stream after ordinary launch")
+
+
+def receiver_lifecycle(device, phase, launch, package, report):
+    import time
+    import xml.etree.ElementTree as ET
 
     def assert_pid(label, expected):
         require(device(label, "shell", "pidof", package).strip() == expected,
@@ -350,13 +362,13 @@ def receiver_lifecycle(device, phase, launch, package, report):
 
     phase("seedPlayback", test_class="Run4LifecycleTest")
     first = launch("f-live-before-stop")
-    wait_playing("f-live-before", first)
+    wait_playing(device, "f-live-before", first, package)
     force_stop("f-force-stop-playing")
     reopened = launch("f-reopened-playing")
     require(first != reopened, "force-stop must create a new playing process")
-    wait_playing("f-playing-reopened", reopened)
+    wait_playing(device, "f-playing-reopened", reopened, package)
     time.sleep(10)
-    assert_playing(process_journal("f-playing-observation", reopened), reopened)
+    assert_playing(process_journal(read_journal(device, "f-playing-observation", package), reopened), reopened)
     assert_pid("f-playing-observation-pid", reopened)
 
     # Resolve the ordinary Activity's Stop button at its actual bounds rather than using a coordinate constant.
@@ -375,7 +387,7 @@ def receiver_lifecycle(device, phase, launch, package, report):
     require(left < right and top < bottom, "ordinary Stop button has empty bounds")
     device("f-stop-button", "shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
     for attempt in range(20):
-        log = journal(f"f-user-stop-{attempt}")
+        log = read_journal(device, f"f-user-stop-{attempt}", package)
         if f"F_AUDIO pid={reopened} state=Stopped freq=97700 streaming=false" in log:
             saved = json.loads(device(f"f-stop-storage-{attempt}", "shell", "run-as", package,
                                       "cat", "files/stations.json"))
@@ -388,7 +400,7 @@ def receiver_lifecycle(device, phase, launch, package, report):
     stopped = launch("f-reopened-stopped")
     require(stopped not in (first, reopened), "force-stop must create a new stopped process")
     time.sleep(10)
-    current = process_journal("f-stopped-observation", stopped)
+    current = process_journal(read_journal(device, "f-stopped-observation", package), stopped)
     assert_pid("f-stopped-observation-pid", stopped)
     require("autostart reason=application-open result=skipped" in current and " Audio start" not in current
             and f"F_AUDIO pid={stopped} state=Playing" not in current,
@@ -408,6 +420,99 @@ def receiver_lifecycle(device, phase, launch, package, report):
     report["faults"] = [line.split("stream=", 1)[-1] for line in faults.splitlines()
                         if any(tag in line for tag in ("F_DELAY", "F_STALE", "F_PCM_LOSS"))]
     require(len(report["faults"]) == 3, "missing fault evidence")
+
+
+def exported_journals(result):
+    exports = re.findall(r"MEDIASTORE name=(heterodyne-[a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/", result)
+    require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, "missing export evidence")
+    return [(name, int(size), digest) for name, size, digest in exports]
+
+
+def verify_journals(device, run_dir, label, exports):
+    verified = []
+    for index, (name, size, digest) in enumerate(exports):
+        path = run_dir / (f"{label}-{name}" if label else name)
+        step = f"{label}-pull-export-{index}" if label else f"pull-export-{index}"
+        device(step, "pull", "/sdcard/Download/" + name, str(path))
+        require(sha256(path) == digest and path.stat().st_size == size, "export evidence mismatch")
+        verified.append(dict(name=name, size=size, sha256=digest, evidence=path.name))
+    return verified
+
+
+def assert_reboot_playback(log, baseline, pid):
+    require(log.startswith(baseline), "existing journal was replaced")
+    new_log = log[len(baseline):]
+    require(re.findall(r"PREFLIGHT pid=(\d+) ", new_log) == [pid],
+            "expected exactly one new application process after boot")
+    current = process_journal(new_log, pid)
+    require(current.count("autostart reason=application-open result=focus-request") == 1,
+            "expected exactly one autostart focus request after boot")
+    assert_playing(current, pid)
+
+
+def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, package, run_dir, report):
+    import time
+
+    def boot_count(label):
+        count = device(label, "shell", "settings", "get", "global", "boot_count").strip()
+        require(count.isdigit(), "Android boot counter unavailable")
+        return int(count)
+
+    def state(label):
+        raw = device(label, "shell", "run-as", package, "cat", "files/stations.json")
+        saved = json.loads(raw)
+        require(saved["lastPlayed"] is True
+                and saved["lastStation"] == {"band": "FM", "frequencyKhz": 97700},
+                "saved station or lastPlayed mismatch")
+        region = saved["regions"][saved["selectedRegion"]]
+        require(saved["selectedRegion"] == "yaroslavl" and region["activeName"] == "Проверка G"
+                and any(group["name"] == "Проверка G" and
+                        any(entry["name"] == "Тест G" and entry["frequencyKhz"] == 97700
+                            for entry in group["entries"]) for group in region["sets"]),
+                "saved Region, active selection or edited station mismatch")
+        return saved
+
+    exports = exported_journals(phase("exportRebootJournals"))
+    report["exports_before"] = verify_journals(device, run_dir, "g-before", exports)
+    phase("seedRebootPlayback", test_class="Run4LifecycleTest")
+    pid = launch("g-before-playback")
+    wait_playing(device, "g-before-stream", pid, package)
+    report["boots"] = []
+    for label, restart, expect_new_host in (("adb-reboot", reboot, False), ("cold-boot", cold_boot, True)):
+        old_count = boot_count(f"{label}-before-count")
+        old_identity = identity()
+        before = state(f"{label}-before-state")
+        before_journal = read_journal(device, f"{label}-before-journal", package)
+        assert_playing(process_journal(before_journal, pid), pid)
+        device(f"{label}-sync", "shell", "sync")
+        restart(label, old_count)
+        new_count = boot_count(f"{label}-after-count")
+        new_identity = identity()
+        require(new_count == old_count + 1, "expected exactly one new Android boot")
+        require((old_identity != new_identity) == expect_new_host, "unexpected Emulator process identity after boot")
+        absent = device(f"{label}-before-manual-launch", "shell", f"pidof {package} || echo STOPPED").strip()
+        require(absent == "STOPPED", "preflight process started before manual launch")
+        require(state(f"{label}-restored-state") == before, "application data changed during boot")
+        old_log = read_journal(device, f"{label}-restored-journal", package)
+        require(old_log.startswith(before_journal), "pre-launch journal lost its saved prefix")
+        require("PREFLIGHT pid=" not in old_log[len(before_journal):],
+                "preflight process started and stopped before manual launch")
+        retained = verify_journals(device, run_dir, label, exports)
+        version = device(f"{label}-version", "shell", "dumpsys", "package", package)
+        require(f"versionName={report['apk']['version_name']}" in version, "APK changed across boot")
+        pid = launch(f"{label}-launch", previous_log=old_log)
+        wait_playing(device, f"{label}-stream", pid, package, previous_log=old_log)
+        time.sleep(35)  # Observe past the application's 30-second autostart cooldown.
+        final_log = read_journal(device, f"{label}-observation-journal", package)
+        assert_reboot_playback(final_log, before_journal, pid)
+        require(device(f"{label}-observed-pid", "shell", "pidof", package).strip() == pid,
+                "ordinary application process changed while observing playback")
+        require(boot_count(f"{label}-observed-count") == new_count, "Android rebooted again during observation")
+        require(state(f"{label}-observed-state") == before, "saved app state changed after manual launch")
+        report["boots"].append(dict(kind=label, boot_count_before=old_count, boot_count_after=new_count,
+                                    emulator_before=old_identity, emulator_after=new_identity, app_pid=pid,
+                                    observation_seconds=35, exports=retained, data_preserved=True, journal_preserved=True,
+                                    starts=1))
 
 
 def run_emulator(args, passport_data):
@@ -449,7 +554,7 @@ def run_emulator(args, passport_data):
               'apk': passport_data['apk'], 'passport': passport_data, 'test_apk_sha256': args.test_sha256, 'steps': [], 'status': 'failed',
               'Defect and Issue Report': {'status': 'requires Codex triage', 'issues': []},
               'Remaining Car Tests': ['All HU/USB/FM/audio route acceptance; Emulator does not confirm it',
-                                     'Physical replug, G and D/E remain separate checks'],
+                                     'Physical replug, ignition and D/E remain separate checks'],
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
     report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
     report["fixture"]["template_sha256"] = data.get("template_sha256")
@@ -476,11 +581,11 @@ def run_emulator(args, passport_data):
     emulator_log = (run_dir / 'emulator.log').open('w')
     child = None
     failure = None
-    try:
-        command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
-        data['adb_process'] = find_process(adb, f"tcp:{data['adb_port']}")
-        require(data['adb_process'], 'private ADB server missing')
+    def start_emulator():
+        nonlocal child
+        fixture(args)
         verify_adb(data, args.sdk)
+        require(not find_process(qemu, data['avd_name']), 'an Emulator is already running for this AVD')
         child = subprocess.Popen([str(emulator), *emulator_arguments(data, root)], cwd=ROOT, env=env,
                                  stdout=emulator_log, stderr=subprocess.STDOUT)
         deadline = time.monotonic() + 180
@@ -499,16 +604,67 @@ def run_emulator(args, passport_data):
             time.sleep(1)
         else:
             raise ValueError('Emulator ownership timeout; no forced termination allowed')
+
+    def wait_boot(previous_count=None):
         deadline = time.monotonic() + 180
+        guest_query = ('getprop sys.boot_completed; settings get global boot_count; '
+                       'am get-current-user; am get-started-user-state 0')
         while time.monotonic() < deadline:
             fixture(args)
-            result = subprocess.run([*adb_prefix, 'shell', 'getprop', 'sys.boot_completed'], env=env,
-                                    capture_output=True, text=True, timeout=10)
-            if result.returncode == 0 and result.stdout.strip() == '1':
-                break
+            try:
+                result = subprocess.run([*adb_prefix, 'shell', guest_query], env=env,
+                                        capture_output=True, text=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                continue
+            if result.returncode == 0:
+                ready = result.stdout.strip().splitlines()
+                if (len(ready) == 4 and ready[0] == '1' and ready[2:] == ['0', 'RUNNING_UNLOCKED']
+                        and (previous_count is None or (ready[1].isdigit() and int(ready[1]) > previous_count))):
+                    return
             time.sleep(2)
-        else:
-            raise ValueError('Android boot timeout')
+        raise ValueError('Android boot timeout')
+
+    def stop_emulator(label):
+        emulator_info = data.get('emulator_process')
+        if emulator_info and Path('/proc', str(emulator_info['pid'])).exists():
+            fixture(args)
+            command(label, [*adb_prefix, 'emu', 'kill'])
+            deadline = time.monotonic() + 45
+            while Path('/proc', str(emulator_info['pid'])).exists() and time.monotonic() < deadline:
+                if child:
+                    child.poll()
+                time.sleep(1)
+            require(not Path('/proc', str(emulator_info['pid'])).exists(),
+                    'Emulator did not exit; forced termination requires permission')
+        if emulator_info:
+            require(not find_process(qemu, data['avd_name']), 'fixture Emulator still exists')
+            stale_lock = root / 'avd' / (data['avd_name'] + '.avd') / 'multiinstance.lock'
+            if stale_lock.exists():
+                require(not stale_lock.is_symlink() and stale_lock.is_file()
+                        and stale_lock.stat().st_size == 0 and stale_lock.stat().st_nlink == 1,
+                        'unexpected Emulator lock file')
+                stale_lock.unlink()
+            data.pop('emulator_process')
+        data['state'] = 'stopped'
+        args.manifest.write_text(json.dumps(data, indent=2))
+
+    def reboot(label, previous_count):
+        device(label, 'reboot')
+        wait_boot(previous_count)
+
+    def cold_boot(label, previous_count):
+        stop_emulator(label + '-graceful-stop')
+        require(child and child.returncode == 0, 'Emulator did not shut down normally')
+        start_emulator()
+        wait_boot(previous_count)
+
+    try:
+        command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
+        data['adb_process'] = find_process(adb, f"tcp:{data['adb_port']}")
+        require(data['adb_process'], 'private ADB server missing')
+        verify_adb(data, args.sdk)
+        start_emulator()
+        wait_boot()
         require(device('hardware', 'shell', 'getprop', 'ro.hardware').strip() in ('ranchu', 'goldfish'), 'physical device rejected')
         require(device('abi', 'shell', 'getprop', 'ro.product.cpu.abi').strip() == 'x86_64', 'guest ABI mismatch')
         for label, apk in (('install', args.apk), ('install-test', args.test_apk)):
@@ -519,14 +675,31 @@ def run_emulator(args, passport_data):
         require(f"versionName={passport_data['apk']['version_name']}" in version, 'installed version mismatch')
         for permission in ('ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'):
             device('grant-' + permission, 'shell', 'pm', 'grant', package, 'android.permission.' + permission)
-        def launch(label):
-            result = device(label, 'shell', 'am', 'start', '-W', '-n', package + '/fm.heterodyne.app.MainActivity')
+        def launch(label, previous_log=None):
+            activity = package + '/fm.heterodyne.app.MainActivity'
+            start = ('am', 'start', '-W', '--user', '0', '-n', activity)
+            if previous_log is not None:
+                guard = f'if pidof {package} >/dev/null; then exit 1; fi;'
+                start = (guard + ' ' + ' '.join(start),)
+            result = device(label, 'shell', *start)
+            previous_log = previous_log or ""
             require('Status: ok' in result, 'ordinary launch failed')
-            pid = device(label + '-pid', 'shell', 'pidof', package).strip()
-            require(pid.isdigit(), 'ordinary application process missing')
-            journal = device(label + '-journal', 'shell', 'run-as', package, 'cat', 'files/module-diagnostics/diagnostic.log')
-            require(f'PREFLIGHT pid={pid} receiver=FakeReceiver' in journal, 'ordinary process has no fixture marker')
-            return pid
+            deadline = time.monotonic() + 15
+            attempt = 0
+            while time.monotonic() < deadline:
+                attempt += 1
+                pid = device(f'{label}-pid-{attempt}', 'shell', f'pidof {package} || echo STOPPED').strip()
+                if pid.isdigit():
+                    activities = device(f'{label}-activities-{attempt}', 'shell', 'dumpsys', 'activity', 'activities')
+                    live = any(activity in line and re.search(r'(mResumedActivity|topResumedActivity)\s*[:=]', line)
+                               for line in activities.splitlines())
+                    if live:
+                        log = read_journal(device, f'{label}-journal-{attempt}', package, pending=True)
+                        require(log.startswith(previous_log), 'existing journal was replaced')
+                        if f'PREFLIGHT pid={pid} receiver=FakeReceiver' in log[len(previous_log):]:
+                            return pid
+                time.sleep(0.5)
+            raise ValueError('ordinary launch did not reach foreground with a matching fixture marker')
         launch('ordinary-before')
         def phase(name, label=None, *parameters, test_class="Run4UiTest", timeout=360):
             extras = [arg for i in range(0, len(parameters), 2) for arg in ('-e', *parameters[i:i+2])]
@@ -541,6 +714,10 @@ def run_emulator(args, passport_data):
         if args.mode == 'visual':
             visual_matrix(device, phase, run_dir, report)
             report['status'] = 'captured'
+        elif args.mode == 'emulator-reboot':
+            reboot_persistence(device, phase, launch, reboot, cold_boot,
+                               lambda: dict(data['emulator_process']), package, run_dir, report)
+            report['status'] = 'passed'
         elif args.mode == 'simulated-receiver':
             receiver_lifecycle(device, phase, launch, package, report)
             report['status'] = 'passed'
@@ -565,14 +742,7 @@ def run_emulator(args, passport_data):
             device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
             launch('ordinary-catalog-after')
             exported = phase('verifyCatalogAndExport')
-            exports = re.findall(r'MEDIASTORE name=([a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/', exported)
-            require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, 'missing export evidence')
-            report['exports'] = []
-            for index, (name, size, digest) in enumerate(exports):
-                path = run_dir / name
-                device(f'pull-export-{index}', 'pull', '/sdcard/Download/' + name, str(path))
-                require(sha256(path) == digest and path.stat().st_size == int(size), 'export evidence mismatch')
-                report['exports'].append(dict(name=name, size=int(size), sha256=digest))
+            report['exports'] = verify_journals(device, run_dir, None, exported_journals(exported))
             report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
@@ -590,30 +760,14 @@ def run_emulator(args, passport_data):
     finally:
         # Graceful commands only. A missing/reused/foreign PID must never be killed.
         try:
-            emulator_info = data.get('emulator_process')
-            if emulator_info and Path('/proc', str(emulator_info['pid'])).exists():
-                fixture(args)
-                command('emulator-graceful-stop', [*adb_prefix, 'emu', 'kill'])
-                deadline = time.monotonic() + 45
-                while Path('/proc', str(data['emulator_process']['pid'])).exists() and time.monotonic() < deadline:
-                    if child:
-                        child.poll()
-                    time.sleep(1)
-                require(not Path('/proc', str(data['emulator_process']['pid'])).exists(), 'Emulator did not exit; forced termination requires permission')
-            if emulator_info:
-                require(not find_process(qemu, data['avd_name']), 'fixture Emulator still exists')
-                if child and child.poll() is not None:
-                    report['emulator_exit_code'] = child.returncode
-                # Emulator leaves this empty lock file after a confirmed graceful exit.
-                stale_lock = root / 'avd' / (data['avd_name'] + '.avd') / 'multiinstance.lock'
-                if stale_lock.exists():
-                    require(not stale_lock.is_symlink() and stale_lock.is_file()
-                            and stale_lock.stat().st_size == 0 and stale_lock.stat().st_nlink == 1,
-                            'unexpected Emulator lock file')
-                    stale_lock.unlink()
+            stop_emulator('emulator-graceful-stop')
+            if child:
+                report['emulator_exit_code'] = child.poll()
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
+            if report['status'] in ('passed', 'captured'):
+                require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
@@ -667,11 +821,11 @@ def main():
             print(json.dumps(fixture(args), indent=2))
             return 0
         if args.command == "run":
-            require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver"), f"mode {args.mode} is not admitted; no actions executed")
-            require(not args.https or args.mode not in ("visual", "simulated-receiver"), "--https requires android-ui mode")
+            require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver", "emulator-reboot"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.https or args.mode not in ("visual", "simulated-receiver", "emulator-reboot"), "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
-            if args.mode in ("android-ui", "visual", "simulated-receiver"):
+            if args.mode in ("android-ui", "visual", "simulated-receiver", "emulator-reboot"):
                 return run_emulator(args, data)
             require(data["purpose"] != "historical", "historical APK is inspection-only")
             return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
