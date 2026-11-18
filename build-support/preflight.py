@@ -346,6 +346,26 @@ def wait_playing(device, label, pid, package, previous_log=""):
     raise ValueError(f"{label}: selected station did not stream after ordinary launch")
 
 
+def continuous_audio(phase):
+    output = phase("continuousPcm", test_class="Run4AudioTest", timeout=1950)
+    fields = ("second", "elapsed", "bytes", "badPackets", "realignments", "underruns",
+              "maxGapMs", "minFrames", "pauses", "lostLogs", "logFailures")
+    pattern = "D_SAMPLE " + " ".join(f"{key}=([0-9]+)" for key in fields)
+    samples = [dict(zip(fields, map(int, row))) for row in re.findall(pattern, output)]
+    require([sample["second"] for sample in samples] == [0, 600, 1200, 1800]
+            and samples[-1]["elapsed"] - samples[0]["elapsed"] >= 1_799_000,
+            "missing thirty-minute PCM evidence")
+    require("D_CONTINUOUS state=Playing starts=1 frequency=97700" in output,
+            "missing continuous PCM evidence")
+    underruns = [after["underruns"] - before["underruns"]
+                 for before, after in zip(samples, samples[1:])]
+    require(all(count >= 0 for count in underruns), "AudioTrack underrun counter reset")
+    return dict(samples=samples, underruns_per_ten_minutes=underruns,
+                max_gap_budget_passed=all(sample["maxGapMs"] <= 100 for sample in samples),
+                underrun_budget_passed=all(count <= 1 for count in underruns),
+                frequency_khz=97700, pcm="synthetic 48 kHz stereo s16le via Android AudioTrack")
+
+
 def receiver_lifecycle(device, phase, launch, package, report):
     import time
     import xml.etree.ElementTree as ET
@@ -719,8 +739,13 @@ def run_emulator(args, passport_data):
                                lambda: dict(data['emulator_process']), package, run_dir, report)
             report['status'] = 'passed'
         elif args.mode == 'simulated-receiver':
-            receiver_lifecycle(device, phase, launch, package, report)
-            report['status'] = 'passed'
+            if args.audio:
+                audio = report['audio'] = continuous_audio(phase)
+                report['status'] = ('passed' if audio['max_gap_budget_passed'] and audio['underrun_budget_passed']
+                                    else 'completed-with-findings')
+            else:
+                receiver_lifecycle(device, phase, launch, package, report)
+                report['status'] = 'passed'
         else:
             prepared = phase('prepareData')
             previous = re.search(r'PREPARE_PID=(\d+)', prepared)
@@ -766,7 +791,7 @@ def run_emulator(args, passport_data):
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
-            if report['status'] in ('passed', 'captured'):
+            if report['status'] in ('passed', 'captured', 'completed-with-findings'):
                 require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
@@ -794,6 +819,7 @@ def main():
             command.add_argument("--manifest", type=Path)
             command.add_argument("--test-apk", type=Path)
             command.add_argument("--test-sha256")
+            command.add_argument("--audio", action="store_true", help="Run D/E audio checks in simulated-receiver mode")
             command.add_argument("--https", action="store_true", help="Run real HTTPS separately from catalog fixtures")
         command.add_argument("--sdk", type=Path, default=Path(os.environ.get("ANDROID_HOME", Path.home() / "Android/Sdk")))
         if name == "prepare":
@@ -822,6 +848,7 @@ def main():
             return 0
         if args.command == "run":
             require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver", "emulator-reboot"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.audio or args.mode == "simulated-receiver", "--audio requires simulated-receiver mode")
             require(not args.https or args.mode not in ("visual", "simulated-receiver", "emulator-reboot"), "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":

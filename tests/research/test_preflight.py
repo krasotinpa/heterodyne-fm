@@ -374,3 +374,10 @@ subprocess.run = run
         path.parent.mkdir(parents=True)
         path.write_text("PREFLIGHT pid=42 receiver=FakeReceiver\n")
         self.assertEqual(path.read_text(), read(device, "second", "fm.heterodyne.app.preflight", pending=True))
+
+    def test_audio_option_refuses_other_modes_before_inspecting_apk(self):
+        result = self.cli("run", "emulator-reboot", "--audio",
+                          "--apk", "missing.apk", "--passport", "missing.json")
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("--audio requires simulated-receiver mode", result.stderr)
+        self.assertFalse(self.trace.exists())
