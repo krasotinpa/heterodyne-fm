@@ -1,5 +1,6 @@
 package fm.heterodyne.app.test
 
+import android.content.ComponentName
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -28,6 +29,7 @@ import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.module.TransitionState
 import java.util.concurrent.atomic.AtomicReference
 import fm.heterodyne.app.preflight.PreflightApplication
+import fm.heterodyne.app.preflight.PreflightMediaListener
 import fm.heterodyne.app.stations.StationEntry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -185,18 +187,13 @@ class Run4AudioTest {
         note("E_DISABLED station,step,seek disabled; injected touches sent no TX")
     }
 
-    private fun mediaSession() = instrumentation.uiAutomation.run {
-        adoptShellPermissionIdentity("android.permission.MEDIA_CONTENT_CONTROL")
-        try {
-            app.getSystemService(MediaSessionManager::class.java).getActiveSessions(null)
-                .singleOrNull { it.packageName == app.packageName }
-        } finally {
-            dropShellPermissionIdentity()
-        }
-    }
+    private fun mediaSession() = app.getSystemService(MediaSessionManager::class.java)
+        .getActiveSessions(ComponentName(app, PreflightMediaListener::class.java))
+        .singleOrNull { it.packageName == app.packageName }
 
     @Test fun mediaSessionAndFocus() {
         seededSelection()
+        compose.waitUntil(5000) { mediaSession() != null }
         val controller = checkNotNull(mediaSession()) { "foreground PlaybackService has no active MediaSession" }
         fun mediaKey(code: Int, long: Boolean = false) {
             val down = SystemClock.uptimeMillis()

@@ -747,11 +747,17 @@ def run_emulator(args, passport_data):
                     if not (audio['max_gap_budget_passed'] and audio['underrun_budget_passed']):
                         report['status'] = 'completed-with-findings'
                 if args.audio in ('all', 'controls'):
-                    outputs = [phase(name, test_class="Run4AudioTest")
-                               for name in ("screenControlsAndSignals", "mediaSessionAndFocus")]
-                    report['audio_controls'] = [line.strip() for output in outputs
-                                                for line in output.splitlines() if line.startswith('E_')]
-                    require(len(report['audio_controls']) == 10, 'missing D/E controls evidence')
+                    listener = package + '/fm.heterodyne.app.preflight.PreflightMediaListener'
+                    screen = phase("screenControlsAndSignals", test_class="Run4AudioTest")
+                    device('e-media-listener-allow', 'shell', 'cmd', 'notification', 'allow_listener', listener, '0')
+                    try:
+                        media = phase("mediaSessionAndFocus", test_class="Run4AudioTest")
+                    finally:
+                        device('e-media-listener-disallow', 'shell', 'cmd', 'notification',
+                               'disallow_listener', listener, '0')
+                    controls = re.findall(r'^INSTRUMENTATION_STATUS: stream=(E_.+)$', screen + media, re.M)
+                    require(len(controls) == 10, 'missing D/E controls evidence')
+                    report['audio_controls'] = controls
             else:
                 receiver_lifecycle(device, phase, launch, package, report)
                 report['status'] = 'passed'
