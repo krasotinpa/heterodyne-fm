@@ -360,3 +360,17 @@ subprocess.run = run
         with self.assertRaisesRegex(ValueError, "exactly one autostart focus request"):
             observe(baseline + playback + "EVENT autostart reason=application-open result=focus-request\n",
                     baseline, "42")
+
+    def test_launch_can_poll_before_the_first_journal_write(self):
+        read = runpy.run_path(str(SCRIPT))["read_journal"]
+
+        def device(_label, _shell, script):
+            result = subprocess.run(["bash", "-c", 'run-as() { shift; "$@"; }; ' + script],
+                                    cwd=self.root, capture_output=True, text=True, check=True)
+            return result.stdout
+
+        self.assertEqual("", read(device, "first", "fm.heterodyne.app.preflight", pending=True))
+        path = self.root / "files/module-diagnostics/diagnostic.log"
+        path.parent.mkdir(parents=True)
+        path.write_text("PREFLIGHT pid=42 receiver=FakeReceiver\n")
+        self.assertEqual(path.read_text(), read(device, "second", "fm.heterodyne.app.preflight", pending=True))
