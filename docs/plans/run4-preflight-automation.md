@@ -28,8 +28,8 @@ Merge выполняет владелец. Каждый связный блок 
 | 2 | Отдельный preflight APK: Fake Receiver, fake transport, синтетический PCM. Подстановка работает при обычном запуске нового процесса. | Влит: PR #310, main 7ce5bdf, CI успешен; [инструкция](../agents/run4-preflight-apk.md), [отчёт](../validation/run4-preflight-block2.md) |
 | 3 | Сквозные A/B/C/X: установка, версия, настройки, Регионы, редактор Станций, сохранение, обновление Справочника, MediaStore export. | Влит через PR #311. CI main 3d8551e прошёл. [Отчёт](../validation/run4-preflight-block3.md) |
 | 4 | Visual: экраны и ошибки, обе темы, три разрешения, два масштаба шрифта. PNG сняты через ADB и просмотрены агентом. | Влит через PR #314. [Отчёт](../validation/run4-preflight-block4.md) |
-| 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | [Отчёт](../validation/run4-preflight-block5.md) |
-| 6 | G: adb reboot и cold boot без Quick Boot; сохранность данных, Станции, lastPlayed, Журналов; отсутствие повторных запусков. | Ожидает |
+| 5 | F: force-stop после playback и Stop, повторное открытие, десять fake replug, pending, потеря потока, задержки, stale replies, автозапуск. | Влит через PR #315. [Отчёт](../validation/run4-preflight-block5.md) |
+| 6 | G: adb reboot и cold boot без Quick Boot; сохранность данных, Станции, lastPlayed, Журналов; отсутствие повторных запусков. | [Отчёт](../validation/run4-preflight-block6.md) |
 | 7 | D/E: 30 минут синтетического PCM через настоящий AudioTrack, метрики, потеря потока, фокус, MediaSession, команды, disabled, сигналы Перехода. | Ожидает |
 | 8 | Итоговый безопасный прогон, четыре отчёта и triage findings через gh. | Ожидает |
 
@@ -113,6 +113,7 @@ Runner проверяет бинарные файлы, время запуска
 С блока 3 запуском и штатной остановкой управляет `run android-ui`; см. [инструкцию](../agents/run4-preflight-apk.md#сквозной-runner-abcx).
 С блока 4 режим `visual` снимает PNG. См. [инструкцию визуального прогона](../agents/visual-tests.md#визуальный-прогон-run-4).
 С блока 5 режим `simulated-receiver` выполняет проверки F. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-f).
+С блока 6 режим `emulator-reboot` выполняет G. См. [инструкцию](../agents/run4-preflight-apk.md#проверка-g).
 Остальные режимы отказывают до воздействия.
 
 Результаты первого блока: [отчёт проверки](../validation/run4-preflight-block1.md).

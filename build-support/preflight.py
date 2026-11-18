@@ -220,7 +220,7 @@ def prepare(args):
     avd.mkdir(parents=True)
     config.update({"abi.type": "x86_64", "hw.cpu.arch": "x86_64", "hw.initialOrientation": "landscape",
         "hw.lcd.width": "1280", "hw.lcd.height": "720", "hw.lcd.density": "160", "hw.ramSize": "2048",
-        "hw.sdCard": "no", "image.sysdir.1": str(image) + "/", "tag.id": "default", "target": "android-30",
+        "hw.audioInput": "no", "hw.audioOutput": "yes", "hw.sdCard": "no", "image.sysdir.1": str(image) + "/", "tag.id": "default", "target": "android-30",
         "disk.dataPartition.path": str(avd / "userdata-qemu.img"), "disk.dataPartition.size": "2G",
         "fastboot.forceColdBoot": "yes", "fastboot.forceFastBoot": "no",
         "firstboot.bootFromDownloadableSnapshot": "no", "firstboot.bootFromLocalSnapshot": "no", "firstboot.saveToLocalSnapshot": "no"})

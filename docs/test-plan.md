@@ -17,6 +17,7 @@
 | Audio | Focus loss, route removed, detach | Stop/release, no unwanted restart |
 | Codex launcher | Fixture CLI: MCP names и аргументы | MCP отключены для запуска; аргументы сохранены; неоднозначное имя запрещает делегирование |
 | Validation gate | Fixture Python/Gradle: all, python, android, отказ | Выбранные команды выполнены; первый отказ возвращает исходный exit code и останавливает следующие проверки |
+| Run 4 G | adb reboot и штатный cold boot собственного AVD | Новые загрузки, сохранённые Регион, Подборка, Станция, lastPlayed и Журналы. Один автозапуск после ручного открытия |
 | Run 4 F | Обычные процессы и синтетические detach/attach, задержка и потеря PCM | Переоткрытие и возвраты соблюдают lastPlayed и лимит. Stale-часть и потеря потока не запускают звук |
 | Run 4 Visual | Свой AVD, 3 разрешения × 2 масштаба × 2 темы | PNG каждого экрана и ошибки сверены по размерам и просмотрены. Отчёт указывает дефекты и условия |
 | Visual regression | Два фиксированных Efir состояния, API 35 native graphics | Bitmap совпадает с техническим PNG-эталоном; различия сохраняют actual PNG; это не приёмка ГУ |

@@ -241,6 +241,7 @@ class PreflightTest(unittest.TestCase):
         config = (manifest.parent / "avd/owned.avd/config.ini").read_text()
         self.assertNotIn("/personal", config)
         self.assertIn("fastboot.forceColdBoot=yes", config)
+        self.assertIn("hw.audioOutput=yes", config)
         result = self.cli("fixture", "--manifest", str(manifest))
         self.assertEqual(0, result.returncode, result.stderr)
         result = self.cli("prepare", "--name", "owned", "--template", str(template))
