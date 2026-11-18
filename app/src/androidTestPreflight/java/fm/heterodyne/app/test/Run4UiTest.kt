@@ -244,16 +244,20 @@ class Run4UiTest {
         waitFor { app.session.screen.state != null && app.module.transition.confirmed != null }
         compose.runOnIdle { app.module.pickStation(StationEntry(97700)) }
         waitFor { app.module.audioCounters.state == AudioState.Playing && app.module.transition.confirmed?.frequencyKhz == 97700 }
-        val bytes = app.module.audioCounters.bytes
         val starts = app.syntheticPcm.starts.get()
         parked()
-        exportJournals(count = 1)
-        waitFor { app.module.audioCounters.bytes > bytes }
+        exportJournals(count = 1, beforeExport = {
+            assertEquals(AudioState.Playing, app.module.audioCounters.state)
+            assertEquals(starts, app.syntheticPcm.starts.get())
+        })
+        assertEquals(AudioState.Playing, app.module.audioCounters.state)
+        val publishedBytes = app.module.audioCounters.bytes
+        waitFor { app.module.audioCounters.bytes > publishedBytes }
         assertEquals(AudioState.Playing, app.module.audioCounters.state)
         assertEquals(starts, app.syntheticPcm.starts.get())
     }
 
-    private fun exportJournals(count: Int = 2) {
+    private fun exportJournals(count: Int = 2, beforeExport: () -> Unit = {}) {
         click("Диагностика")
         compose.onNodeWithTag("developer-switch").performClick()
         compose.onNodeWithText("Режим разработчика: Вкл").assertIsDisplayed()
@@ -263,6 +267,7 @@ class Run4UiTest {
         val exported = mutableSetOf<String>()
         repeat(count) {
             val before = names()
+            beforeExport()
             click("Экспорт Журнала")
             waitFor { !app.diagnostics.exportBusy && app.diagnostics.diagnosticMessage != null }
             val message = app.diagnostics.diagnosticMessage!!

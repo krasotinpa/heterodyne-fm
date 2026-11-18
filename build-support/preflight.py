@@ -749,12 +749,16 @@ def run_emulator(args, passport_data):
                 if args.audio in ('all', 'controls'):
                     listener = package + '/fm.heterodyne.app.preflight.PreflightMediaListener'
                     screen = phase("screenControlsAndSignals", test_class="Run4AudioTest")
-                    device('e-media-listener-allow', 'shell', 'cmd', 'notification', 'allow_listener', listener, '0')
                     try:
+                        device('e-media-listener-allow', 'shell', 'cmd', 'notification', 'allow_listener', listener, '0')
                         media = phase("mediaSessionAndFocus", test_class="Run4AudioTest")
                     finally:
                         device('e-media-listener-disallow', 'shell', 'cmd', 'notification',
                                'disallow_listener', listener, '0')
+                        allowed = device('e-media-listener-verify', 'shell', 'settings', '--user', '0',
+                                         'get', 'secure', 'enabled_notification_listeners').strip().split(':')
+                        require(listener not in allowed and package + '/.PreflightMediaListener' not in allowed,
+                                'fixture notification listener grant was retained')
                     controls = re.findall(r'^INSTRUMENTATION_STATUS: stream=(E_.+)$', screen + media, re.M)
                     expected = ('E_SCREEN', *('E_SIGNAL',) * 4, 'E_DISABLED', 'E_MEDIA', *('E_FOCUS',) * 3, 'E_LOSS')
                     require(tuple(line.split()[0] for line in controls) == expected, 'missing D/E controls evidence')

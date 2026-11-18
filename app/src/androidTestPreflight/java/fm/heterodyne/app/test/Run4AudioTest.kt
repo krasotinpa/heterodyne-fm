@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasContentDescription
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -133,6 +134,30 @@ class Run4AudioTest {
         assertTrue("unexpected transition signal", "сигнал Перехода:" !in since(before))
     }
 
+    private fun signal(label: String) {
+        compose.onNodeWithContentDescription("Стоянка").performClick()
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText(label).performScrollTo().performClick().assertIsSelected()
+        compose.onNodeWithText("← Эфир").performClick()
+    }
+
+    private fun waitForSignal(marker: String, label: String) {
+        compose.waitUntil(5000) {
+            since(marker).lineSequence().any { "сигнал Перехода: $label" in it && it.endsWith(", конец") }
+        }
+        val events = since(marker).lineSequence().filter { "сигнал Перехода: $label" in it }.toList()
+        assertEquals("signal $label", 2, events.size)
+        assertTrue(events.first().endsWith(", начало"))
+        assertTrue(events.last().endsWith(", конец"))
+    }
+
+    private fun assertPcmAdvancing() {
+        val bytes = module.audioCounters.bytes
+        compose.waitUntil(5000) { module.audioCounters.bytes > bytes }
+        assertEquals(AudioState.Playing, module.audioCounters.state)
+        assertEquals(1, app.syntheticPcm.starts.get())
+    }
+
     @Test fun screenControlsAndSignals() {
         seededSelection("Экран E")
         compose.onNodeWithText("Станция ▶").performClick()
@@ -140,10 +165,7 @@ class Run4AudioTest {
         compose.onNodeWithText("Станция ◀").performClick()
         confirm(97700)
         for ((index, label) in listOf("Тон", "Тишина", "Звук клавиши", "Выключено").withIndex()) {
-            compose.onNodeWithContentDescription("Стоянка").performClick()
-            compose.onNodeWithText("Настройки").performClick()
-            compose.onNodeWithText(label).performScrollTo().performClick().assertIsSelected()
-            compose.onNodeWithText("← Эфир").performClick()
+            signal(label)
             val target = if (index % 2 == 0) 99100 else 97700
             val station = if (index % 2 == 0) "2 · E FM 2" else "1 · E FM 1"
             val before = checkpoint()
@@ -151,13 +173,7 @@ class Run4AudioTest {
             confirm(target)
             if (label == "Выключено") noSignal(before)
             else {
-                compose.waitUntil(5000) {
-                    since(before).lineSequence().any { "сигнал Перехода: $label" in it && it.endsWith(", конец") }
-                }
-                val lines = since(before).lineSequence().filter { "сигнал Перехода: $label" in it }.toList()
-                assertEquals("signal $label", 2, lines.size)
-                assertTrue(lines.first().endsWith(", начало"))
-                assertTrue(lines.last().endsWith(", конец"))
+                waitForSignal(before, label)
                 if (label == "Тон") {
                     val beforeStep = checkpoint()
                     compose.onNodeWithText("Шаг ▶").performClick()
@@ -166,13 +182,19 @@ class Run4AudioTest {
                     val beforeSeek = checkpoint()
                     compose.onNodeWithContentDescription("Поиск ▶").performClick()
                     confirm(target + 200)
+                    val blocked = checkpoint()
+                    for (arrow in listOf("▶", "◀")) {
+                        compose.onNode(hasContentDescription("Поиск $arrow", substring = true))
+                            .assertIsNotEnabled().performTouchInput { click() }
+                    }
+                    assertTrue("touch during seek cooldown sent TX", " TX " !in since(blocked))
                     noSignal(beforeSeek)
                     SystemClock.sleep(5_000)
                     val beforeReverseSeek = checkpoint()
                     compose.onNodeWithContentDescription("Поиск ◀").performClick()
                     confirm(target + 100)
                     noSignal(beforeReverseSeek)
-                    note("E_SCREEN stations=next,previous step=up seek=up,down step_and_seek_signal=absent")
+                    note("E_SCREEN stations=next,previous step=up seek=up,down seek_cooldown=blocked step_and_seek_signal=absent")
                 }
             }
             assertEquals(AudioState.Playing, module.audioCounters.state)
@@ -230,6 +252,7 @@ class Run4AudioTest {
         assertEquals("one search per long-press sequence", 2, seekEvents)
         note("E_MEDIA short=next,previous long=seek-up,seek-down seeks=$seekEvents")
 
+        signal("Тон")
         val audio = app.getSystemService(AudioManager::class.java)
         fun focusRequest(gain: Int) = AudioFocusRequest.Builder(gain)
             .setAudioAttributes(AudioAttributes.Builder()
@@ -242,30 +265,33 @@ class Run4AudioTest {
             )) {
             val request = focusRequest(gain)
             val before = checkpoint()
-            val bytes = module.audioCounters.bytes
+            val duck = gain == AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
             try {
                 assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(request))
-                compose.waitUntil(5000) { expected.all { it in since(before) } && module.audioCounters.bytes > bytes }
-                assertEquals(AudioState.Playing, module.audioCounters.state)
+                compose.waitUntil(5000) { expected.all { it in since(before) } }
+                assertPcmAdvancing()
+                val transition = checkpoint()
+                mediaKey(if (duck) KeyEvent.KEYCODE_MEDIA_NEXT else KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+                confirm(if (duck) 99100 else 97700)
+                if (duck) waitForSignal(transition, "Тон") else noSignal(transition)
             } finally {
                 audio.abandonAudioFocusRequest(request)
             }
-            compose.waitUntil(5000) { "focus GAIN" in since(before) && "focus volume=1.0" in since(before) }
-            assertEquals(1, app.syntheticPcm.starts.get())
-            note("E_FOCUS ${expected.first()} ${expected.last()} followed by GAIN volume=1.0 without restart")
+            compose.waitUntil(5000) { "focus volume=1.0" in since(before).substringAfter("focus GAIN", "") }
+            assertPcmAdvancing()
+            note("E_FOCUS ${expected.first()} ${expected.last()} followed by GAIN volume=1.0 without restart; " +
+                "transitionTone=${if (duck) "logged" else "suppressed"}")
         }
 
         val permanent = focusRequest(AudioManager.AUDIOFOCUS_GAIN)
         val beforeLoss = checkpoint()
-        val bytes = module.audioCounters.bytes
         try {
             assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(permanent))
             compose.waitUntil(5000) {
                 val events = since(beforeLoss)
-                "focus volume=1.0" in events.substringAfter("focus LOSS", "") && module.audioCounters.bytes > bytes
+                "focus volume=1.0" in events.substringAfter("focus LOSS", "")
             }
-            assertEquals(AudioState.Playing, module.audioCounters.state)
-            assertEquals(1, app.syntheticPcm.starts.get())
+            assertPcmAdvancing()
             note("E_FOCUS focus LOSS preserved volume=1.0 and live PCM")
         } finally {
             audio.abandonAudioFocusRequest(permanent)
