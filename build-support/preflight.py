@@ -353,7 +353,7 @@ def continuous_audio(phase):
     pattern = "D_SAMPLE " + " ".join(f"{key}=([0-9]+)" for key in fields)
     samples = [dict(zip(fields, map(int, row))) for row in re.findall(pattern, output)]
     require([sample["second"] for sample in samples] == [0, 600, 1200, 1800]
-            and samples[-1]["elapsed"] - samples[0]["elapsed"] >= 1_799_000,
+            and all(sample["elapsed"] >= sample["second"] * 1000 for sample in samples),
             "missing thirty-minute PCM evidence")
     require("D_CONTINUOUS state=Playing starts=1 frequency=97700" in output,
             "missing continuous PCM evidence")
@@ -743,6 +743,7 @@ def run_emulator(args, passport_data):
                 report['status'] = 'passed'
                 if args.audio in ('all', 'continuous'):
                     audio = report['audio'] = continuous_audio(phase)
+                    read_journal(device, 'd-observation-journal', package)
                     if not (audio['max_gap_budget_passed'] and audio['underrun_budget_passed']):
                         report['status'] = 'completed-with-findings'
                 if args.audio in ('all', 'controls'):
