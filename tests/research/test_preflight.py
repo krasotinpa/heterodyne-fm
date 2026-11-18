@@ -414,3 +414,38 @@ subprocess.run = run
         self.assertEqual("failed", summarize([*passed, "blocked"]))
         self.assertEqual("completed-with-findings", summarize([*passed, "completed-with-findings"]))
         self.assertEqual("awaiting-visual-review", summarize([*passed, "passed"]))
+
+    def safe_suite_arguments(self, adb_port):
+        args = self.android_arguments(adb_port)
+        args[1] = "preflight-all-safe"
+        index = args.index("--manifest")
+        del args[index:index + 2]
+        return args + ["--name", "suite", "--template", str(self.root / "template.ini"),
+                       "--adb-port", str(adb_port), "--emulator-port", "5680"]
+
+    def test_safe_suite_keeps_offline_failure_and_blocks_all_android_phases(self):
+        args = self.safe_suite_arguments(6038)
+        self.env["PREFLIGHT_TEST_GATE_EXIT"] = "11"
+        result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        report = json.loads((self.root / ".scratch/preflight-suites/suite/report.json").read_text())
+        self.assertEqual("failed", report["status"])
+        offline, *phases = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual(("failed", 11), (offline["status"], offline["exit_code"]))
+        self.assertTrue(all(phase["status"] == "blocked" for phase in phases))
+        self.assertEqual("gate", self.trace.read_text())
+
+    def test_safe_suite_blocks_next_avd_when_first_cleanup_cannot_be_proved(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        result = self.cli(*self.safe_suite_arguments(port))
+        self.assertEqual(2, result.returncode, result.stderr)
+        report = json.loads((self.root / ".scratch/preflight-suites/suite/report.json").read_text())
+        self.assertEqual("failed", report["status"])
+        offline, abcx, *remaining = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual("passed", offline["status"])
+        self.assertEqual("failed", abcx["status"])
+        self.assertIn("ADB server missing", abcx["error"])
+        self.assertTrue(all(phase["status"] == "blocked" for phase in remaining))
+        self.assertEqual("gateinvoked", self.trace.read_text())

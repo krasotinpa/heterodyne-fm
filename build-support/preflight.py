@@ -694,8 +694,9 @@ def run_emulator(args, passport_data):
 
     try:
         command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
-        data['adb_process'] = find_process(adb, f"tcp:{data['adb_port']}")
-        require(data['adb_process'], 'private ADB server missing')
+        adb_process = find_process(adb, f"tcp:{data['adb_port']}")
+        require(adb_process, 'private ADB server missing')
+        data['adb_process'] = adb_process
         verify_adb(data, args.sdk)
         start_emulator()
         wait_boot()
@@ -835,7 +836,8 @@ def run_emulator(args, passport_data):
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
             report['cleanup_error'] = str(error)
             report['status'] = 'failed'
-            failure = error
+            if failure is None:
+                failure = error
         emulator_log.close()
         report['Run 4 Preflight Report'] = dict(status=report['status'], steps=report.pop('steps'))
         (run_dir / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
