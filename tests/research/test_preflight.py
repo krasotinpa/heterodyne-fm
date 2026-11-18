@@ -1,3 +1,4 @@
+import fcntl
 import hashlib
 import json
 import os
@@ -92,7 +93,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
+        for mode in ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
                 self.assertEqual(2, result.returncode, result.stderr)
@@ -398,3 +399,66 @@ subprocess.run = run
         lines[-1] = lines[-1].replace("elapsed=1800000", "elapsed=1799999")
         with self.assertRaisesRegex(ValueError, "missing thirty-minute PCM evidence"):
             continuous_audio(lambda *_args, **_kwargs: "\n".join([*lines, marker]))
+
+    def test_safe_suite_rejects_non_preflight_apk_before_creating_evidence(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "preflight-all-safe", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("preflight-all-safe requires preflight APK", result.stderr)
+        self.assertFalse(self.trace.exists())
+        self.assertFalse((self.root / ".scratch/preflight-suites").exists())
+
+    def test_safe_suite_cannot_pass_without_visual_review_or_a_complete_run(self):
+        summarize = runpy.run_path(str(SCRIPT))["safe_suite_status"]
+        passed = ["passed", "passed", "captured", "passed", "passed"]
+        self.assertEqual("failed", summarize(passed))
+        self.assertEqual("failed", summarize([*passed, "blocked"]))
+        self.assertEqual("completed-with-findings", summarize([*passed, "completed-with-findings"]))
+        self.assertEqual("awaiting-visual-review", summarize([*passed, "passed"]))
+
+    def safe_suite_arguments(self, adb_port):
+        args = self.android_arguments(adb_port)
+        args[1] = "preflight-all-safe"
+        index = args.index("--manifest")
+        del args[index:index + 2]
+        return args + ["--name", "suite", "--template", str(self.root / "template.ini"),
+                       "--adb-port", str(adb_port), "--emulator-port", "5680"]
+
+    def test_safe_suite_keeps_offline_failure_and_blocks_all_android_phases(self):
+        args = self.safe_suite_arguments(6038)
+        self.env["PREFLIGHT_TEST_GATE_EXIT"] = "11"
+        result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        report = json.loads((self.root / ".scratch/preflight-suites/suite/report.json").read_text())
+        self.assertEqual("failed", report["status"])
+        offline, *phases = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual(("failed", 11), (offline["status"], offline["exit_code"]))
+        self.assertTrue(all(phase["status"] == "blocked" for phase in phases))
+        self.assertEqual("gate", self.trace.read_text())
+
+    def test_safe_suite_blocks_next_avd_when_first_cleanup_cannot_be_proved(self):
+        with socket.socket() as probe:
+            probe.bind(("127.0.0.1", 0))
+            port = probe.getsockname()[1]
+        result = self.cli(*self.safe_suite_arguments(port))
+        self.assertEqual(2, result.returncode, result.stderr)
+        report = json.loads((self.root / ".scratch/preflight-suites/suite/report.json").read_text())
+        self.assertEqual("failed", report["status"])
+        offline, abcx, *remaining = report["Run 4 Preflight Report"]["steps"]
+        self.assertEqual("passed", offline["status"])
+        self.assertEqual("failed", abcx["status"])
+        self.assertIn("ADB server missing", abcx["error"])
+        self.assertTrue(all(phase["status"] == "blocked" for phase in remaining))
+        self.assertEqual("gateinvoked", self.trace.read_text())
+
+    def test_android_runner_refuses_a_leased_endpoint_before_launching_tools(self):
+        args = self.android_arguments(6038)
+        leases = self.root / ".git/preflight-leases"
+        leases.mkdir()
+        with (leases / "6038").open("a") as lease:
+            fcntl.flock(lease, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            result = self.cli(*args)
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("preflight port is already leased", result.stderr)
+        self.assertFalse(self.trace.exists())
+        self.assertFalse((self.root / ".scratch/preflight-fixtures/owned/runs").exists())

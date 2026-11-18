@@ -1,6 +1,7 @@
 #!/usr/bin/env python3.12
-"""Run 4 preflight: inspect APKs, prepare private AVDs and run offline, Android UI or visual checks."""
+"""Run 4 preflight: inspect APKs and run checks on private Android fixtures."""
 import argparse
+from contextlib import ExitStack
 import hashlib
 import json
 import os
@@ -12,8 +13,12 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MODES = ("offline", "android-ui", "visual", "simulated-receiver", "emulator-reboot",
-         "emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe")
+EMULATOR_MODES = ("android-ui", "visual", "simulated-receiver", "emulator-reboot")
+SUITE_PHASES = (("abcx", "android-ui", None), ("visual", "visual", None),
+                ("f", "simulated-receiver", None), ("g", "emulator-reboot", None),
+                ("de", "simulated-receiver", "all"))
+BLOCKED_MODES = ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware")
+MODES = ("offline", *EMULATOR_MODES, *BLOCKED_MODES, "preflight-all-safe")
 
 
 def output(*command):
@@ -199,16 +204,22 @@ def check(args):
     return expected
 
 
-def prepare(args):
-    require(re.fullmatch(r"[a-zA-Z0-9_-]+", args.name), "invalid fixture name")
+def check_fixture_inputs(args):
     require(1024 <= args.adb_port <= 65535 and args.adb_port != 5037, "private ADB port required")
     require(5554 <= args.emulator_port <= 5682 and args.emulator_port % 2 == 0
             and args.adb_port not in (args.emulator_port, args.emulator_port + 1), "invalid fixture ports")
-    original = sha256(args.template)
+    require(args.template.is_file(), "AVD template is unavailable")
     config = properties(args.template)
     require(config.get("abi.type") == "x86_64", "template ABI must be x86_64")
     image = args.sdk.resolve() / "system-images/android-30/default/x86_64"
     require((image / "system.img").is_file(), "installed API 30 x86_64 image required")
+    return config, image
+
+
+def prepare(args):
+    require(re.fullmatch(r"[a-zA-Z0-9_-]+", args.name), "invalid fixture name")
+    original = sha256(args.template)
+    config, image = check_fixture_inputs(args)
     # Copy device settings only. Never copy personal disks, snapshots or path properties.
     config = {key: value for key, value in config.items()
               if key.startswith("hw.") and not key.endswith((".path", ".initPath"))
@@ -535,18 +546,7 @@ def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, packa
                                     starts=1))
 
 
-def run_emulator(args, passport_data):
-    import fcntl
-    import socket
-    import time
-    import uuid
-    require(passport_data['purpose'] == 'preflight', f'{args.mode} requires preflight APK')
-    require(args.manifest and args.test_apk and args.test_sha256, f'{args.mode} requires manifest, test APK and its trusted SHA-256')
-    fixture(args)
-    root = args.manifest.absolute().parent
-    data = json.loads(args.manifest.read_text())
-    require(data['state'] == 'stopped', 'runner requires a stopped fixture')
-    require(not (root / 'runs').exists(), 'runner requires a freshly prepared fixture; previous evidence is retained')
+def verify_test_apk(args, passport_data):
     require(sha256(args.test_apk) == args.test_sha256, 'test APK SHA-256 mismatch')
     tools = args.sdk / 'build-tools' / args.build_tools
     signature = output(str(tools / 'apksigner'), 'verify', '--print-certs', str(args.test_apk))
@@ -555,19 +555,60 @@ def run_emulator(args, passport_data):
     xml = output(str(tools / 'aapt'), 'dump', 'xmltree', str(args.test_apk), 'AndroidManifest.xml')
     for identity in ('fm.heterodyne.app.preflight.test', 'fm.heterodyne.app.preflight', 'fm.heterodyne.app.test.EmulatorOnlyRunner'):
         require(f'="{identity}"' in xml, 'foreign test APK manifest')
-    adb = args.sdk / 'platform-tools/adb'
-    emulator = args.sdk / 'emulator/emulator'
-    qemu = args.sdk / 'emulator/qemu/linux-x86_64/qemu-system-x86_64-headless'
-    require(all(p.is_file() for p in (adb, emulator, qemu)), 'installed Android tools required')
-    lock = (root / 'runner.lease').open('w')
-    fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    # No ADB command is allowed until all private ports and fixture process names are unused.
-    require(not find_process(qemu, data['avd_name']) and not find_process(adb, f"tcp:{data['adb_port']}"), 'fixture process already exists')
-    for port in (data['adb_port'], data['emulator_port'], data['emulator_port'] + 1):
+
+
+def require_free_ports(ports):
+    import socket
+
+    for port in ports:
         with socket.socket(socket.AF_INET6, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             probe.bind(('::', port))
+
+
+def run_emulator(args, passport_data):
+    import fcntl
+
+    require(passport_data['purpose'] == 'preflight', f'{args.mode} requires preflight APK')
+    require(args.manifest and args.test_apk and args.test_sha256, f'{args.mode} requires manifest, test APK and its trusted SHA-256')
+    fixture(args)
+    root = args.manifest.absolute().parent
+    data = json.loads(args.manifest.read_text())
+    require(data['state'] == 'stopped', 'runner requires a stopped fixture')
+    verify_test_apk(args, passport_data)
+    port = data['emulator_port']
+    ports = sorted((data['adb_port'], port, port + 1))
+    common = Path(output("git", "rev-parse", "--path-format=absolute", "--git-common-dir"))
+    lease_dir = common / "preflight-leases"
+    require(not lease_dir.is_symlink(), "preflight lease directory symlink")
+    lease_dir.mkdir(exist_ok=True)
+    with ExitStack() as leases:
+        for path in (root / "runner.lease", *(lease_dir / str(endpoint) for endpoint in ports)):
+            require(not path.is_symlink(), "preflight lease symlink")
+            lock = leases.enter_context(path.open("a"))
+            try:
+                fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError as error:
+                raise ValueError(f"preflight port is already leased: {path.name}") from error
+        fixture(args)
+        require(json.loads(args.manifest.read_text()) == data, 'fixture changed while acquiring port leases')
+        require(not (root / 'runs').exists(), 'runner requires a freshly prepared fixture; previous evidence is retained')
+        return run_locked_emulator(args, passport_data, root, data, ports)
+
+
+def run_locked_emulator(args, passport_data, root, data, ports):
+    import time
+    import uuid
+
+    adb = args.sdk / 'platform-tools/adb'
+    emulator = args.sdk / 'emulator/emulator'
+    qemu = args.sdk / 'emulator/qemu/linux-x86_64/qemu-system-x86_64-headless'
+    require(all(p.is_file() for p in (adb, emulator, qemu)), 'installed Android tools required')
+    # Keep leases until all processes have been checked. Reject port use even outside this repository.
+    adb_marker = f"tcp:{data['adb_port']}"
+    require(not find_process(qemu, data['avd_name']) and not find_process(adb, adb_marker), 'fixture process already exists')
+    require_free_ports(ports)
     run_dir = root / 'runs' / uuid.uuid4().hex
     run_dir.mkdir(parents=True)
     report = {'schema': 1, 'mode': args.mode, 'source_commit': passport_data['source_commit'],
@@ -578,6 +619,9 @@ def run_emulator(args, passport_data):
               'Skills Execution Report': 'Runner executes tests; agent records skill use in the validation report'}
     report["fixture"] = {key: data[key] for key in ("avd_name", "serial", "adb_port", "emulator_port")}
     report["fixture"]["template_sha256"] = data.get("template_sha256")
+    if args.mode == "android-ui":
+        report.update(https="blocked" if args.https else "not tested: --https not selected",
+                      catalog_fixtures="blocked", media_store_export="blocked")
     env = dict(os.environ, ANDROID_AVD_HOME=str(root / 'avd'), ANDROID_ADB_SERVER_PORT=str(data['adb_port']),
                ADB_SERVER_SOCKET=f"tcp:localhost:{data['adb_port']}")
     adb_prefix = [str(adb), '-P', str(data['adb_port']), '-s', data['serial']]
@@ -680,8 +724,9 @@ def run_emulator(args, passport_data):
 
     try:
         command('adb-start', [str(adb), '-P', str(data['adb_port']), '--one-device', data['serial'], 'start-server'])
-        data['adb_process'] = find_process(adb, f"tcp:{data['adb_port']}")
-        require(data['adb_process'], 'private ADB server missing')
+        adb_process = find_process(adb, adb_marker)
+        require(adb_process, 'private ADB server missing')
+        data['adb_process'] = adb_process
         verify_adb(data, args.sdk)
         start_emulator()
         wait_boot()
@@ -781,15 +826,18 @@ def run_emulator(args, passport_data):
             report['ordinary_restart'] = dict(before=previous, after=current)
             phase('verifyPersistence')
             if args.https:
+                report['https'] = 'failed; see realHttps.log'
                 phase('realHttps')
                 report['https'] = 'passed; actual HttpsCatalogReader, separate from fixtures'
-            else:
-                report['https'] = 'not tested: --https not selected'
+            report['catalog_fixtures'] = 'failed'
             phase('catalogFixtures')
+            report['catalog_fixtures'] = 'passed'
             device('force-stop-after-catalog', 'shell', 'am', 'force-stop', package)
             launch('ordinary-catalog-after')
+            report['media_store_export'] = 'failed'
             exported = phase('verifyCatalogAndExport')
             report['exports'] = verify_journals(device, run_dir, None, exported_journals(exported))
+            report['media_store_export'] = 'passed'
             report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
@@ -814,6 +862,14 @@ def run_emulator(args, passport_data):
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
+                deadline = time.monotonic() + 10
+                while remaining := find_process(adb, adb_marker):
+                    require(remaining == data['adb_process'], 'private ADB identity changed after stop')
+                    require(time.monotonic() < deadline, 'private ADB server did not exit')
+                    time.sleep(0.1)
+                require_free_ports((data['adb_port'],))
+                report['adb_server_stopped'] = True
+                data.pop('adb_process')
             if report['status'] in ('passed', 'captured', 'completed-with-findings'):
                 require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
@@ -821,15 +877,129 @@ def run_emulator(args, passport_data):
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
             report['cleanup_error'] = str(error)
             report['status'] = 'failed'
-            failure = error
+            if failure is None:
+                failure = error
         emulator_log.close()
         report['Run 4 Preflight Report'] = dict(status=report['status'], steps=report.pop('steps'))
         (run_dir / 'report.json').write_text(json.dumps(report, indent=2, ensure_ascii=False))
-        lock.close()
         print(json.dumps(dict(report=str(run_dir / 'report.json'), status=report['status'])))
     if failure:
         raise ValueError(str(failure))
     return 0
+
+
+def safe_suite_status(statuses):
+    if (len(statuses) != len(SUITE_PHASES) + 1 or statuses[2] != "captured"
+            or any(status not in ("passed", "captured", "completed-with-findings") for status in statuses)):
+        return "failed"
+    if "completed-with-findings" in statuses:
+        return "completed-with-findings"
+    return "awaiting-visual-review"
+
+
+def offline_validation(log=None):
+    return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT,
+                          stdout=log, stderr=subprocess.STDOUT if log else None).returncode
+
+
+def run_safe_suite(args, passport_data):
+    require(passport_data["purpose"] == "preflight", "preflight-all-safe requires preflight APK")
+    require(args.name and args.template and not args.manifest,
+            "preflight-all-safe requires --name and --template to prepare fresh fixtures")
+    require(re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", args.name), "invalid suite name")
+    require(args.test_apk and args.test_sha256, "preflight-all-safe requires test APK and its trusted SHA-256")
+    verify_test_apk(args, passport_data)
+    check_fixture_inputs(args)
+    fixtures = ROOT / ".scratch/preflight-fixtures"
+    require(all(not (fixtures / (args.name + "-" + stage)).exists() for stage, _, _ in SUITE_PHASES),
+            "suite requires fresh fixture names")
+    root = ROOT / ".scratch/preflight-suites" / args.name
+    require(not any(path.is_symlink() for path in (root, *root.parents)), "suite directory symlink")
+    root.mkdir(parents=True, exist_ok=False)
+    suite_file = root / "report.json"
+    offline = dict(stage="offline", mode="offline", status="blocked", evidence="offline.log")
+    steps = [offline] + [dict(stage=stage, mode=mode, audio=audio, status="blocked")
+                         for stage, mode, audio in SUITE_PHASES]
+    report = {
+        "schema": 1, "mode": "preflight-all-safe", "status": "running", "passport": passport_data,
+        "source_commit": passport_data["source_commit"], "test_apk_sha256": args.test_sha256,
+        "Run 4 Preflight Report": {"steps": steps, "visual_review": "pending",
+                                   "https_requested": args.https},
+        "Defect and Issue Report": {"status": "requires Codex triage", "issues": []},
+        "Remaining Car Tests": {
+            "status": "not tested", "blocked_modes": BLOCKED_MODES,
+            "scope": ["HU display, USB/FM and real audio route", "steering, navigation and Bluetooth focus",
+                      "physical replug, ignition and SSD transfer"],
+        },
+        "Skills Execution Report": {"status": "agent records actual skill use separately"},
+    }
+
+    def save():
+        pending = suite_file.with_suffix(".tmp")
+        pending.write_text(json.dumps(report, ensure_ascii=False, indent=2))
+        pending.replace(suite_file)
+
+    def child_result(manifest, step):
+        paths = list((manifest.parent / "runs").glob("*/report.json"))
+        if len(paths) != 1:
+            return False
+        path, = paths
+        child = json.loads(path.read_text())
+        require(child["mode"] == step["mode"] and child["source_commit"] == report["source_commit"]
+                and child["apk"] == passport_data["apk"] and child["test_apk_sha256"] == args.test_sha256,
+                "unexpected child report")
+        step.update(evidence=str(path.relative_to(ROOT)), status=child["status"])
+        for outcome in ("https", "catalog_fixtures", "media_store_export"):
+            if outcome in child:
+                step[outcome] = child[outcome]
+        if "audio" in child:
+            step["audio_metrics"] = child["audio"]
+        if "visual_review" in child:
+            report["Run 4 Preflight Report"]["visual_review"] = child["visual_review"]
+            step["screenshots"] = len(child["screenshots"])
+        return (child.get("emulator_exit_code") == 0 and child.get("adb_server_stopped") is True
+                and "cleanup_error" not in child)
+
+    save()
+    print(json.dumps(dict(report=str(suite_file), status="running")), flush=True)
+    offline["status"] = "running"
+    save()
+    try:
+        with (root / "offline.log").open("w") as log:
+            offline["exit_code"] = offline_validation(log)
+    except (OSError, subprocess.SubprocessError) as error:
+        offline.update(exit_code=2, error=str(error))
+    offline["status"] = "passed" if offline["exit_code"] == 0 else "failed"
+    if offline["status"] == "passed":
+        for step in steps[1:]:
+            step["status"] = "running"
+            save()
+            manifest = None
+            try:
+                require(sha256(args.apk) == passport_data["apk"]["sha256"], "APK changed during suite")
+                child_args = argparse.Namespace(**(vars(args) | dict(
+                    name=args.name + "-" + step["stage"], mode=step["mode"], audio=step["audio"],
+                    https=args.https and step["mode"] == "android-ui")))
+                manifest = Path(prepare(child_args)["manifest"])
+                step["exit_code"] = run_emulator(child_args, passport_data)
+            except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
+                step.update(exit_code=2, error=str(error))
+            cleaned = False
+            if manifest:
+                try:
+                    cleaned = child_result(manifest, step)
+                except (OSError, ValueError, KeyError, TypeError) as error:
+                    step.setdefault("error", str(error))
+            if not cleaned:
+                step.update(status="failed", exit_code=2)
+                step.setdefault("error", "child cleanup was not verified")
+                break
+            if step["exit_code"] != 0:
+                step["status"] = "failed"
+    report["status"] = safe_suite_status([step["status"] for step in steps])
+    save()
+    print(json.dumps(dict(report=str(suite_file), status=report["status"])), flush=True)
+    return 2 if report["status"] == "failed" else 0
 
 
 def main():
@@ -846,11 +1016,12 @@ def main():
                                  help="Run D/E audio checks in simulated-receiver mode")
             command.add_argument("--https", action="store_true", help="Run real HTTPS separately from catalog fixtures")
         command.add_argument("--sdk", type=Path, default=Path(os.environ.get("ANDROID_HOME", Path.home() / "Android/Sdk")))
-        if name == "prepare":
-            command.add_argument("--name", required=True)
-            command.add_argument("--template", type=Path, required=True)
+        if name in ("prepare", "run"):
+            command.add_argument("--name", required=name == "prepare")
+            command.add_argument("--template", type=Path, required=name == "prepare")
             command.add_argument("--adb-port", type=int, default=5038)
             command.add_argument("--emulator-port", type=int, default=5580)
+        if name == "prepare":
             continue
         if name == "fixture":
             command.add_argument("--manifest", type=Path, required=True)
@@ -871,15 +1042,20 @@ def main():
             print(json.dumps(fixture(args), indent=2))
             return 0
         if args.command == "run":
-            require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver", "emulator-reboot"), f"mode {args.mode} is not admitted; no actions executed")
+            require(args.mode not in BLOCKED_MODES, f"mode {args.mode} is not admitted; no actions executed")
             require(not args.audio or args.mode == "simulated-receiver", "--audio requires simulated-receiver mode")
-            require(not args.https or args.mode not in ("visual", "simulated-receiver", "emulator-reboot"), "--https requires android-ui mode")
+            require(not args.https or args.mode in ("android-ui", "preflight-all-safe"),
+                    "--https requires android-ui mode or preflight-all-safe")
+            require(not (args.name or args.template) or args.mode == "preflight-all-safe",
+                    "--name and --template require preflight-all-safe")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
-            if args.mode in ("android-ui", "visual", "simulated-receiver", "emulator-reboot"):
+            if args.mode == "preflight-all-safe":
+                return run_safe_suite(args, data)
+            if args.mode in EMULATOR_MODES:
                 return run_emulator(args, data)
             require(data["purpose"] != "historical", "historical APK is inspection-only")
-            return subprocess.run(["bash", str(ROOT / "build-support/validate.sh")], cwd=ROOT).returncode
+            return offline_validation()
         print(json.dumps(data, ensure_ascii=False, indent=2))
         return 0
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:

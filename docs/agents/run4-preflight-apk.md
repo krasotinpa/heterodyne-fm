@@ -197,9 +197,31 @@ Runner сохраняет Ярославль, Подборку «Проверк�
 AudioTrack → 0/10/20/30 минут → счётчики → экран и сигналы → MediaSession и фокус → обрыв PCM
 ```
 
+## Общий безопасный прогон
+
+`preflight-all-safe` запускает `validate.sh`, затем A/B/C/X, Visual, F, G и D/E. Для каждой Android-фазы runner готовит свежую копию AVD и штатно останавливает её.
+Сохрани APK и test APK вне каталогов Gradle. Для обоих нужен один чистый source commit. Передай паспорт приложения и доверенный SHA-256 test APK.
+
+```bash
+python3.12 build-support/preflight.py run preflight-all-safe \
+  --name run4-safe-01 --template /absolute/source.avd/config.ini \
+  --apk .scratch/apks/app-preflight.apk --passport .scratch/apks/passport.json \
+  --test-apk .scratch/apks/app-preflight-androidTest.apk --test-sha256 TRUSTED_TEST_APK_SHA256
+```
+
+1. Для проверки реального HTTPS добавь `--https`. Она выполняется в A/B/C/X до fixtures и сохраняет отдельный журнал.
+2. Смотри ход в `.scratch/preflight-suites/<name>/report.json`. Фаза D занимает 30 минут.
+3. Runner удерживает общие для worktree замки частных портов. После остановки он проверяет завершение частного ADB и освобождение listener.
+4. При проверенной штатной остановке runner продолжает после ошибки отдельного теста. При непроверенной остановке он блокирует оставшиеся фазы.
+5. Отказ HTTPS в этой последовательности оставляет fixtures и экспорт заблокированными и записывает их статусы.
+6. `failed` означает exit 2. `completed-with-findings` означает завершённые замеры с нарушением бюджета. `awaiting-visual-review` требуется до просмотра PNG.
+7. Прочитай исходные отчёты всех фаз и просмотри PNG. Сохрани результаты визуальной проверки и ссылки Issues отдельно от исходных файлов.
+
+См. [сводный отчёт](../validation/run4-preflight-summary.md) и [план проверки автомобиля](../acceptance/test-plan-current-head-unit.md).
+
 ## Границы
 
-Доступны `offline`, `android-ui`, [`visual`](visual-tests.md#визуальный-прогон-run-4), `simulated-receiver` и `emulator-reboot`. Остальные режимы отказывают до воздействия.
+Доступны `offline`, `android-ui`, [`visual`](visual-tests.md#визуальный-прогон-run-4), `simulated-receiver`, `emulator-reboot` и `preflight-all-safe`. Остальные режимы отказывают до воздействия.
 Измерения звука, проверка руля, навигации и Bluetooth-звонка на ГУ остаются отдельными.
 Условные C7–C8 с удалённым Регионом и перенос файлов на SSD остаются `not tested`.
 Синтетический отказ reader не заменяет проверку сети ГУ; одинаковая настоящая Ревизия не доказывает установку через HTTPS.
