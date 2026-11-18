@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import runpy
 import shutil
 import socket
 import subprocess
@@ -346,3 +347,16 @@ subprocess.run = run
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("emulator-reboot requires preflight APK", result.stderr)
         self.assertFalse(self.trace.exists())
+
+    def test_reboot_observation_rejects_an_extra_app_launch_or_focus_request(self):
+        observe = runpy.run_path(str(SCRIPT))["assert_reboot_playback"]
+        baseline = "PREFLIGHT pid=42 receiver=FakeReceiver\n"
+        playback = (baseline + "EVENT autostart reason=application-open result=focus-request\n"
+                    "EVENT autostart reason=application-open result=selected\n"
+                    "EVENT Audio start\nF_AUDIO pid=42 state=Playing freq=97700 streaming=true\n")
+        observe(baseline + playback, baseline, "42")
+        with self.assertRaisesRegex(ValueError, "exactly one new application process"):
+            observe(baseline + "PREFLIGHT pid=43 receiver=FakeReceiver\n" + playback, baseline, "42")
+        with self.assertRaisesRegex(ValueError, "exactly one autostart focus request"):
+            observe(baseline + playback + "EVENT autostart reason=application-open result=focus-request\n",
+                    baseline, "42")

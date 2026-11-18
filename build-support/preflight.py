@@ -295,8 +295,12 @@ def visual_matrix(device, phase, run_dir, report):
                                       sha256=sha256(path), width=width, height=height))
 
 
-def read_journal(device, label, package):
-    return device(label, "shell", "run-as", package, "cat", "files/module-diagnostics/diagnostic.log")
+def read_journal(device, label, package, *, pending=False):
+    path = "files/module-diagnostics/diagnostic.log"
+    if pending:
+        # A fresh process can reach the foreground before the async writer creates the file.
+        return device(label, "shell", f"run-as {package} sh -c 'if [ -e {path} ]; then cat {path}; fi'")
+    return device(label, "shell", "run-as", package, "cat", path)
 
 
 def process_journal(log, pid):
@@ -435,6 +439,17 @@ def verify_journals(device, run_dir, label, exports):
     return verified
 
 
+def assert_reboot_playback(log, baseline, pid):
+    require(log.startswith(baseline), "existing journal was replaced")
+    new_log = log[len(baseline):]
+    require(re.findall(r"PREFLIGHT pid=(\d+) ", new_log) == [pid],
+            "expected exactly one new application process after boot")
+    current = process_journal(new_log, pid)
+    require(current.count("autostart reason=application-open result=focus-request") == 1,
+            "expected exactly one autostart focus request after boot")
+    assert_playing(current, pid)
+
+
 def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, package, run_dir, report):
     import time
 
@@ -489,8 +504,7 @@ def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, packa
         wait_playing(device, f"{label}-stream", pid, package, previous_log=old_log)
         time.sleep(35)  # Observe past the application's 30-second autostart cooldown.
         final_log = read_journal(device, f"{label}-observation-journal", package)
-        require(final_log.startswith(old_log), "existing journal was replaced")
-        assert_playing(process_journal(final_log[len(old_log):], pid), pid)
+        assert_reboot_playback(final_log, before_journal, pid)
         require(device(f"{label}-observed-pid", "shell", "pidof", package).strip() == pid,
                 "ordinary application process changed while observing playback")
         require(boot_count(f"{label}-observed-count") == new_count, "Android rebooted again during observation")
@@ -660,9 +674,13 @@ def run_emulator(args, passport_data):
         require(f"versionName={passport_data['apk']['version_name']}" in version, 'installed version mismatch')
         for permission in ('ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'):
             device('grant-' + permission, 'shell', 'pm', 'grant', package, 'android.permission.' + permission)
-        def launch(label, previous_log=""):
+        def launch(label, previous_log=None):
             activity = package + '/fm.heterodyne.app.MainActivity'
-            result = device(label, 'shell', 'am', 'start', '-W', '-n', activity)
+            start = f'am start -W -n {activity}'
+            if previous_log is not None:
+                start = f'if pidof {package} >/dev/null; then exit 1; fi; {start}'
+            result = device(label, 'shell', start)
+            previous_log = previous_log or ""
             require('Status: ok' in result, 'ordinary launch failed')
             deadline = time.monotonic() + 15
             attempt = 0
@@ -674,7 +692,7 @@ def run_emulator(args, passport_data):
                     live = any(activity in line and re.search(r'(mResumedActivity|topResumedActivity)\s*[:=]', line)
                                for line in activities.splitlines())
                     if live:
-                        log = read_journal(device, f'{label}-journal-{attempt}', package)
+                        log = read_journal(device, f'{label}-journal-{attempt}', package, pending=True)
                         require(log.startswith(previous_log), 'existing journal was replaced')
                         if f'PREFLIGHT pid={pid} receiver=FakeReceiver' in log[len(previous_log):]:
                             return pid
@@ -741,11 +759,13 @@ def run_emulator(args, passport_data):
         # Graceful commands only. A missing/reused/foreign PID must never be killed.
         try:
             stop_emulator('emulator-graceful-stop')
-            if child and child.poll() is not None:
-                report['emulator_exit_code'] = child.returncode
+            if child:
+                report['emulator_exit_code'] = child.poll()
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
+            if report['status'] in ('passed', 'captured'):
+                require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
         except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
