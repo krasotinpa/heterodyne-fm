@@ -485,7 +485,7 @@ def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, packa
         retained = verify_journals(device, run_dir, label, exports)
         version = device(f"{label}-version", "shell", "dumpsys", "package", package)
         require(f"versionName={report['apk']['version_name']}" in version, "APK changed across boot")
-        pid = launch(f"{label}-launch")
+        pid = launch(f"{label}-launch", previous_log=old_log)
         wait_playing(device, f"{label}-stream", pid, package, previous_log=old_log)
         time.sleep(35)  # Observe past the application's 30-second autostart cooldown.
         final_log = read_journal(device, f"{label}-observation-journal", package)
@@ -660,14 +660,26 @@ def run_emulator(args, passport_data):
         require(f"versionName={passport_data['apk']['version_name']}" in version, 'installed version mismatch')
         for permission in ('ACCESS_COARSE_LOCATION', 'ACCESS_FINE_LOCATION'):
             device('grant-' + permission, 'shell', 'pm', 'grant', package, 'android.permission.' + permission)
-        def launch(label):
-            result = device(label, 'shell', 'am', 'start', '-W', '-n', package + '/fm.heterodyne.app.MainActivity')
+        def launch(label, previous_log=""):
+            activity = package + '/fm.heterodyne.app.MainActivity'
+            result = device(label, 'shell', 'am', 'start', '-W', '-n', activity)
             require('Status: ok' in result, 'ordinary launch failed')
-            pid = device(label + '-pid', 'shell', 'pidof', package).strip()
-            require(pid.isdigit(), 'ordinary application process missing')
-            journal = device(label + '-journal', 'shell', 'run-as', package, 'cat', 'files/module-diagnostics/diagnostic.log')
-            require(f'PREFLIGHT pid={pid} receiver=FakeReceiver' in journal, 'ordinary process has no fixture marker')
-            return pid
+            deadline = time.monotonic() + 15
+            attempt = 0
+            while time.monotonic() < deadline:
+                attempt += 1
+                pid = device(f'{label}-pid-{attempt}', 'shell', f'pidof {package} || echo STOPPED').strip()
+                if pid.isdigit():
+                    activities = device(f'{label}-activities-{attempt}', 'shell', 'dumpsys', 'activity', 'activities')
+                    live = any(activity in line and re.search(r'(mResumedActivity|topResumedActivity)\s*[:=]', line)
+                               for line in activities.splitlines())
+                    if live:
+                        log = read_journal(device, f'{label}-journal-{attempt}', package)
+                        require(log.startswith(previous_log), 'existing journal was replaced')
+                        if f'PREFLIGHT pid={pid} receiver=FakeReceiver' in log[len(previous_log):]:
+                            return pid
+                time.sleep(0.5)
+            raise ValueError('ordinary launch did not reach foreground with a matching fixture marker')
         launch('ordinary-before')
         def phase(name, label=None, *parameters, test_class="Run4UiTest", timeout=360):
             extras = [arg for i in range(0, len(parameters), 2) for arg in ('-e', *parameters[i:i+2])]
