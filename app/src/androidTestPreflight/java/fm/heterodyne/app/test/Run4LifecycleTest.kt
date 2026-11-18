@@ -71,6 +71,22 @@ class Run4LifecycleTest {
         note("F_SEED confirmed=97700 PCM=playing lastPlayed=true")
     }
 
+    @Test fun seedRebootPlayback() {
+        ready()
+        val regionId = "yaroslavl"
+        val name = "Проверка G"
+        val station = StationEntry(97700, "Тест G")
+        compose.runOnIdle { module.selectRegion(regionId) }
+        waitFor { app.session.screen.state?.selectedRegion == regionId }
+        compose.runOnIdle {
+            app.session.createSelection(regionId, name)
+            app.session.addStation(regionId, name, station)
+            app.session.activateSelection(name)
+        }
+        waitFor { app.session.activeEntries == listOf(station) }
+        seedPlayback()
+    }
+
     private fun detach() {
         app.setReceiverConnected(false)
         waitFor {

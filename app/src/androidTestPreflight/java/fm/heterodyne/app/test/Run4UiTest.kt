@@ -231,6 +231,15 @@ class Run4UiTest {
         assertTrue(app.getSharedPreferences("preflight", 0).edit().putString("catalog", "fixture").commit())
         updateCatalog()
         assertEquals("Нет обновлений", app.session.screen.catalogUpdateResult)
+        exportJournals()
+    }
+
+    @Test fun exportRebootJournals() {
+        parked()
+        exportJournals()
+    }
+
+    private fun exportJournals() {
         click("Диагностика")
         compose.onNodeWithTag("developer-switch").performClick()
         compose.onNodeWithText("Режим разработчика: Вкл").assertIsDisplayed()

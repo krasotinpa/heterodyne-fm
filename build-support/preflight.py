@@ -446,17 +446,16 @@ def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, packa
                 and saved["lastStation"] == {"band": "FM", "frequencyKhz": 97700},
                 "saved station or lastPlayed mismatch")
         region = saved["regions"][saved["selectedRegion"]]
-        require(saved["selectedRegion"] == "moskva" and region["activeName"] == "Проверка 4"
-                and any(group["name"] == "Проверка 4" and
-                        any(entry["name"] == "Тест FM 2" and entry["frequencyKhz"] == 90500
+        require(saved["selectedRegion"] == "yaroslavl" and region["activeName"] == "Проверка G"
+                and any(group["name"] == "Проверка G" and
+                        any(entry["name"] == "Тест G" and entry["frequencyKhz"] == 97700
                             for entry in group["entries"]) for group in region["sets"]),
                 "saved Region, active selection or edited station mismatch")
         return saved
 
-    phase("prepareData")
-    exports = exported_journals(phase("verifyCatalogAndExport"))
+    exports = exported_journals(phase("exportRebootJournals"))
     report["exports_before"] = verify_journals(device, run_dir, "g-before", exports)
-    phase("seedPlayback", test_class="Run4LifecycleTest")
+    phase("seedRebootPlayback", test_class="Run4LifecycleTest")
     pid = launch("g-before-playback")
     wait_playing(device, "g-before-stream", pid, package)
     report["boots"] = []
