@@ -318,14 +318,18 @@ def assert_playing(current, pid):
             "expected one successful ordinary launch autostart")
 
 
-def wait_playing(device, label, pid, package):
+def wait_playing(device, label, pid, package, previous_log=""):
     import time
     deadline = time.monotonic() + 20
     for attempt in range(40):
-        current = process_journal(read_journal(device, f"{label}-{attempt}", package), pid)
-        if latest_audio(current, pid) == "Playing freq=97700 streaming=true":
-            assert_playing(current, pid)
-            return
+        log = read_journal(device, f"{label}-{attempt}", package)
+        require(log.startswith(previous_log), "existing journal was replaced")
+        new_log = log[len(previous_log):]
+        if f"PREFLIGHT pid={pid} " in new_log:
+            current = process_journal(new_log, pid)
+            if latest_audio(current, pid) == "Playing freq=97700 streaming=true":
+                assert_playing(current, pid)
+                return
         if time.monotonic() >= deadline:
             break
         time.sleep(0.5)
@@ -476,17 +480,20 @@ def reboot_persistence(device, phase, launch, reboot, cold_boot, identity, packa
         require(state(f"{label}-restored-state") == before, "application data changed during boot")
         old_log = read_journal(device, f"{label}-restored-journal", package)
         require(old_log.startswith(before_journal), "pre-launch journal lost its saved prefix")
+        require("PREFLIGHT pid=" not in old_log[len(before_journal):],
+                "preflight process started and stopped before manual launch")
         retained = verify_journals(device, run_dir, label, exports)
         version = device(f"{label}-version", "shell", "dumpsys", "package", package)
         require(f"versionName={report['apk']['version_name']}" in version, "APK changed across boot")
         pid = launch(f"{label}-launch")
-        wait_playing(device, f"{label}-stream", pid, package)
+        wait_playing(device, f"{label}-stream", pid, package, previous_log=old_log)
         time.sleep(35)  # Observe past the application's 30-second autostart cooldown.
         final_log = read_journal(device, f"{label}-observation-journal", package)
         require(final_log.startswith(old_log), "existing journal was replaced")
         assert_playing(process_journal(final_log[len(old_log):], pid), pid)
         require(device(f"{label}-observed-pid", "shell", "pidof", package).strip() == pid,
                 "ordinary application process changed while observing playback")
+        require(boot_count(f"{label}-observed-count") == new_count, "Android rebooted again during observation")
         require(state(f"{label}-observed-state") == before, "saved app state changed after manual launch")
         report["boots"].append(dict(kind=label, boot_count_before=old_count, boot_count_after=new_count,
                                     emulator_before=old_identity, emulator_after=new_identity, app_pid=pid,
