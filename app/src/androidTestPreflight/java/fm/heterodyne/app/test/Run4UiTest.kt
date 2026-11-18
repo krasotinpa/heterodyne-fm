@@ -11,6 +11,7 @@ import fm.heterodyne.app.BuildConfig
 import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
 import fm.heterodyne.app.preflight.PreflightApplication
+import fm.heterodyne.app.stations.StationEntry
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -239,7 +240,24 @@ class Run4UiTest {
         exportJournals()
     }
 
-    private fun exportJournals() {
+    @Test fun exportWhilePlaying() {
+        waitFor { app.session.screen.state != null && app.module.transition.confirmed != null }
+        compose.runOnIdle { app.module.pickStation(StationEntry(97700)) }
+        waitFor { app.module.audioCounters.state == AudioState.Playing && app.module.transition.confirmed?.frequencyKhz == 97700 }
+        val starts = app.syntheticPcm.starts.get()
+        parked()
+        exportJournals(count = 1, beforeExport = {
+            assertEquals(AudioState.Playing, app.module.audioCounters.state)
+            assertEquals(starts, app.syntheticPcm.starts.get())
+        })
+        assertEquals(AudioState.Playing, app.module.audioCounters.state)
+        val publishedBytes = app.module.audioCounters.bytes
+        waitFor { app.module.audioCounters.bytes > publishedBytes }
+        assertEquals(AudioState.Playing, app.module.audioCounters.state)
+        assertEquals(starts, app.syntheticPcm.starts.get())
+    }
+
+    private fun exportJournals(count: Int = 2, beforeExport: () -> Unit = {}) {
         click("Диагностика")
         compose.onNodeWithTag("developer-switch").performClick()
         compose.onNodeWithText("Режим разработчика: Вкл").assertIsDisplayed()
@@ -247,8 +265,9 @@ class Run4UiTest {
         fun names(): Set<String> = app.contentResolver.query(downloads, arrayOf(MediaStore.Downloads.DISPLAY_NAME),
             null, null, null)!!.use { cursor -> buildSet { while (cursor.moveToNext()) add(cursor.getString(0)) } }
         val exported = mutableSetOf<String>()
-        repeat(2) {
+        repeat(count) {
             val before = names()
+            beforeExport()
             click("Экспорт Журнала")
             waitFor { !app.diagnostics.exportBusy && app.diagnostics.diagnosticMessage != null }
             val message = app.diagnostics.diagnosticMessage!!
@@ -272,6 +291,6 @@ class Run4UiTest {
                 assertFalse(cursor.moveToNext())
             }
         }
-        note("X passed: two unique published MediaStore exports, bytes readable, UI size matches")
+        note("X passed: $count unique published MediaStore exports, bytes readable, UI size matches")
     }
 }

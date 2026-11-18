@@ -374,3 +374,27 @@ subprocess.run = run
         path.parent.mkdir(parents=True)
         path.write_text("PREFLIGHT pid=42 receiver=FakeReceiver\n")
         self.assertEqual(path.read_text(), read(device, "second", "fm.heterodyne.app.preflight", pending=True))
+
+    def test_audio_option_refuses_other_modes_before_inspecting_apk(self):
+        result = self.cli("run", "emulator-reboot", "--audio",
+                          "--apk", "missing.apk", "--passport", "missing.json")
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("--audio requires simulated-receiver mode", result.stderr)
+        self.assertFalse(self.trace.exists())
+
+    def test_continuous_audio_keeps_budget_findings_and_rejects_short_evidence(self):
+        continuous_audio = runpy.run_path(str(SCRIPT))["continuous_audio"]
+        lines = [
+            f"D_SAMPLE second={second} elapsed={second * 1000} bytes={96000 + second * 192000} "
+            f"badPackets=0 realignments=0 underruns={underruns} maxGapMs={gap} minFrames=12000 "
+            "pauses=0 lostLogs=0 logFailures=0"
+            for second, underruns, gap in ((0, 0, 0), (600, 1, 100), (1200, 1, 101), (1800, 3, 101))
+        ]
+        marker = "D_CONTINUOUS state=Playing starts=1 frequency=97700"
+        result = continuous_audio(lambda *_args, **_kwargs: "\n".join([*lines, marker]))
+        self.assertEqual([1, 0, 2], result["underruns_per_ten_minutes"])
+        self.assertFalse(result["max_gap_budget_passed"])
+        self.assertFalse(result["underrun_budget_passed"])
+        lines[-1] = lines[-1].replace("elapsed=1800000", "elapsed=1799999")
+        with self.assertRaisesRegex(ValueError, "missing thirty-minute PCM evidence"):
+            continuous_audio(lambda *_args, **_kwargs: "\n".join([*lines, marker]))

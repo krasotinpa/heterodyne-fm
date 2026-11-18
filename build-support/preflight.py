@@ -346,6 +346,26 @@ def wait_playing(device, label, pid, package, previous_log=""):
     raise ValueError(f"{label}: selected station did not stream after ordinary launch")
 
 
+def continuous_audio(phase):
+    output = phase("continuousPcm", test_class="Run4AudioTest", timeout=1950)
+    fields = ("second", "elapsed", "bytes", "badPackets", "realignments", "underruns",
+              "maxGapMs", "minFrames", "pauses", "lostLogs", "logFailures")
+    pattern = "D_SAMPLE " + " ".join(f"{key}=([0-9]+)" for key in fields)
+    samples = [dict(zip(fields, map(int, row))) for row in re.findall(pattern, output)]
+    require([sample["second"] for sample in samples] == [0, 600, 1200, 1800]
+            and all(sample["elapsed"] >= sample["second"] * 1000 for sample in samples),
+            "missing thirty-minute PCM evidence")
+    require("D_CONTINUOUS state=Playing starts=1 frequency=97700" in output,
+            "missing continuous PCM evidence")
+    underruns = [after["underruns"] - before["underruns"]
+                 for before, after in zip(samples, samples[1:])]
+    require(all(count >= 0 for count in underruns), "AudioTrack underrun counter reset")
+    return dict(samples=samples, underruns_per_ten_minutes=underruns,
+                max_gap_budget_passed=all(sample["maxGapMs"] <= 100 for sample in samples),
+                underrun_budget_passed=all(count <= 1 for count in underruns),
+                frequency_khz=97700, pcm="synthetic 48 kHz stereo s16le via Android AudioTrack")
+
+
 def receiver_lifecycle(device, phase, launch, package, report):
     import time
     import xml.etree.ElementTree as ET
@@ -422,9 +442,9 @@ def receiver_lifecycle(device, phase, launch, package, report):
     require(len(report["faults"]) == 3, "missing fault evidence")
 
 
-def exported_journals(result):
+def exported_journals(result, count=2):
     exports = re.findall(r"MEDIASTORE name=(heterodyne-[a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/", result)
-    require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, "missing export evidence")
+    require(len(exports) == count and len({entry[0] for entry in exports}) == count, "missing export evidence")
     return [(name, int(size), digest) for name, size, digest in exports]
 
 
@@ -719,8 +739,35 @@ def run_emulator(args, passport_data):
                                lambda: dict(data['emulator_process']), package, run_dir, report)
             report['status'] = 'passed'
         elif args.mode == 'simulated-receiver':
-            receiver_lifecycle(device, phase, launch, package, report)
-            report['status'] = 'passed'
+            if args.audio:
+                report['status'] = 'passed'
+                if args.audio in ('all', 'continuous'):
+                    audio = report['audio'] = continuous_audio(phase)
+                    read_journal(device, 'd-observation-journal', package)
+                    if not (audio['max_gap_budget_passed'] and audio['underrun_budget_passed']):
+                        report['status'] = 'completed-with-findings'
+                if args.audio in ('all', 'controls'):
+                    listener = package + '/fm.heterodyne.app.preflight.PreflightMediaListener'
+                    screen = phase("screenControlsAndSignals", test_class="Run4AudioTest")
+                    try:
+                        device('e-media-listener-allow', 'shell', 'cmd', 'notification', 'allow_listener', listener, '0')
+                        media = phase("mediaSessionAndFocus", test_class="Run4AudioTest")
+                    finally:
+                        device('e-media-listener-disallow', 'shell', 'cmd', 'notification',
+                               'disallow_listener', listener, '0')
+                        allowed = device('e-media-listener-verify', 'shell', 'settings', '--user', '0',
+                                         'get', 'secure', 'enabled_notification_listeners').strip().split(':')
+                        require(listener not in allowed and package + '/.PreflightMediaListener' not in allowed,
+                                'fixture notification listener grant was retained')
+                    controls = re.findall(r'^INSTRUMENTATION_STATUS: stream=(E_.+)$', screen + media, re.M)
+                    expected = ('E_SCREEN', *('E_SIGNAL',) * 4, 'E_DISABLED', 'E_MEDIA', *('E_FOCUS',) * 3, 'E_LOSS')
+                    require(tuple(line.split()[0] for line in controls) == expected, 'missing D/E controls evidence')
+                    report['audio_controls'] = controls
+                    exported = exported_journals(phase('exportWhilePlaying'), count=1)
+                    report['audio_exports'] = verify_journals(device, run_dir, 'e', exported)
+            else:
+                receiver_lifecycle(device, phase, launch, package, report)
+                report['status'] = 'passed'
         else:
             prepared = phase('prepareData')
             previous = re.search(r'PREPARE_PID=(\d+)', prepared)
@@ -746,6 +793,7 @@ def run_emulator(args, passport_data):
             report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
+        report['status'] = 'failed'
         report['error'] = str(error)
         if data['state'] == 'running':
             try:
@@ -766,7 +814,7 @@ def run_emulator(args, passport_data):
             if 'adb_process' in data:
                 verify_adb(data, args.sdk)
                 command('adb-stop', [str(adb), '-P', str(data['adb_port']), 'kill-server'])
-            if report['status'] in ('passed', 'captured'):
+            if report['status'] in ('passed', 'captured', 'completed-with-findings'):
                 require(report.get('emulator_exit_code') == 0, 'Emulator did not shut down normally')
             data['state'] = 'stopped'
             args.manifest.write_text(json.dumps(data, indent=2))
@@ -794,6 +842,8 @@ def main():
             command.add_argument("--manifest", type=Path)
             command.add_argument("--test-apk", type=Path)
             command.add_argument("--test-sha256")
+            command.add_argument("--audio", nargs="?", const="all", choices=("all", "continuous", "controls"),
+                                 help="Run D/E audio checks in simulated-receiver mode")
             command.add_argument("--https", action="store_true", help="Run real HTTPS separately from catalog fixtures")
         command.add_argument("--sdk", type=Path, default=Path(os.environ.get("ANDROID_HOME", Path.home() / "Android/Sdk")))
         if name == "prepare":
@@ -822,6 +872,7 @@ def main():
             return 0
         if args.command == "run":
             require(args.mode in ("offline", "android-ui", "visual", "simulated-receiver", "emulator-reboot"), f"mode {args.mode} is not admitted; no actions executed")
+            require(not args.audio or args.mode == "simulated-receiver", "--audio requires simulated-receiver mode")
             require(not args.https or args.mode not in ("visual", "simulated-receiver", "emulator-reboot"), "--https requires android-ui mode")
         data = passport(args) if args.command == "passport" else check(args)
         if args.command == "run":
