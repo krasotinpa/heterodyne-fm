@@ -442,9 +442,9 @@ def receiver_lifecycle(device, phase, launch, package, report):
     require(len(report["faults"]) == 3, "missing fault evidence")
 
 
-def exported_journals(result):
+def exported_journals(result, count=2):
     exports = re.findall(r"MEDIASTORE name=(heterodyne-[a-zA-Z0-9_.-]+) bytes=(\d+) sha256=([0-9a-f]{64}) pending=0 path=Download/", result)
-    require(len(exports) == 2 and len({entry[0] for entry in exports}) == 2, "missing export evidence")
+    require(len(exports) == count and len({entry[0] for entry in exports}) == count, "missing export evidence")
     return [(name, int(size), digest) for name, size, digest in exports]
 
 
@@ -756,8 +756,11 @@ def run_emulator(args, passport_data):
                         device('e-media-listener-disallow', 'shell', 'cmd', 'notification',
                                'disallow_listener', listener, '0')
                     controls = re.findall(r'^INSTRUMENTATION_STATUS: stream=(E_.+)$', screen + media, re.M)
-                    require(len(controls) == 10, 'missing D/E controls evidence')
+                    expected = ('E_SCREEN', *('E_SIGNAL',) * 4, 'E_DISABLED', 'E_MEDIA', *('E_FOCUS',) * 3, 'E_LOSS')
+                    require(tuple(line.split()[0] for line in controls) == expected, 'missing D/E controls evidence')
                     report['audio_controls'] = controls
+                    exported = exported_journals(phase('exportWhilePlaying'), count=1)
+                    report['audio_exports'] = verify_journals(device, run_dir, 'e', exported)
             else:
                 receiver_lifecycle(device, phase, launch, package, report)
                 report['status'] = 'passed'

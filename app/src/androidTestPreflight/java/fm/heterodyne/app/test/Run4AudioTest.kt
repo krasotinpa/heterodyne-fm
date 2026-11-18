@@ -103,16 +103,22 @@ class Run4AudioTest {
         return result.get()
     }
 
-    private fun since(before: String): String {
-        val current = journal()
-        assertTrue("journal prefix was lost during E", current.startsWith(before))
-        return current.substring(before.length)
+    private fun checkpoint(): String {
+        val marker = "E_CHECKPOINT ${SystemClock.elapsedRealtimeNanos()}"
+        module.usb.probeEvent(marker)
+        compose.waitUntil(5000) { marker in journal() }
+        return marker + "\n"
     }
 
-    private fun seededSelection() {
+    private fun since(marker: String): String {
+        val current = journal()
+        assertTrue("journal checkpoint was lost during E", marker in current)
+        return current.substringAfter(marker)
+    }
+
+    private fun seededSelection(name: String) {
         startPlayback()
         val region = checkNotNull(app.session.screen.state).selectedRegion
-        val name = "Проверка E"
         val stations = listOf(StationEntry(97700, "E FM 1"), StationEntry(99100, "E FM 2"))
         compose.runOnIdle {
             app.session.createSelection(region, name)
@@ -128,7 +134,7 @@ class Run4AudioTest {
     }
 
     @Test fun screenControlsAndSignals() {
-        seededSelection()
+        seededSelection("Экран E")
         compose.onNodeWithText("Станция ▶").performClick()
         confirm(99100)
         compose.onNodeWithText("Станция ◀").performClick()
@@ -140,7 +146,7 @@ class Run4AudioTest {
             compose.onNodeWithText("← Эфир").performClick()
             val target = if (index % 2 == 0) 99100 else 97700
             val station = if (index % 2 == 0) "2 · E FM 2" else "1 · E FM 1"
-            val before = journal()
+            val before = checkpoint()
             compose.onNodeWithText(station).performClick()
             confirm(target)
             if (label == "Выключено") noSignal(before)
@@ -153,16 +159,16 @@ class Run4AudioTest {
                 assertTrue(lines.first().endsWith(", начало"))
                 assertTrue(lines.last().endsWith(", конец"))
                 if (label == "Тон") {
-                    val beforeStep = journal()
+                    val beforeStep = checkpoint()
                     compose.onNodeWithText("Шаг ▶").performClick()
                     confirm(target + 100)
                     noSignal(beforeStep)
-                    val beforeSeek = journal()
+                    val beforeSeek = checkpoint()
                     compose.onNodeWithContentDescription("Поиск ▶").performClick()
                     confirm(target + 200)
                     noSignal(beforeSeek)
                     SystemClock.sleep(5_000)
-                    val beforeReverseSeek = journal()
+                    val beforeReverseSeek = checkpoint()
                     compose.onNodeWithContentDescription("Поиск ◀").performClick()
                     confirm(target + 100)
                     noSignal(beforeReverseSeek)
@@ -177,7 +183,7 @@ class Run4AudioTest {
         app.setReceiverConnected(false)
         compose.waitUntil(15000) { module.moduleState == ConnectionState.Disconnected }
         compose.onNodeWithTag("efir-status").assertIsDisplayed()
-        val before = journal()
+        val before = checkpoint()
         compose.onNodeWithText("Станция ▶").assertIsNotEnabled().performTouchInput { click() }
         compose.onNodeWithText("Шаг ▶").assertIsNotEnabled().performTouchInput { click() }
         compose.onNodeWithContentDescription("Поиск ▶").assertIsNotEnabled().performTouchInput { click() }
@@ -192,7 +198,7 @@ class Run4AudioTest {
         .singleOrNull { it.packageName == app.packageName }
 
     @Test fun mediaSessionAndFocus() {
-        seededSelection()
+        seededSelection("MediaSession E")
         compose.waitUntil(5000) { mediaSession() != null }
         val controller = checkNotNull(mediaSession()) { "foreground PlaybackService has no active MediaSession" }
         fun mediaKey(code: Int, long: Boolean = false) {
@@ -214,7 +220,7 @@ class Run4AudioTest {
         SystemClock.sleep(1100)
         mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
         confirm(97700)
-        val beforeSeek = journal()
+        val beforeSeek = checkpoint()
         mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, long = true)
         confirm(97800)
         SystemClock.sleep(5200)
@@ -225,14 +231,17 @@ class Run4AudioTest {
         note("E_MEDIA short=next,previous long=seek-up,seek-down seeks=$seekEvents")
 
         val audio = app.getSystemService(AudioManager::class.java)
+        fun focusRequest(gain: Int) = AudioFocusRequest.Builder(gain)
+            .setAudioAttributes(AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build())
+            .setOnAudioFocusChangeListener({}, Handler(Looper.getMainLooper())).build()
+
         for ((gain, expected) in listOf(
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK to listOf("focus DUCK", "focus volume=0.3"),
                 AudioManager.AUDIOFOCUS_GAIN_TRANSIENT to listOf("focus TRANSIENT", "focus mute")
             )) {
-            val request = AudioFocusRequest.Builder(gain)
-                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build())
-                .setOnAudioFocusChangeListener({}, Handler(Looper.getMainLooper())).build()
-            val before = journal()
+            val request = focusRequest(gain)
+            val before = checkpoint()
             val bytes = module.audioCounters.bytes
             try {
                 assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(request))
@@ -244,6 +253,22 @@ class Run4AudioTest {
             compose.waitUntil(5000) { "focus GAIN" in since(before) && "focus volume=1.0" in since(before) }
             assertEquals(1, app.syntheticPcm.starts.get())
             note("E_FOCUS ${expected.first()} ${expected.last()} followed by GAIN volume=1.0 without restart")
+        }
+
+        val permanent = focusRequest(AudioManager.AUDIOFOCUS_GAIN)
+        val beforeLoss = checkpoint()
+        val bytes = module.audioCounters.bytes
+        try {
+            assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(permanent))
+            compose.waitUntil(5000) {
+                val events = since(beforeLoss)
+                "focus volume=1.0" in events.substringAfter("focus LOSS", "") && module.audioCounters.bytes > bytes
+            }
+            assertEquals(AudioState.Playing, module.audioCounters.state)
+            assertEquals(1, app.syntheticPcm.starts.get())
+            note("E_FOCUS focus LOSS preserved volume=1.0 and live PCM")
+        } finally {
+            audio.abandonAudioFocusRequest(permanent)
         }
 
         app.syntheticPcm.streamLost = true
