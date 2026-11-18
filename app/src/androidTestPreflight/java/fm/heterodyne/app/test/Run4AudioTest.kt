@@ -1,13 +1,32 @@
 package fm.heterodyne.app.test
 
+import android.media.AudioAttributes
+import android.media.AudioFocusRequest
+import android.media.AudioManager
+import android.media.session.MediaSessionManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.SystemClock
+import android.view.KeyEvent
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.click
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
 import fm.heterodyne.app.module.ConnectionState
+import fm.heterodyne.app.module.TransitionState
+import java.util.concurrent.atomic.AtomicReference
 import fm.heterodyne.app.preflight.PreflightApplication
 import fm.heterodyne.app.stations.StationEntry
 import org.junit.Assert.assertEquals
@@ -69,5 +88,175 @@ class Run4AudioTest {
             }
         }
         note("D_CONTINUOUS state=Playing starts=$starts frequency=97700")
+    }
+
+    private fun confirm(frequency: Int) = compose.waitUntil(15000) {
+        module.transition.confirmed?.frequencyKhz == frequency && module.transition.state == TransitionState.Idle
+    }
+
+    private fun journal(): String {
+        val result = AtomicReference<String>()
+        app.diagnostics.readJournal { result.set(it) }
+        compose.waitUntil(5000) { result.get() != null }
+        return result.get()
+    }
+
+    private fun since(before: String): String {
+        val current = journal()
+        assertTrue("journal prefix was lost during E", current.startsWith(before))
+        return current.substring(before.length)
+    }
+
+    private fun seededSelection() {
+        startPlayback()
+        val region = checkNotNull(app.session.screen.state).selectedRegion
+        val name = "Проверка E"
+        val stations = listOf(StationEntry(97700, "E FM 1"), StationEntry(99100, "E FM 2"))
+        compose.runOnIdle {
+            app.session.createSelection(region, name)
+            stations.forEach { app.session.addStation(region, name, it) }
+            app.session.activateSelection(name)
+        }
+        compose.waitUntil(15000) { app.session.activeEntries == stations }
+    }
+
+    private fun noSignal(before: String) {
+        SystemClock.sleep(800)
+        assertTrue("unexpected transition signal", "сигнал Перехода:" !in since(before))
+    }
+
+    @Test fun screenControlsAndSignals() {
+        seededSelection()
+        compose.onNodeWithText("Станция ▶").performClick()
+        confirm(99100)
+        compose.onNodeWithText("Станция ◀").performClick()
+        confirm(97700)
+        for ((index, label) in listOf("Тон", "Тишина", "Звук клавиши", "Выключено").withIndex()) {
+            compose.onNodeWithContentDescription("Стоянка").performClick()
+            compose.onNodeWithText("Настройки").performClick()
+            compose.onNodeWithText(label).performScrollTo().performClick().assertIsSelected()
+            compose.onNodeWithText("← Эфир").performClick()
+            val target = if (index % 2 == 0) 99100 else 97700
+            val station = if (index % 2 == 0) "2 · E FM 2" else "1 · E FM 1"
+            val before = journal()
+            compose.onNodeWithText(station).performClick()
+            confirm(target)
+            if (label == "Выключено") noSignal(before)
+            else {
+                compose.waitUntil(5000) {
+                    since(before).lineSequence().any { "сигнал Перехода: $label" in it && it.endsWith(", конец") }
+                }
+                val lines = since(before).lineSequence().filter { "сигнал Перехода: $label" in it }.toList()
+                assertEquals("signal $label", 2, lines.size)
+                assertTrue(lines.first().endsWith(", начало"))
+                assertTrue(lines.last().endsWith(", конец"))
+                if (label == "Тон") {
+                    val beforeStep = journal()
+                    compose.onNodeWithText("Шаг ▶").performClick()
+                    confirm(target + 100)
+                    noSignal(beforeStep)
+                    val beforeSeek = journal()
+                    compose.onNodeWithContentDescription("Поиск ▶").performClick()
+                    confirm(target + 200)
+                    noSignal(beforeSeek)
+                    SystemClock.sleep(5_000)
+                    val beforeReverseSeek = journal()
+                    compose.onNodeWithContentDescription("Поиск ◀").performClick()
+                    confirm(target + 100)
+                    noSignal(beforeReverseSeek)
+                    note("E_SCREEN stations=next,previous step=up seek=up,down step_and_seek_signal=absent")
+                }
+            }
+            assertEquals(AudioState.Playing, module.audioCounters.state)
+            assertEquals(1, app.syntheticPcm.starts.get())
+            note("E_SIGNAL label=$label result=verified")
+        }
+
+        app.setReceiverConnected(false)
+        compose.waitUntil(15000) { module.moduleState == ConnectionState.Disconnected }
+        compose.onNodeWithTag("efir-status").assertIsDisplayed()
+        val before = journal()
+        compose.onNodeWithText("Станция ▶").assertIsNotEnabled().performTouchInput { click() }
+        compose.onNodeWithText("Шаг ▶").assertIsNotEnabled().performTouchInput { click() }
+        compose.onNodeWithContentDescription("Поиск ▶").assertIsNotEnabled().performTouchInput { click() }
+        SystemClock.sleep(700)
+        assertTrue("disabled controls sent TX", " TX " !in since(before))
+        assertEquals(null, module.transition.target)
+        note("E_DISABLED station,step,seek disabled; injected touches sent no TX")
+    }
+
+    private fun mediaSession() = instrumentation.uiAutomation.run {
+        adoptShellPermissionIdentity("android.permission.MEDIA_CONTENT_CONTROL")
+        try {
+            app.getSystemService(MediaSessionManager::class.java).getActiveSessions(null)
+                .singleOrNull { it.packageName == app.packageName }
+        } finally {
+            dropShellPermissionIdentity()
+        }
+    }
+
+    @Test fun mediaSessionAndFocus() {
+        seededSelection()
+        val controller = checkNotNull(mediaSession()) { "foreground PlaybackService has no active MediaSession" }
+        fun mediaKey(code: Int, long: Boolean = false) {
+            val down = SystemClock.uptimeMillis()
+            fun send(action: Int, repeat: Int = 0, flags: Int = 0) {
+                assertTrue(controller.dispatchMediaButtonEvent(
+                    KeyEvent(down, SystemClock.uptimeMillis(), action, code, repeat, 0, 0, 0, flags)
+                ))
+            }
+            if (long) {
+                send(KeyEvent.ACTION_DOWN, 1, KeyEvent.FLAG_LONG_PRESS)
+                send(KeyEvent.ACTION_DOWN, 2, KeyEvent.FLAG_LONG_PRESS)
+            } else send(KeyEvent.ACTION_DOWN)
+            send(KeyEvent.ACTION_UP)
+        }
+
+        mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
+        confirm(99100)
+        SystemClock.sleep(1100)
+        mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+        confirm(97700)
+        val beforeSeek = journal()
+        mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT, long = true)
+        confirm(97800)
+        SystemClock.sleep(5200)
+        mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS, long = true)
+        confirm(97700)
+        val seekEvents = since(beforeSeek).lineSequence().count { it.endsWith(" R26 Seeking") }
+        assertEquals("one search per long-press sequence", 2, seekEvents)
+        note("E_MEDIA short=next,previous long=seek-up,seek-down seeks=$seekEvents")
+
+        val audio = app.getSystemService(AudioManager::class.java)
+        for ((gain, expected) in listOf(
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK to listOf("focus DUCK", "focus volume=0.3"),
+                AudioManager.AUDIOFOCUS_GAIN_TRANSIENT to listOf("focus TRANSIENT", "focus mute")
+            )) {
+            val request = AudioFocusRequest.Builder(gain)
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).build())
+                .setOnAudioFocusChangeListener({}, Handler(Looper.getMainLooper())).build()
+            val before = journal()
+            val bytes = module.audioCounters.bytes
+            try {
+                assertEquals(AudioManager.AUDIOFOCUS_REQUEST_GRANTED, audio.requestAudioFocus(request))
+                compose.waitUntil(5000) { expected.all { it in since(before) } && module.audioCounters.bytes > bytes }
+                assertEquals(AudioState.Playing, module.audioCounters.state)
+            } finally {
+                audio.abandonAudioFocusRequest(request)
+            }
+            compose.waitUntil(5000) { "focus GAIN" in since(before) && "focus volume=1.0" in since(before) }
+            assertEquals(1, app.syntheticPcm.starts.get())
+            note("E_FOCUS ${expected.first()} ${expected.last()} followed by GAIN volume=1.0 without restart")
+        }
+
+        app.syntheticPcm.streamLost = true
+        compose.waitUntil(10000) { module.audioCounters.state == AudioState.Failed }
+        assertEquals(ConnectionState.Observing, module.moduleState)
+        compose.waitUntil(5000) { mediaSession() == null }
+        app.syntheticPcm.streamLost = false
+        SystemClock.sleep(4_000)
+        assertEquals(1, app.syntheticPcm.starts.get())
+        assertEquals(null, mediaSession())
+        note("E_LOSS EIO released MediaSession, preserved control, no PCM retry")
     }
 }

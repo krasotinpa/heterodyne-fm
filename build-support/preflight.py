@@ -740,9 +740,17 @@ def run_emulator(args, passport_data):
             report['status'] = 'passed'
         elif args.mode == 'simulated-receiver':
             if args.audio:
-                audio = report['audio'] = continuous_audio(phase)
-                report['status'] = ('passed' if audio['max_gap_budget_passed'] and audio['underrun_budget_passed']
-                                    else 'completed-with-findings')
+                report['status'] = 'passed'
+                if args.audio in ('all', 'continuous'):
+                    audio = report['audio'] = continuous_audio(phase)
+                    if not (audio['max_gap_budget_passed'] and audio['underrun_budget_passed']):
+                        report['status'] = 'completed-with-findings'
+                if args.audio in ('all', 'controls'):
+                    outputs = [phase(name, test_class="Run4AudioTest")
+                               for name in ("screenControlsAndSignals", "mediaSessionAndFocus")]
+                    report['audio_controls'] = [line.strip() for output in outputs
+                                                for line in output.splitlines() if line.startswith('E_')]
+                    require(len(report['audio_controls']) == 10, 'missing D/E controls evidence')
             else:
                 receiver_lifecycle(device, phase, launch, package, report)
                 report['status'] = 'passed'
@@ -771,6 +779,7 @@ def run_emulator(args, passport_data):
             report['status'] = 'passed'
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as error:
         failure = error
+        report['status'] = 'failed'
         report['error'] = str(error)
         if data['state'] == 'running':
             try:
@@ -819,7 +828,8 @@ def main():
             command.add_argument("--manifest", type=Path)
             command.add_argument("--test-apk", type=Path)
             command.add_argument("--test-sha256")
-            command.add_argument("--audio", action="store_true", help="Run D/E audio checks in simulated-receiver mode")
+            command.add_argument("--audio", nargs="?", const="all", choices=("all", "continuous", "controls"),
+                                 help="Run D/E audio checks in simulated-receiver mode")
             command.add_argument("--https", action="store_true", help="Run real HTTPS separately from catalog fixtures")
         command.add_argument("--sdk", type=Path, default=Path(os.environ.get("ANDROID_HOME", Path.home() / "Android/Sdk")))
         if name == "prepare":
