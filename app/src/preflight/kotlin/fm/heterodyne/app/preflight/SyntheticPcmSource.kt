@@ -8,12 +8,15 @@ import kotlin.math.sin
 
 /** 48 kHz, stereo s16le, 1 kHz at amplitude 2048. No microphone or USB input. */
 class SyntheticPcmSource : AudioSource {
+    @Volatile var streamLost = false
+    val starts = java.util.concurrent.atomic.AtomicInteger()
     private var opened = false
     private var phase = 0
     private var nextRead = 0L
-    override fun open() { check(!opened); opened = true; phase = 0; nextRead = System.nanoTime() }
+    override fun open() { check(!opened); opened = true; phase = 0; nextRead = System.nanoTime(); starts.incrementAndGet() }
     override fun read(out: ByteArray): Int {
         check(opened)
+        if (streamLost) return -5 // Synthetic EIO: stream failed while control remains attached.
         require(out.size >= 4)
         val frames = minOf(out.size / 4, 480)
         nextRead += frames * 1_000_000_000L / 48000
