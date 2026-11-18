@@ -92,7 +92,7 @@ class PreflightTest(unittest.TestCase):
                 self.assertEqual(2, result.returncode, result.stderr)
                 self.assertFalse(self.trace.exists())
         passport.write_text(json.dumps(data))
-        for mode in ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware", "preflight-all-safe"):
+        for mode in ("emulator-power-loss", "super-radio-hardware", "rtl-sdr-hardware"):
             with self.subTest(mode=mode):
                 result = self.cli("run", mode, "--apk", str(self.apk), "--passport", str(passport))
                 self.assertEqual(2, result.returncode, result.stderr)
@@ -398,3 +398,19 @@ subprocess.run = run
         lines[-1] = lines[-1].replace("elapsed=1800000", "elapsed=1799999")
         with self.assertRaisesRegex(ValueError, "missing thirty-minute PCM evidence"):
             continuous_audio(lambda *_args, **_kwargs: "\n".join([*lines, marker]))
+
+    def test_safe_suite_rejects_non_preflight_apk_before_creating_evidence(self):
+        passport, _ = self.passport()
+        result = self.cli("run", "preflight-all-safe", "--apk", str(self.apk), "--passport", str(passport))
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("preflight-all-safe requires preflight APK", result.stderr)
+        self.assertFalse(self.trace.exists())
+        self.assertFalse((self.root / ".scratch/preflight-suites").exists())
+
+    def test_safe_suite_cannot_pass_without_visual_review_or_a_complete_run(self):
+        summarize = runpy.run_path(str(SCRIPT))["safe_suite_status"]
+        passed = ["passed", "passed", "captured", "passed", "passed"]
+        self.assertEqual("failed", summarize(passed))
+        self.assertEqual("failed", summarize([*passed, "blocked"]))
+        self.assertEqual("completed-with-findings", summarize([*passed, "completed-with-findings"]))
+        self.assertEqual("awaiting-visual-review", summarize([*passed, "passed"]))
