@@ -58,13 +58,14 @@ getPreferredDevice не подтверждает фактический route.
 AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.
 
-1. Выполни `./build-support/validate.sh`: Python research и build-version tests, Gradle tests/lint/APK и SHA-256.
+1. Выполни `./build-support/validate.sh`: Python research и build-version tests, отдельный JVM-потребитель UI Contract, Gradle tests/lint/APK и SHA-256.
 2. Выполни доступные instrumented tests.
 3. Сверь hardware matrix; укажи blocked/not tested.
 4. Запиши actual exit codes, версии, SHA и APK hash.
 
 Script выполняет офлайн-часть gate и останавливается при первом отказе.
-Android gate также запускает preflight unit tests и собирает отдельный `app-preflight.apk`.
+Android gate сначала компилирует JVM-потребителя UI Contract без `:app` и проверяет зависимости модуля контракта при компиляции и запуске.
+Затем он запускает preflight unit tests и собирает отдельный `app-preflight.apk`.
 Runner A/B/C/X устанавливает APK, проверяет UI и повторное открытие, обновляет Справочник и читает MediaStore export.
 HTTPS запускается отдельно от fixtures; отчёт различает их результаты.
 Проверка нового процесса и AudioTrack описана в [инструкции preflight APK](agents/run4-preflight-apk.md).

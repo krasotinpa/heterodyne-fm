@@ -23,6 +23,10 @@ flowchart LR
   M --> C
 ```
 
+Этап C публикует типы Kotlin в пакете `fm.heterodyne.ui.contract`. Версия модуля начинается с `0.1.0`. Версия `1.0.0` требует проверки обеих реализаций контракта. Для проверки отдельного потребителя запустите `./gradlew -p build-support/ui-contract-consumer check`. Сборка использует JDK 17 и не включает `:app`.
+
+Модуль явно использует `kotlinx-coroutines-core` 1.9.0 как зависимость публичного API `StateFlow`. Эту версию уже использует рабочее приложение. [Лицензия Apache 2.0](https://raw.githubusercontent.com/Kotlin/kotlinx.coroutines/1.9.0/LICENSE.txt) совместима с [GPLv3 по справке GNU](https://www.gnu.org/licenses/license-compatibility.html).
+
 Стрелка означает зависимость кода. Контракт не импортирует Android и Compose. UI не импортирует Application, Activity конкретного приложения, Storage, USB, Receiver, Audio или Service. Host создаёт одну рабочую реализацию контракта на процесс. Sandbox создаёт свою реализацию на экземпляр сценария.
 
 ## State Contract
