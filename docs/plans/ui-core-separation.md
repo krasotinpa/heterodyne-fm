@@ -1,6 +1,6 @@
 # План разделения UI и Core
 
-Статус — предложение. Реализация начинается после решения по [ADR 0010](../adr/0010-ui-core-separation.md) и [UI Contract](../architecture/ui-contract-spec.md). Код сохраняет требования [requirements.md](../requirements.md). Контекст и исходные риски — в [аудите](../architecture/ui-core-audit.md).
+Владелец утвердил [ADR 0010](../adr/0010-ui-core-separation.md) и [UI Contract](../architecture/ui-contract-spec.md) 26.11.2026 ([#321](https://github.com/krasotinpa/heterodyne-fm/issues/321)). Код сохраняет требования [requirements.md](../requirements.md). Контекст и исходные риски — в [аудите](../architecture/ui-core-audit.md).
 
 ```text
 D → C → A → U → S → V ─┐
