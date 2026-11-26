@@ -24,6 +24,13 @@ fun RadioContent(radio: RadioUi, modifier: Modifier = Modifier, onToolsClosed: (
                 rejected = (admission as? Admission.Rejected)?.reason
         }
     }
+    RadioSnapshot(state, send, modifier, onToolsClosed, rejected)
+}
+
+/** Renders the same screen from a fixed snapshot in Compose Preview. */
+@Composable
+fun RadioSnapshot(state: RadioUiState, send: (RadioAction) -> Unit, modifier: Modifier = Modifier,
+                  onToolsClosed: () -> Unit = {}, rejected: RejectReason? = null) {
     HeterodyneTheme(state.settings.resolvedTheme, state.settings.palette) {
         Column(modifier.fillMaxSize()) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
