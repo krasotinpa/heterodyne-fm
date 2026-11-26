@@ -82,6 +82,7 @@ androidComponents.beforeVariants(androidComponents.selector().withBuildType("pre
 
 dependencies {
     implementation(project(":ui-contract"))
+    implementation(project(":ui-compose"))
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.foundation)
     implementation(libs.activity.compose)

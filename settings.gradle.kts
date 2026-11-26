@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "HeterodyneFM"
-include(":app", ":ui-contract")
+include(":app", ":ui-contract", ":ui-compose")

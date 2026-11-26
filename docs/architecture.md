@@ -202,5 +202,8 @@ Preflight переопределяет её для отдельных сцена
 ## Граница UI и Core
 
 Для замены Compose UI или независимой разработки начните с [UI Contract](architecture/ui-contract-spec.md).
-[Аудит](architecture/ui-core-audit.md) описывает зависимости текущего приложения.
+Host в `:app` передаёт `RadioUi` в `RadioContent`. Экран в `:ui-compose` собирает снимок в активном Android lifecycle.
+При закрытии Инструментов host получает `onToolsClosed` и отзывает допуск отложенных диагностических операций.
+Для самостоятельной сборки библиотеки выполните `./gradlew -p build-support/ui-compose-standalone :ui-compose:assembleDebug`.
+[Аудит](architecture/ui-core-audit.md) описывает связи до переноса.
 [ADR 0010](adr/0010-ui-core-separation.md) утверждён владельцем. Ход реализации описан в [плане миграции](plans/ui-core-separation.md).

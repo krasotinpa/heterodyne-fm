@@ -58,7 +58,7 @@ getPreferredDevice не подтверждает фактический route.
 AM снят ([ADR 0008](adr/0008-fm-only.md)), не проверяется.
 Визуальная приёмка отдельна: экран ГУ и действия владельца.
 
-1. Выполни `./build-support/validate.sh`: Python research и build-version tests, отдельный JVM-потребитель UI Contract, Gradle tests/lint/APK и SHA-256.
+1. Выполни `./build-support/validate.sh`: Python research и build-version tests, отдельный JVM-потребитель UI Contract, самостоятельная сборка Compose UI, Gradle tests/lint/APK и SHA-256.
 2. Выполни доступные instrumented tests.
 3. Сверь hardware matrix; укажи blocked/not tested.
 4. Запиши actual exit codes, версии, SHA и APK hash.

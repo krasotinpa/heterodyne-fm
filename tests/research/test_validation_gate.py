@@ -27,6 +27,7 @@ class ValidationGateTest(unittest.TestCase):
             expected_python = ["python:-m unittest discover -s tests/research",
                                "python:-m unittest discover -s tests/build_version"]
             expected_android = ["gradle:-p build-support/ui-contract-consumer check",
+                                "gradle:-p build-support/ui-compose-standalone :ui-compose:assembleDebug",
                                 "gradle:test lint assembleDebug assemblePreflight"]
             for mode, expected in [("all", expected_python + expected_android),
                                    ("python", expected_python), ("android", expected_android)]:
