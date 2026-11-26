@@ -10,11 +10,11 @@ Native graphics означает рендерер Robolectric, а не дост�
 Для отдельного запуска:
 
 ```bash
-./gradlew testDebugUnitTest --tests '*VisualRegressionTest'
+./gradlew :ui-compose:testDebugUnitTest --tests '*VisualRegressionTest'
 ```
 
-Эталоны: [тёмный](../../app/src/test/resources/screenshots/efir-dark.png) и [светлый](../../app/src/test/resources/screenshots/efir-light.png).
-При несовпадении actual PNG появляется в `app/build/reports/screenshots/`; CI сохраняет эту папку как artifact на 7 дней при отказе.
+Эталоны: [тёмный](../../ui-compose/src/test/resources/screenshots/efir-dark.png) и [светлый](../../ui-compose/src/test/resources/screenshots/efir-light.png).
+При несовпадении actual PNG появляется в `ui-compose/build/reports/screenshots/`; CI сохраняет эту папку как artifact на 7 дней при отказе.
 Сравнение точное: изменение среды рендера требует отдельной оценки diff, а не автоматического обновления эталона.
 
 ## Намеренное обновление эталонов
@@ -25,7 +25,7 @@ Native graphics означает рендерер Robolectric, а не дост�
 4. Запусти обычный тест без record-флага и проверь diff изображений в PR.
 
 ```bash
-HETERODYNE_RECORD_SCREENSHOTS=1 ./gradlew testDebugUnitTest --tests '*VisualRegressionTest' --rerun-tasks
+HETERODYNE_RECORD_SCREENSHOTS=1 ./gradlew :ui-compose:testDebugUnitTest --tests '*VisualRegressionTest' --rerun-tasks
 ```
 
 Флаг не входит в CI и не используется для устранения неизвестного падения без проверки причины.

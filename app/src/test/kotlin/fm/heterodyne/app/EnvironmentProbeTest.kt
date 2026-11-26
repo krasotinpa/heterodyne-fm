@@ -5,7 +5,6 @@ import fm.heterodyne.app.host.EnvironmentProbeSource
 import fm.heterodyne.app.host.ProbePermission
 import fm.heterodyne.app.host.ProbeReading
 import fm.heterodyne.app.host.ProbeValues
-import fm.heterodyne.app.ui.*
 import org.junit.Assert.*
 import org.junit.Test
 

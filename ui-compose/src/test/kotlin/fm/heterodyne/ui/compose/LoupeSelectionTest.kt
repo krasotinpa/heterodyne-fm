@@ -1,0 +1,34 @@
+package fm.heterodyne.ui.compose
+
+import fm.heterodyne.ui.contract.*
+
+import org.junit.Assert.*
+import org.junit.Test
+
+class LoupeSelectionTest {
+    private val stations = listOf(108000, 87500, 97700).map {
+        CatalogStationView("$it", it, "$it")
+    }
+    @Test fun nearestStationUsesWholeFmBandAndClampsEdges() {
+        assertEquals(87500, nearestLoupeStation(stations, -1f)?.frequencyKhz)
+        assertEquals(97700, nearestLoupeStation(stations, .5f)?.frequencyKhz)
+        assertEquals(108000, nearestLoupeStation(stations, 2f)?.frequencyKhz)
+        assertNull(nearestLoupeStation(emptyList(), .5f))
+    }
+    @Test fun cancellationStartsBeyondHalfHeightOutsideEitherEdge() {
+        assertFalse(isLoupeCancelled(-42f, 84f))
+        assertTrue(isLoupeCancelled(-43f, 84f))
+        assertFalse(isLoupeCancelled(126f, 84f))
+        assertTrue(isLoupeCancelled(127f, 84f))
+    }
+    @Test fun releaseRejectsCancellationAndCurrentFrequency() {
+        val station = stations.first()
+        assertNull(loupeRelease(station, true, null))
+        assertNull(loupeRelease(station, false, station(108000)))
+        assertEquals(station, loupeRelease(station, false, station(87500)))
+    }
+    @Test fun windowLeavesEmptySlotsAtBandEdge() {
+        assertEquals(listOf(null, null, null, stations[1], stations[2], stations[0], null),
+            loupeWindow(stations, stations[1], 7))
+    }
+}

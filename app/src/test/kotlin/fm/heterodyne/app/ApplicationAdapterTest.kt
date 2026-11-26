@@ -1,5 +1,8 @@
 package fm.heterodyne.app
 
+import androidx.activity.ComponentActivity
+import androidx.compose.ui.test.*
+import fm.heterodyne.ui.compose.RadioContent
 import android.app.Application
 import android.os.Handler
 import android.os.Looper
@@ -75,6 +78,51 @@ class ApplicationAdapterTest {
         worker.poll.run()
     }
     @org.junit.After fun close() { worker.shutdownNow() }
+
+    @Config(qualifiers = "w1600dp-h800dp-land")
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun contractScreenShowsOnlyObservedTuningAndParkingSendsNoRadioCommand() {
+        connect()
+        receive(28)
+        shadowOf(main.looper).idle()
+        runAndroidComposeUiTest<ComponentActivity> {
+            setContent { RadioContent(radio) }
+            onNodeWithTag("efir-frequency").assertTextEquals("90,3")
+            onNodeWithContentDescription("Стоянка").assertIsDisplayed().assertIsEnabled().performClick()
+            runOnIdle { assertEquals(ScreenMode.Parking, radio.state.value.mode) }
+            onNodeWithText("Подборки").performClick()
+            onNodeWithText("Добавить Станцию").performClick()
+            onNodeWithText("Отмена").performClick()
+            onNodeWithText("← Эфир").performClick()
+            onNodeWithTag("efir-frequency").assertTextEquals("90,3")
+        }
+        drainWorker()
+        assertEquals(0, transport.sendCount)
+    }
+
+    @Config(qualifiers = "w1600dp-h800dp-land")
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun leavingDeveloperToolsRevokesQueuedDiagnosticWhileParkingStaysOpen() {
+        connect()
+        receive(28)
+        shadowOf(main.looper).idle()
+        send(RadioAction.EnterParking)
+        send(RadioAction.SetDeveloper(true))
+        runAndroidComposeUiTest<ComponentActivity> {
+            setContent { RadioContent(radio, onToolsClosed = adapter::closeTools) }
+            onNodeWithText("Режим разработчика").performClick()
+            runOnIdle {
+                assertEquals(Admission.Accepted, send(RadioAction.RunDiagnostic(DiagnosticAction.StepFrequencyUp)))
+            }
+            onNodeWithText("Настройки").performClick()
+            runOnIdle {
+                drainWorker()
+                assertEquals(ScreenMode.Parking, radio.state.value.mode)
+                assertNull(radio.state.value.diagnostics.detail)
+                assertEquals(0, transport.sendCount)
+            }
+        }
+    }
 
     @Test fun publishedFocusFollowsPlaybackAndIgnoresOldFocusCallbacks() {
         val manager = object : fm.heterodyne.app.audio.AudioFocusManager {

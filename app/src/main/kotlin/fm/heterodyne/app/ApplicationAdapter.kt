@@ -127,16 +127,7 @@ class ApplicationAdapter internal constructor(
         val tune = module.transition
         val confirmed = module.currentStation?.let { stations.station(it.frequencyKhz) }
         val saved = screen.state?.lastStation?.takeUnless { band == Band.AM }?.let { stations.station(it.frequencyKhz) }
-        val reason = when {
-            tune.state == TransitionState.Unresponsive -> DisabledReason.Unresponsive
-            module.moduleState == ConnectionState.Disconnected -> DisabledReason.Disconnected
-            module.moduleState == ConnectionState.PermissionPending -> DisabledReason.PermissionPending
-            !connected -> DisabledReason.Connecting
-            tune.state == TransitionState.Unconfirmed -> DisabledReason.Unconfirmed
-            band == null -> DisabledReason.Connecting
-            module.activeEntries.isEmpty() && tune.state !in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete) -> DisabledReason.EmptySelection
-            else -> null
-        }
+        val reason = disabledReason(module.moduleState, tune.state, band, module.activeEntries.isEmpty())
         return RadioUiState(if (parked) ScreenMode.Parking else ScreenMode.Efir, moving,
             ReceiverView(module.selectedReceiver?.let { ReceiverId(it.value) }, profiles, enumValueOf(module.moduleState.name),
                 if (module.capabilities.seek) setOf(Feature.Seek) else emptySet()),
