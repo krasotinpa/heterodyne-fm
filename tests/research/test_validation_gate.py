@@ -19,14 +19,15 @@ class ValidationGateTest(unittest.TestCase):
             python.write_text('#!/bin/sh\nprintf "python:%s\\n" "$*" >> "$HETERODYNE_GATE_TRACE"\nexit "${HETERODYNE_GATE_PYTHON_EXIT:-0}"\n')
             python.chmod(0o755)
             gradle = root / "gradlew"
-            gradle.write_text('#!/bin/sh\nprintf "gradle:%s\\n" "$*" >> "$HETERODYNE_GATE_TRACE"\nmkdir -p app/build/outputs/apk/debug app/build/outputs/apk/preflight\nprintf fixture > app/build/outputs/apk/debug/app-debug.apk\nprintf preflight > app/build/outputs/apk/preflight/app-preflight.apk\n')
+            gradle.write_text('#!/bin/sh\nprintf "gradle:%s\\n" "$*" >> "$HETERODYNE_GATE_TRACE"\nif [ "$1" = "-p" ]; then exit "${HETERODYNE_GATE_CONTRACT_EXIT:-0}"; fi\nmkdir -p app/build/outputs/apk/debug app/build/outputs/apk/preflight\nprintf fixture > app/build/outputs/apk/debug/app-debug.apk\nprintf preflight > app/build/outputs/apk/preflight/app-preflight.apk\n')
             gradle.chmod(0o755)
             trace = root / "trace"
             env = dict(os.environ, PATH=str(binary) + os.pathsep + os.environ["PATH"],
                        HETERODYNE_GATE_TRACE=str(trace))
             expected_python = ["python:-m unittest discover -s tests/research",
                                "python:-m unittest discover -s tests/build_version"]
-            expected_android = ["gradle:test lint assembleDebug assemblePreflight"]
+            expected_android = ["gradle:-p build-support/ui-contract-consumer check",
+                                "gradle:test lint assembleDebug assemblePreflight"]
             for mode, expected in [("all", expected_python + expected_android),
                                    ("python", expected_python), ("android", expected_android)]:
                 with self.subTest(mode=mode):
@@ -38,6 +39,14 @@ class ValidationGateTest(unittest.TestCase):
                     if mode != "python":
                         self.assertIn("app/build/outputs/apk/debug/app-debug.apk", result.stdout)
                         self.assertIn("app/build/outputs/apk/preflight/app-preflight.apk", result.stdout)
+
+            trace.unlink()
+            env["HETERODYNE_GATE_CONTRACT_EXIT"] = "43"
+            result = subprocess.run(["bash", str(root / "build-support/validate.sh"), "android"],
+                                    env=env, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 43)
+            self.assertEqual(trace.read_text().splitlines(), expected_android[:1])
+            del env["HETERODYNE_GATE_CONTRACT_EXIT"]
 
             trace.unlink()
             env["HETERODYNE_GATE_PYTHON_EXIT"] = "42"

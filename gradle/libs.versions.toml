@@ -1,6 +1,7 @@
 [versions]
 agp = "9.1.1"
 kotlin = "2.4.21"
+coroutines = "1.9.0"
 compose-bom = "2026.06.01"
 activity-compose = "1.10.1"
 junit = "4.13.2"
@@ -17,6 +18,7 @@ androidx-test-runner = "1.5.0"
 androidx-test-junit = "1.1.5"
 
 [libraries]
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
 androidx-test-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-junit" }
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
@@ -36,3 +38,4 @@ compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

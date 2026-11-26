@@ -8,6 +8,7 @@ python_checks() {
 }
 
 android_checks() {
+    ./gradlew -p build-support/ui-contract-consumer check
     ./gradlew test lint assembleDebug assemblePreflight
     sha256sum app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/preflight/app-preflight.apk
 }

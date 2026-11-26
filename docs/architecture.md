@@ -199,8 +199,8 @@ Preflight переопределяет её для отдельных сцена
 Любая ошибка оставляет прежний набор; без сети доступен снимок в APK.
 Новых зависимостей нет. Импорт ZIP и возврат встроенного набора не входят в #276.
 
-## Предложение о границе UI и Core
+## Граница UI и Core
 
-Для замены Compose UI или независимой разработки начните с [проекта UI Contract](architecture/ui-contract-spec.md).
+Для замены Compose UI или независимой разработки начните с [UI Contract](architecture/ui-contract-spec.md).
 [Аудит](architecture/ui-core-audit.md) описывает зависимости текущего приложения.
-[ADR 0010](adr/0010-ui-core-separation.md) находится в статусе Proposed.
+[ADR 0010](adr/0010-ui-core-separation.md) утверждён владельцем. Ход реализации описан в [плане миграции](plans/ui-core-separation.md).
