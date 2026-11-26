@@ -179,7 +179,7 @@ internal fun EfirScreen(state: RadioUiState, send: (RadioAction) -> Unit) {
                         modifier = Modifier.weight(1f).testTag("catalog-grid"),
                         horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap")),
                         verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
-                        items(visible, key = { "${it.frequencyKhz}" }) { entry ->
+                        items(visible, key = { it.id }) { entry ->
                             StationPlate(entry.name, entry.frequencyKhz, null, transition, canSelect, { selectCatalog(entry) }, Modifier.height(plateHeight))
                         }
                     }

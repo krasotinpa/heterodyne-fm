@@ -43,7 +43,6 @@ internal fun ParkingScreen(state: RadioUiState, onToolsClosed: () -> Unit = {}, 
     val diagnostics = state.diagnostics
     val receiver = state.receiver
     val connected = receiver.connection == Connection.Observing
-    val developerEnabled = diagnostics.developerEnabled
     val canEdit = Control.Edit in state.enabled
     val canSet = Control.ChangeSetting in state.enabled
     val regionId = screen.activeRegionId
@@ -54,13 +53,16 @@ internal fun ParkingScreen(state: RadioUiState, onToolsClosed: () -> Unit = {}, 
     fun setting(change: SettingChange) = send(RadioAction.ChangeSetting(change))
     fun back() = send(RadioAction.ExitParking)
     var page by rememberSaveable { mutableStateOf("Меню стоянки") }
-    LaunchedEffect(page) { clearIssue() }
-    val toolsAvailable = developerEnabled && settings.transitionSignal != null
+    fun navigate(destination: String) {
+        if (page == "Подборки" && destination != page) clearIssue()
+        page = destination
+    }
+    val toolsAvailable = diagnostics.developerEnabled
     LaunchedEffect(toolsAvailable) {
         if (!toolsAvailable && page == "Режим разработчика") page = "Диагностика"
     }
     if (state.moving) return
-    val goBack = { if (page == "Меню стоянки") back() else page = "Меню стоянки" }
+    val goBack = { if (page == "Меню стоянки") back() else navigate("Меню стоянки") }
     BackHandler { goBack() }
     val colors = LocalAppearanceColors.current
     Row(Modifier.fillMaxSize().background(colors["bg"])) {
@@ -74,7 +76,7 @@ internal fun ParkingScreen(state: RadioUiState, onToolsClosed: () -> Unit = {}, 
                 val destinations = listOf("Подборки", "Настройки", "Диагностика", "О приложении") +
                     if (toolsAvailable) listOf("Режим разработчика") else emptyList()
                 destinations.forEach { destination ->
-                    ParkingMenuItem(destination, page == destination) { page = destination }
+                    ParkingMenuItem(destination, page == destination) { navigate(destination) }
                 }
             }
             Label(if (connected) "Приёмник: подключён" else "Приёмник: не подключён", 16)
@@ -93,7 +95,7 @@ internal fun ParkingScreen(state: RadioUiState, onToolsClosed: () -> Unit = {}, 
                 "Меню стоянки" -> Label("Режим стоянки", 24)
                 "Диагностика" -> DiagnosticsScreen(state, send)
                 "Режим разработчика" -> if (toolsAvailable) {
-                    DisposableEffect(Unit) { onDispose(onToolsClosed) }
+                    DisposableEffect(onToolsClosed) { onDispose(onToolsClosed) }
                     DeveloperToolsScreen(diagnostics, state.enabled, send)
                 }
                 "Настройки" -> {
@@ -234,9 +236,9 @@ internal fun ParkingScreen(state: RadioUiState, onToolsClosed: () -> Unit = {}, 
                                 .background(colors["surface2"]).padding(DesignTokens.number("space.section").dp), textStyle = designTextStyle("body", colors["text"]), singleLine = true)
                             if (!formOpen) screen.editIssue.nameMessage(formOpen)?.let { Label(it, 18, colors["danger"]) }
                         }
-                        Control("Создать", canEdit, { formOpen = false; clearIssue(); edit(SelectionEdit.Create(SelectionRef(regionId, name))) })
-                        Control("Переименовать", canEdit, { formOpen = false; clearIssue(); editing = selection.name; renamedTo = name; edit(SelectionEdit.Rename(ref, name)) })
-                        Control("Удалить Подборку", canEdit && screen.selections.size > 1, { formOpen = false; clearIssue(); renamedTo = null; edit(SelectionEdit.Delete(ref)) })
+                        Control("Создать", canEdit, { formOpen = false; edit(SelectionEdit.Create(SelectionRef(regionId, name))) })
+                        Control("Переименовать", canEdit, { formOpen = false; editing = selection.name; renamedTo = name; edit(SelectionEdit.Rename(ref, name)) })
+                        Control("Удалить Подборку", canEdit && screen.selections.size > 1, { formOpen = false; renamedTo = null; edit(SelectionEdit.Delete(ref)) })
                         Control("Сделать активной", Control.ActivateSelection in state.enabled && selection.name != active.name, { send(RadioAction.ActivateSelection(regionId, selection.name)) })
                     }
                     fun openForm(entry: StationView?, target: String, edit: Boolean) {

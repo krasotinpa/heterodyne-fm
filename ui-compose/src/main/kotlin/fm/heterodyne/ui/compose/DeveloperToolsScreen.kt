@@ -32,9 +32,9 @@ internal fun DeveloperToolsScreen(view: DiagnosticsView, enabled: Set<Control>, 
     LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(DesignTokens.number("space.plateGap").dp)) {
         item { Label("Режим разработчика", 24) }
         items(detail.environmentLines) { BasicText(it, style = style) }
-        item { BasicText("Звук: байты ${counters.bytes}, ошибки ${counters.badPackets}, выравнивания ${counters.realignments}, underrun ${counters.underruns}", style = style) }
-        item { BasicText("Звук: максимальная пауза в Playing ${counters.maxReadGapMillis ?: "—"} мс, пауз > 100 мс: ${counters.longPauses}, минимальный запас ${counters.minBufferedFrames ?: "—"} кадров", style = style) }
-        item { BasicText("Журнал: потеряно ${counters.lostLogRecords}, сбоев записи ${counters.logWriteFailures}", style = style) }
+        item { BasicText("Звук: байты ${counters.bytes ?: "—"}, ошибки ${counters.badPackets ?: "—"}, выравнивания ${counters.realignments ?: "—"}, underrun ${counters.underruns ?: "—"}", style = style) }
+        item { BasicText("Звук: максимальная пауза в Playing ${counters.maxReadGapMillis ?: "—"} мс, пауз > 100 мс: ${counters.longPauses ?: "—"}, минимальный запас ${counters.minBufferedFrames ?: "—"} кадров", style = style) }
+        item { BasicText("Журнал: потеряно ${counters.lostLogRecords ?: "—"}, сбоев записи ${counters.logWriteFailures ?: "—"}", style = style) }
         item { BasicText("Байт +7 (0x24): ${detail.rawByte7 ?: "—"}", style = style) }
         items(DiagnosticAction.entries) { command ->
             Control(command.label(), Control.RunDiagnostic in enabled && command in detail.commands,

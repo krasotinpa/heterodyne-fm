@@ -100,6 +100,30 @@ class ApplicationAdapterTest {
         assertEquals(0, transport.sendCount)
     }
 
+    @Config(qualifiers = "w1600dp-h800dp-land")
+    @OptIn(ExperimentalTestApi::class)
+    @Test fun leavingDeveloperToolsRevokesQueuedDiagnosticWhileParkingStaysOpen() {
+        connect()
+        receive(28)
+        shadowOf(main.looper).idle()
+        send(RadioAction.EnterParking)
+        send(RadioAction.SetDeveloper(true))
+        runAndroidComposeUiTest<ComponentActivity> {
+            setContent { RadioContent(radio, onToolsClosed = adapter::closeTools) }
+            onNodeWithText("Режим разработчика").performClick()
+            runOnIdle {
+                assertEquals(Admission.Accepted, send(RadioAction.RunDiagnostic(DiagnosticAction.StepFrequencyUp)))
+            }
+            onNodeWithText("Настройки").performClick()
+            runOnIdle {
+                drainWorker()
+                assertEquals(ScreenMode.Parking, radio.state.value.mode)
+                assertNull(radio.state.value.diagnostics.detail)
+                assertEquals(0, transport.sendCount)
+            }
+        }
+    }
+
     @Test fun publishedFocusFollowsPlaybackAndIgnoresOldFocusCallbacks() {
         val manager = object : fm.heterodyne.app.audio.AudioFocusManager {
             lateinit var listener: (fm.heterodyne.app.audio.AudioFocusChange) -> Unit

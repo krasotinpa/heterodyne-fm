@@ -21,6 +21,33 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "w1600dp-h800dp-land")
 class ParkingScreenTest {
+    @Test fun editorDispatchesOneEditPerButtonAndNoneOnSubscription() {
+        val ref = SelectionRef("moskva", "Основной")
+        val stations = stationsView().let { it.copy(selections = it.selections + SelectionView("Дорога", emptyList())) }
+        val actions = mutableListOf<RadioAction>()
+        compose.setContent { ParkingScreen(parking(stations), send = actions::add) }
+        compose.runOnIdle { assertEquals(emptyList<RadioAction>(), actions) }
+        compose.onNodeWithText("Подборки").performClick()
+        compose.onNodeWithText("Создать").performClick()
+        compose.onNodeWithText("Переименовать").performClick()
+        compose.onNodeWithText("Удалить Подборку").performClick()
+        assertEquals(listOf(SelectionEdit.Create(ref), SelectionEdit.Rename(ref, ref.name), SelectionEdit.Delete(ref))
+            .map { RadioAction.Edit(it) }, actions)
+    }
+
+    @Test fun developerCanReadDiagnosticsWithoutModuleSettingsOrMeasurements() {
+        val audio = AudioMetrics(null, null, null, null, null, null, null, null, null)
+        val detail = DeveloperDetail(emptySet(), emptyList(), null, audio, emptyList(), null, null)
+        val snapshot = parking(settings = sampleSettings.copy(transitionSignal = null, seekLimitSeconds = null),
+            diagnostics = sampleDiagnostics.copy(developerEnabled = true, detail = detail),
+            profiles = listOf(testOption), selected = testOption.id)
+        compose.setContent { ParkingScreen(snapshot) {} }
+        compose.onNodeWithText("Режим разработчика").performClick()
+        compose.onNodeWithText("Звук: байты —", substring = true).assertExists()
+        compose.onAllNodesWithText("null", substring = true).assertCountEquals(0)
+        compose.onNodeWithText("TUNEDOWN").assertIsNotEnabled()
+    }
+
     @Test fun catalogUpdateIsManualAndShowsBusyAndResult() {
         val screen = mutableStateOf(stationsView())
         val driving = mutableStateOf(false)

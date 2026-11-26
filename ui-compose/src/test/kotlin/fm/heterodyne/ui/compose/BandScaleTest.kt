@@ -55,6 +55,16 @@ class BandScaleTest {
         compose.onNodeWithTag("band-scale-marker").assertDoesNotExist()
     }
 
+    @Test fun stripeShowsPendingTargetBeforeAndAfterFirstConfirmation() {
+        val snap = mutableStateOf(tuning(TuningPhase.Waiting, targetKhz = 101200))
+        compose.setContent { BandScale(emptyList(), emptyList(), snap.value, marker = ScaleMarker.Stripe) }
+        compose.onNodeWithTag("band-scale-preview-target").assertContentDescriptionContains("101,2", substring = true)
+        compose.onNodeWithTag("band-scale-marker").assertDoesNotExist()
+        compose.runOnIdle { snap.value = snap.value.copy(confirmed = station(90300)) }
+        compose.onNodeWithTag("band-scale-confirmed-stripe").assertContentDescriptionContains("90,3", substring = true)
+        compose.onNodeWithTag("band-scale-preview-target").assertContentDescriptionContains("101,2", substring = true)
+    }
+
     @Test fun shapesApplyImmediatelyAndTransitionTargetIsOutlinedUntilConfirmed() {
         val marker = mutableStateOf(ScaleMarker.Pin)
         val snapshot = mutableStateOf(tuning(TuningPhase.Idle, null, station(97700)))

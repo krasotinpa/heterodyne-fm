@@ -512,6 +512,16 @@ class EfirScreenTest {
         }
     }
 
+    @Test fun catalogStationsSharingFrequencyDispatchTheirOwnIds() {
+        val stations = stationsView(catalog = listOf(CatalogStationView("a", 90300, "Первая запись"),
+            CatalogStationView("b", 90300, "Вторая запись")))
+        val actions = mutableListOf<RadioAction>()
+        compose.setContent { EfirScreen(sampleRadio(stations), actions::add) }
+        listOf("Первая запись", "Вторая запись").forEach { compose.onNodeWithText(it, substring = true).performClick() }
+        assertEquals(listOf(RadioAction.SelectStation("moskva", StationRef.Catalog("a")),
+            RadioAction.SelectStation("moskva", StationRef.Catalog("b"))), actions)
+    }
+
     @Test fun catalogSelectionRequestsStationWithoutChangingConfirmedFrequency() {
         val selected = mutableListOf<RadioAction>()
         val catalog = listOf(CatalogStationView("a", 90300, "Авторадио"))

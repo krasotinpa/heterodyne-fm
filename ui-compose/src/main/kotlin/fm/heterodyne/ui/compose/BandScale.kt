@@ -37,7 +37,7 @@ internal fun BandScale(
     val confirmed = transition.confirmed
     val cursor = scaleCursor(confirmed, transition.saved, transition.phase)
         ?.takeUnless { transition.confirmed == null && transition.targetKhz != null }
-    val showScale = cursor != null || (transition.targetKhz != null && marker != ScaleMarker.Stripe)
+    val showScale = cursor != null || transition.targetKhz != null
     val colors = LocalAppearanceColors.current
     val density = LocalDensity.current
     val enabled = loupeEnabled && confirmed != null && stations.isNotEmpty()
@@ -88,7 +88,7 @@ internal fun BandScale(
             val width = constraints.maxWidth.toFloat()
             val visiblePreview = preview?.takeUnless { cancelled }
             val frequencies = (stations.map { it.frequencyKhz } +
-                listOfNotNull(cursor?.frequencyKhz, visiblePreview?.frequencyKhz)).distinct()
+                listOfNotNull(cursor?.frequencyKhz, visiblePreview?.frequencyKhz, transition.targetKhz)).distinct()
             fun markWidth(frequency: Int, preferred: Float, highlighted: Boolean): Float =
                 scaleMarkWidth(frequency, frequencies, width, preferred, highlighted)
             fun markerPosition(frequencyKhz: Int) = Modifier.offset {
@@ -119,11 +119,6 @@ internal fun BandScale(
                     }
                 }
             }
-            if (confirmed == null && marker != ScaleMarker.Stripe) {
-                transition.targetKhz?.let {
-                    ScaleMarkerShape(marker, it, true, false, markerPosition(it).testTag("band-scale-preview-target"))
-                }
-            }
             if (cursor != null) {
                 val cursorTarget = cursor.frequencyKhz
                 val labels = scaleFrequencyLabels(cursorTarget)
@@ -138,33 +133,15 @@ internal fun BandScale(
                         .background(colors[if (faded) "disabledText" else "accent"])
                         .testTag("band-scale-confirmed-stripe")
                         .semantics { contentDescription = "${if (transition.confirmed == null) "Сохранённая" else "Подтверждённая"} Станция ${frequencyText(cursorTarget)}" })
-                    visiblePreview?.let { station ->
-                        val targetWidth = markWidth(station.frequencyKhz,
-                            with(density) { tokenDp("size.scale.preview.0").toPx() }, true)
-                        val targetFraction = bandFraction(station.frequencyKhz)
-                        // Open outline differs from the solid cursor stripe even at the same frequency.
-                        Box(Modifier.align(Alignment.CenterStart)
-                            .offset { IntOffset((targetFraction * width - targetWidth / 2).roundToInt(), 0) }
-                            .width(with(density) { targetWidth.toDp() }).height(tokenDp("size.scale.preview.1"))
-                            .border(with(density) { minOf(1.dp.toPx(), targetWidth / 4).toDp() }, colors["accentText"])
-                            .testTag("band-scale-preview-target")
-                            .semantics { contentDescription = "Цель Лупы ${frequencyText(station.frequencyKhz)}" })
-                    }
                     // Draw the slider last so its full-height stem remains visible.
                     val sliderWidth = minOf(with(density) { tokenDp("size.scale.slider").toPx() }, stripeWidth / 2)
-                    Box(Modifier.offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
+                    Box(Modifier.zIndex(1f).offset { IntOffset((fraction * width - sliderWidth / 2).roundToInt(), 0) }
                         .width(with(density) { sliderWidth.toDp() }).fillMaxHeight()
                         .background(colors[if (faded) "disabledText" else "accent"]).testTag("band-scale-marker")
                         .semantics { contentDescription = "${if (transition.confirmed == null) "Сохранённая" else "Подтверждённая"} частота ${frequencyText(cursorTarget)}" })
                 } else {
                     ScaleMarkerShape(marker, cursorTarget, false, faded,
                         markerPosition(cursorTarget).testTag("band-scale-marker"), saved = confirmed == null)
-                    val target = visiblePreview?.frequencyKhz
-                        ?: transition.targetKhz?.takeIf { it != cursorTarget }
-                    target?.let {
-                        ScaleMarkerShape(marker, it, true, false,
-                            markerPosition(it).testTag("band-scale-preview-target"))
-                    }
                 }
                 if (transition.confirmed != null) {
                     BasicText(labels.first(), Modifier.align(Alignment.BottomStart), designTextStyle("label", colors["muted"]))
@@ -182,6 +159,21 @@ internal fun BandScale(
                         }.width(tokenDp("size.scale.marker.width")),
                             style = designTextStyle("label", colors[if (faded) "disabledText" else "accentText"]))
                     }
+                }
+            }
+            val target = visiblePreview?.frequencyKhz ?: transition.targetKhz
+            if (target != null) {
+                if (marker == ScaleMarker.Stripe) {
+                    val targetWidth = markWidth(target, with(density) { tokenDp("size.scale.preview.0").toPx() }, true)
+                    Box(Modifier.align(Alignment.CenterStart)
+                        .offset { IntOffset((bandFraction(target) * width - targetWidth / 2).roundToInt(), 0) }
+                        .width(with(density) { targetWidth.toDp() }).height(tokenDp("size.scale.preview.1"))
+                        .border(with(density) { minOf(1.dp.toPx(), targetWidth / 4).toDp() }, colors["accentText"])
+                        .testTag("band-scale-preview-target")
+                        .semantics { contentDescription = "${if (visiblePreview != null) "Цель Лупы" else "Цель"} ${frequencyText(target)}" })
+                } else {
+                    ScaleMarkerShape(marker, target, true, false,
+                        markerPosition(target).testTag("band-scale-preview-target"))
                 }
             }
         }

@@ -2,6 +2,9 @@ package fm.heterodyne.app
 
 import android.content.Context
 import fm.heterodyne.app.host.*
+import fm.heterodyne.app.module.Band
+import fm.heterodyne.app.module.ConnectionState
+import fm.heterodyne.app.module.TransitionState
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.stations.StationEntry
 import fm.heterodyne.ui.contract.*
@@ -65,6 +68,17 @@ internal fun StationsView.station(khz: Int): StationView {
     val name = selections.firstOrNull { it.name == activeSelectionName }?.entries?.firstOrNull { it.frequencyKhz == khz }
         ?.name?.takeIf { it.isNotBlank() } ?: catalog.firstOrNull { it.frequencyKhz == khz }?.name
     return StationView(khz, name)
+}
+
+internal fun disabledReason(connection: ConnectionState, phase: TransitionState, band: Band?, emptySelection: Boolean): DisabledReason? = when {
+    phase == TransitionState.Unresponsive -> DisabledReason.Unresponsive
+    connection == ConnectionState.Disconnected -> DisabledReason.Disconnected
+    connection == ConnectionState.PermissionPending -> DisabledReason.PermissionPending
+    connection != ConnectionState.Observing -> DisabledReason.Connecting
+    phase == TransitionState.Unconfirmed -> DisabledReason.Unconfirmed
+    band == null -> DisabledReason.Connecting
+    emptySelection && phase !in listOf(TransitionState.Seeking, TransitionState.SeekIncomplete) -> DisabledReason.EmptySelection
+    else -> null
 }
 
 internal fun TransitionSnapshot.pauseView(): CommandPauseView? = pause?.let {

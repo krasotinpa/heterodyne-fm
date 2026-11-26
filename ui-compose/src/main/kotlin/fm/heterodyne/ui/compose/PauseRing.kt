@@ -16,7 +16,7 @@ import androidx.compose.ui.platform.testTag
 
 /** Local monotonic clock. Receiver snapshots never tick for animation. */
 internal class PauseRingClock(private val pause: CommandPauseView) {
-    fun remainingMillis() = (-pause.deadline.elapsedNow()).inWholeMilliseconds.coerceAtLeast(0)
+    fun remainingMillis() = (-pause.deadline.elapsedNow()).inWholeMilliseconds.coerceIn(0, pause.totalMillis)
     fun fraction() = (remainingMillis().toFloat() / pause.totalMillis).coerceIn(0f, 1f)
     fun description(): String = "Поиск ${pause.direction.arrow()}, пауза, осталось ${(remainingMillis() + 999) / 1000} с"
 }
