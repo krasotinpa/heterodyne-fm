@@ -7,6 +7,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
+import fm.heterodyne.ui.contract.RadioAction
+import fm.heterodyne.ui.contract.Admission
+import kotlinx.coroutines.runBlocking
 import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.module.TransitionState
 import fm.heterodyne.app.preflight.PreflightApplication
@@ -62,7 +65,7 @@ class Run4LifecycleTest {
 
     @Test fun seedPlayback() {
         ready()
-        compose.runOnIdle { module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         playing(97700)
         val saved = AtomicReference<Int>()
         app.session.readLaunchStation { saved.set(it?.frequencyKhz ?: 0) }
@@ -76,7 +79,7 @@ class Run4LifecycleTest {
         val regionId = "yaroslavl"
         val name = "Проверка G"
         val station = StationEntry(97700, "Тест G")
-        compose.runOnIdle { module.selectRegion(regionId) }
+        compose.runOnIdle { app.radio.submit(RadioAction.EnterParking); app.radio.submit(RadioAction.SelectRegion(regionId)) }
         waitFor { app.session.screen.state?.selectedRegion == regionId }
         compose.runOnIdle {
             app.session.createSelection(regionId, name)
@@ -84,6 +87,7 @@ class Run4LifecycleTest {
             app.session.activateSelection(name)
         }
         waitFor { app.session.activeEntries == listOf(station) }
+        compose.runOnIdle { app.radio.submit(RadioAction.ExitParking) }
         seedPlayback()
     }
 
@@ -98,7 +102,7 @@ class Run4LifecycleTest {
 
     @Test fun replug() {
         ready()
-        compose.runOnIdle { module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         playing(97700)
         var lastReturn = 0L
         for (cycle in 1..10) {
@@ -130,7 +134,7 @@ class Run4LifecycleTest {
                 "audio=${module.audioCounters.state} restarts=${pcm.starts.get() - previous} decision=$decision")
         }
         // A quick second return while eligible must not bypass the cooldown.
-        compose.runOnIdle { module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         playing(97700)
         val before = pcm.starts.get()
         val previousDecision = lastModuleReturn()
@@ -170,7 +174,7 @@ class Run4LifecycleTest {
         assertEquals(AudioState.Stopped, module.audioCounters.state)
         note("F_STALE pending cleared, old reply tail rejected after reconnect")
 
-        compose.runOnIdle { module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         playing(97700)
         pcm.streamLost = true
         waitFor { module.audioCounters.state == AudioState.Failed }

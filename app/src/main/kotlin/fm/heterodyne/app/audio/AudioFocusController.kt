@@ -1,5 +1,6 @@
 package fm.heterodyne.app.audio
 
+import fm.heterodyne.ui.contract.FocusEffect
 import fm.heterodyne.app.Journal
 
 enum class AudioFocusChange { Loss, Duck, Transient, Gain }
@@ -23,6 +24,7 @@ class AudioFocusController(
     private val manager: AudioFocusManager,
     private val sink: AudioSink,
     private val journal: Journal,
+    private val effectChanged: (FocusEffect) -> Unit = {},
     private val signalVolume: (Float) -> Unit = {},
 ) {
     private var session: Any? = null
@@ -78,6 +80,7 @@ class AudioFocusController(
 
     private fun startSession(token: Any) {
         session = token
+        effectChanged(FocusEffect.Normal)
         setFocusLevel(1f)
         journal.event("focus volume=1.0")
         // Live radio continues even when the manual request is denied.
@@ -99,6 +102,7 @@ class AudioFocusController(
         automaticSession = null
         granted = false
         signalVolume(0f)
+        effectChanged(FocusEffect.None)
         manager.abandon()
         journal.event("focus abandon")
     }
@@ -108,18 +112,22 @@ class AudioFocusController(
         journal.event("focus ${change.name.uppercase()}")
         when (change) {
             AudioFocusChange.Loss -> {
+                effectChanged(FocusEffect.PermanentLossContinuing)
                 setFocusLevel(1f) // Постоянная потеря может прийти после TRANSIENT без GAIN.
                 journal.event("focus volume=1.0")
             }
             AudioFocusChange.Duck -> {
+                effectChanged(FocusEffect.Ducking)
                 setFocusLevel(0.3f)
                 journal.event("focus volume=0.3")
             }
             AudioFocusChange.Transient -> {
+                effectChanged(FocusEffect.Muted)
                 setFocusLevel(0f)
                 journal.event("focus mute")
             }
             AudioFocusChange.Gain -> {
+                effectChanged(FocusEffect.Normal)
                 setFocusLevel(1f)
                 journal.event("focus volume=1.0")
             }

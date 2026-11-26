@@ -8,7 +8,9 @@ import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
 import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.preflight.PreflightApplication
-import fm.heterodyne.app.stations.StationEntry
+import fm.heterodyne.ui.contract.Admission
+import fm.heterodyne.ui.contract.RadioAction
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -33,14 +35,23 @@ class PreflightReceiverSmokeTest {
         assertEquals("fm.heterodyne.app.preflight", app.packageName)
         compose.waitUntil(10000) { app.module.moduleState == ConnectionState.Observing && app.module.transition.confirmed != null }
         try {
-            compose.runOnIdle { app.module.pickStation(StationEntry(97700)) }
+            compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
             compose.waitUntil(10000) {
                 app.module.transition.confirmed?.frequencyKhz == 97700 &&
                     app.module.audioCounters.state == AudioState.Playing && app.module.audioCounters.bytes > 96000
             }
             assertEquals(0L, app.module.audioCounters.badPackets)
+            val before = app.syntheticPcm.starts.get()
+            compose.runOnIdle {
+                assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.Stop) })
+                assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.Start) })
+            }
+            compose.waitUntil(10000) {
+                app.syntheticPcm.starts.get() == before + 1 && app.module.audioState == AudioState.Playing
+            }
+            assertTrue(app.session.screen.state!!.lastPlayed)
         } finally {
-            compose.runOnIdle { app.module.userStop() }
+            compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.Stop) }) }
         }
         compose.waitUntil(5000) { app.module.audioState == AudioState.Stopped }
     }

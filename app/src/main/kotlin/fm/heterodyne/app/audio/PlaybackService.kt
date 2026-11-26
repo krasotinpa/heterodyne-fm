@@ -29,7 +29,9 @@ class PlaybackService : Service() {
         super.onCreate()
         stations.updatePlaybackService(true)
         wheel = WheelController(WheelScheduler { delay, action ->
+            val currentReceiver = stations.currentReceiver()
             val task = Runnable {
+                if (!currentReceiver()) { wheel.close(); return@Runnable }
                 wheel.update(stations.activeEntries, stations.currentStation, stations.capabilities)
                 action()
             }
@@ -83,9 +85,7 @@ class PlaybackService : Service() {
     }
 
     fun reclaimWheel() {
-        stations.reclaimAudioFocus {
-            main.post { if (!destroyed) session.isActive = true }
-        }
+        stations.reclaimAudioFocus { if (!destroyed) session.isActive = true }
     }
 
     override fun onDestroy() {

@@ -37,6 +37,7 @@ class RestartTest {
         now = 10000; controller.tick()
         assertEquals(0, fake.sendCount)
         connect()
+        assertNull(controller.snapshot.confirmed)
         assertEquals(1, fake.sendCount) // Return probe, without select until a band reply.
         assertEquals(0x85, fake.sentFrames.single()[6].toInt() and 255)
         receive(); now = 20000; controller.tick(); receive()

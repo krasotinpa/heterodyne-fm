@@ -1,5 +1,7 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ThemeChoice
 import android.app.Application
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory

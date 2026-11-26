@@ -1,14 +1,11 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import fm.heterodyne.app.audio.TransitionSignalMethod
 
 /** Способ Сигнала Перехода сохраняется независимо от подключения Приёмника. */
 class TransitionSignalPreferences(private val preferences: SharedPreferences) {
-    var method by mutableStateOf(readMethod(preferences))
+    var method = readMethod(preferences)
         private set
 
     fun selectMethod(value: TransitionSignalMethod) {

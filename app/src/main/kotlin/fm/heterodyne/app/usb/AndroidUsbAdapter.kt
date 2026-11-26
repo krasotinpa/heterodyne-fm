@@ -1,5 +1,7 @@
 package fm.heterodyne.app.usb
 
+import fm.heterodyne.ui.contract.RejectReason
+import fm.heterodyne.app.reason
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -23,10 +25,10 @@ import java.util.concurrent.TimeUnit
 /** Application owns one adapter. Discovery, permission and open run on its worker, outside UI. */
 class AndroidUsbAdapter(
     private val context: Context,
-    private val stationChanged: (Band, Int?) -> Unit = { _, _ -> },
-    private val changed: (ConnectionState) -> Unit,
-    private val audioChanged: (AudioCounters) -> Unit = {},
-    private val transitionObserved: (TransitionSnapshot) -> Unit = {},
+    private val stationChanged: (Band, Int, Long) -> Unit,
+    private val observed: (ReceiverObservation) -> Unit,
+    private val audioChanged: (AudioState) -> Unit,
+    private val focusChanged: (fm.heterodyne.ui.contract.FocusEffect) -> Unit,
     seekPaused: (Long) -> Unit = {},
     private val autostartPlayback: ((Boolean) -> Unit) -> Unit = { it(false) },
     private val noFocusChanged: (Boolean) -> Unit = {},
@@ -34,9 +36,9 @@ class AndroidUsbAdapter(
     private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
     private val additionalReceivers: List<Receiver> = emptyList(),
     private val fixture: fm.heterodyne.app.receiver.ReceiverFixture? = null,
-    private val selectionChanged: (fm.heterodyne.app.receiver.ReceiverKind?, fm.heterodyne.app.receiver.ReceiverCapabilities?) -> Unit = { _, _ -> },
+    private val worker: java.util.concurrent.ScheduledExecutorService = moduleWorker(),
 ) {
-    private val preferences = fm.heterodyne.app.ui.ReceiverPreferences(
+    private val preferences = fm.heterodyne.app.host.ReceiverPreferences(
         context.getSharedPreferences("receiver", Context.MODE_PRIVATE))
     private val selection = fm.heterodyne.app.receiver.ReceiverSelection(profiles.kinds, preferences.kind, preferences::selectKind)
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
@@ -45,39 +47,58 @@ class AndroidUsbAdapter(
     private val journalReader = Executors.newSingleThreadExecutor { task -> Thread(task, "JournalReader").apply { isDaemon = true } }
     // Probe worker only enqueues; persistent writes belong to AsyncDiagnosticLog. No USB operation.
     fun probeEvent(text: String) { log.event(text) }
-    fun readJournal(done: (String) -> Unit) { journalReader.execute {
+    fun readJournal(valid: () -> Boolean = { true }, done: (String) -> Unit) { journalReader.execute {
+        if (!valid()) { done(""); return@execute }
         done(try { log.readTail(32768) } catch (_: Exception) { "Не удалось прочитать Журнал" })
     } }
     fun exportJournal(store: fm.heterodyne.app.DownloadStore,
-                      done: (Result<fm.heterodyne.app.JournalExportResult>) -> Unit) {
+                      valid: () -> Boolean, done: (Result<fm.heterodyne.app.JournalExportResult>?) -> Unit) {
         // Snapshot inside the read barrier (ring is capped at 10 MB); slow storage then never stalls the Journal thread.
-        journalReader.execute { done(runCatching {
+        journalReader.execute { done(if (!valid()) null else runCatching {
             val snapshot = java.io.ByteArrayOutputStream().also(log::copyTo).toByteArray()
             fm.heterodyne.app.JournalExport(store).save { it.write(snapshot) }
         }) }
     }
-    fun diagnosticCommand(command: DiagnosticCommand, done: (TuneResult) -> Unit) {
-        cancelAutostart()
+    /** Both admission and the eventual worker result belong to the initiating context. */
+    internal fun command(valid: () -> Boolean, result: (TuneResult) -> Unit,
+                         perform: (Receiver) -> TuneResult) {
         worker.execute {
-            if (selection.selectedKind != fm.heterodyne.app.receiver.ReceiverKind.Module) {
-                done(TuneResult.NotConnected)
-                return@execute
+            if (!valid()) return@execute
+            val outcome = receiver?.let(perform) ?: TuneResult.NotConnected
+            postOutcome(outcome, valid) { result(outcome) }
+        }
+    }
+
+    // A failed send may synchronously disconnect its own receiver. Report that failure
+    // in the disconnected generation, until another session or screen supersedes it.
+    private fun postOutcome(result: TuneResult, valid: () -> Boolean, deliver: () -> Unit) {
+        val generation = connectionGeneration
+        main.post {
+            if (valid() || (result == TuneResult.TransportError && generation == connectionGeneration)) deliver()
+        }
+    }
+
+    private data class PendingTune(val valid: () -> Boolean, val failed: (TuneResult) -> Unit)
+    private var pendingTune: PendingTune? = null
+
+    internal fun tune(khz: Int, valid: () -> Boolean, done: (RejectReason?) -> Unit) {
+        worker.execute {
+            if (!valid()) return@execute
+            val selected = receiver
+            val result = selected?.select(Band.FM, khz) ?: TuneResult.NotConnected
+            val retained = selected?.snapshot?.target == TuneTarget(Band.FM, khz)
+            if (retained) pendingTune = PendingTune(valid) { failure ->
+                postOutcome(failure, valid) { done(failure.reason()) }
             }
-            val result = when (command) {
-                DiagnosticCommand.RequestAllInfo -> receiver?.checkConnection() ?: TuneResult.NotConnected
-                DiagnosticCommand.TuneUp -> receiver?.step(Direction.Down)
-                DiagnosticCommand.TuneDown -> receiver?.step(Direction.Up)
-                DiagnosticCommand.Band -> receiver?.switchBand() ?: TuneResult.NotConnected
-                DiagnosticCommand.PlaySelect -> receiver?.snapshot?.confirmed?.let { receiver?.select(it.band, it.frequencyKhz) }
-                    ?: TuneResult.BandNotFM
-                DiagnosticCommand.SeekUp -> receiver?.seek(Direction.Down)
-                DiagnosticCommand.SeekDown -> receiver?.seek(Direction.Up)
+            val reason = when {
+                result != TuneResult.RateLimited -> result.reason()
+                retained -> null // The controller kept the latest target until playSelect is due.
+                else -> RejectReason.Busy
             }
-            done(result ?: TuneResult.NotConnected)
+            postOutcome(result, valid) { done(reason) }
         }
     }
     private val manager by lazy { context.getSystemService(UsbManager::class.java) }
-    private val worker = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Module") }
     private val log by lazy {
         AsyncDiagnosticLog(create = {
             DiagnosticLog(java.io.File(context.filesDir, "module-diagnostics"),
@@ -94,7 +115,13 @@ class AndroidUsbAdapter(
     private var openingStation: TuneTarget? = null
     private var pendingOpening = false
     private var openingRequestedAt = 0L
-    private var connectionGeneration = 0L
+    @Volatile var connectionGeneration = 0L
+        private set
+    private fun postCurrent(action: () -> Unit) {
+        val generation = connectionGeneration
+        main.post { if (generation == connectionGeneration) action() }
+    }
+
     private var returnGeneration = 0L
     private fun moduleReturning() {
         launch.cancel()
@@ -114,32 +141,44 @@ class AndroidUsbAdapter(
         onReadAudioCounters = { audio.snapshot }, onStartAudio = { audio.play() }, onStopAudio = { audio.stop() },
         moduleReturning = ::moduleReturning,
         transitionStarted = { signal ->
-            val method = if (!signal) TransitionSignalMethod.Off else fm.heterodyne.app.ui.TransitionSignalPreferences.readMethod(
+            val method = if (!signal) TransitionSignalMethod.Off else fm.heterodyne.app.host.TransitionSignalPreferences.readMethod(
                 context.getSharedPreferences("transition-signal", Context.MODE_PRIVATE))
-            main.post { transitionSignal.begin(method) }
+            postCurrent { transitionSignal.begin(method) }
         },
-        transitionCommandSent = { sentAt -> main.post { transitionSignal.commandSent(sentAt) } },
+        transitionCommandSent = { sentAt -> postCurrent { transitionSignal.commandSent(sentAt) } },
         transitionChanged = { state ->
             when (state) {
                 TransitionState.Unconfirmed, TransitionState.Unresponsive, TransitionState.Disconnected ->
-                    main.post { transitionSignal.stop() }
+                    postCurrent { transitionSignal.stop() }
                 else -> Unit
             }
         },
-        transitionConfirmed = { main.post { transitionSignal.confirm() } },
-        beforeTick = { launch.guardPendingWork() },
-        seekLimitMillis = { fm.heterodyne.app.ui.SeekPreferences.readSeconds(
+        transitionConfirmed = { postCurrent { transitionSignal.confirm() } },
+        deferredFailure = { pendingTune?.failed?.invoke(it) }, beforeTick = ::guardPending,
+        seekLimitMillis = { fm.heterodyne.app.host.SeekPreferences.readSeconds(
             context.getSharedPreferences("seek", Context.MODE_PRIVATE)).toLong() * 1000 },
-        frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency -> if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) main.post { stationChanged(band, frequency) } }, changed = { state ->
-        if (state == ConnectionState.Disconnected) {
-            connectionGeneration++
-            returnGeneration = cancellation.capture()
-            playbackStopping = playbackServiceActive
-            frames.resetConnection()
-        }
-        if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) main.post { changed(state) }
-    }, transitionObserved = { if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) publishSelection() },
-        seekPaused = { remaining -> main.post { seekPaused(remaining) } }) }
+        frameObserved = { direction, bytes -> frames.accept(direction, bytes, System.currentTimeMillis()) }, stationChanged = { band, frequency ->
+            val generation = connectionGeneration
+            if (frequency != null && selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module)
+                postCurrent { stationChanged(band, frequency, generation) }
+        }, changed = { state ->
+            if (state == ConnectionState.Open || state == ConnectionState.Disconnected) connectionGeneration++
+            if (state == ConnectionState.Disconnected) {
+                pendingOpening = false
+                cancellation.cancel()
+                returnGeneration = cancellation.capture()
+                main.post { transitionSignal.stop() }
+                playbackStopping = playbackServiceActive
+                frames.resetConnection()
+            }
+            publishSelection()
+        }, transitionObserved = { publishSelection() },
+        seekPaused = { remaining -> postCurrent { seekPaused(remaining) } }) }
+    private fun guardPending() {
+        if (pendingTune?.valid?.invoke() == false) controller.discardUnsentTarget()
+        if (controller.target == null) pendingTune = null
+        launch.guardPendingWork()
+    }
     private val cancellation = AutostartGeneration()
     @Volatile private var launchGeneration = cancellation.capture()
     @Volatile private var playbackServiceActive = false
@@ -177,7 +216,7 @@ class AndroidUsbAdapter(
                 }
             }
         },
-        noFocusChanged = { denied -> main.post { noFocusChanged(denied) } },
+        noFocusChanged = { denied -> val token = launchGeneration; postCurrent { if (!denied || !cancellation.isCancelled(token)) noFocusChanged(denied) } },
         cancelled = { cancellation.isCancelled(launchGeneration) },
         isPlaying = ::playbackActive, isPlaybackStopping = { playbackStopping })
 
@@ -224,7 +263,7 @@ class AndroidUsbAdapter(
             })
     }
     private val focus: AudioFocusController by lazy { AudioFocusController(AndroidAudioFocusManager(
-        audioManager), sink, log, signalVolume = transitionSignal::setFocusVolume) }
+        audioManager), sink, log, effectChanged = focusChanged, signalVolume = transitionSignal::setFocusVolume) }
     private val audio: AudioPlayback by lazy {
         AudioPlayback({ receiver?.state == ConnectionState.Observing },
             fixture?.source ?: UsbIsoSource { hardwareTransport.fileDescriptor }, sink,
@@ -234,9 +273,9 @@ class AndroidUsbAdapter(
                 task.run()
             }, "Audio") }, onMain = { task -> main.post { task() } },
             pauseContext = { controller.pauseContext(android.os.SystemClock.elapsedRealtime()) + ", " + focus.status }) { counters ->
-            main.post {
+            postCurrent {
                 if (counters.state != AudioState.Playing) transitionSignal.stop()
-                audioChanged(counters)
+                audioChanged(counters.state)
             }
             if (counters.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
@@ -293,21 +332,26 @@ class AndroidUsbAdapter(
         }, 0, 10, TimeUnit.MILLISECONDS)
         retry()
     }
-    fun select(band: Band, frequencyKhz: Int) { cancelAutostart(); worker.execute { receiver?.select(band, frequencyKhz) } }
-    fun seek(direction: Direction) { cancelAutostart(); worker.execute { if (receiver?.capabilities?.seek == true) receiver?.seek(direction) } }
-    fun checkConnection() { worker.execute { receiver?.checkConnection() ?: TuneResult.NotConnected } }
-    fun retry() { worker.execute { try { discover() } catch (_: Exception) { receiverError() } } }
+    fun wheelSelect(frequencyKhz: Int, valid: () -> Boolean) {
+        cancelAutostart()
+        command(valid, {}) { pendingTune = null; it.select(Band.FM, frequencyKhz) }
+    }
+    fun wheelSeek(direction: Direction, valid: () -> Boolean) {
+        cancelAutostart()
+        command(valid, {}) { it.seek(direction) }
+    }
+    fun retry(valid: () -> Boolean = { true }) { worker.execute { if (!valid()) return@execute; try { discover() } catch (_: Exception) { receiverError() } } }
     private fun receiverError() {
         if (selection.selectedKind == fm.heterodyne.app.receiver.ReceiverKind.Module) controller.error()
         else { receiver?.stopAudio(); receiver?.close(); publishSelection() }
     }
-    fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) {
+    fun playAudio(autostart: Boolean, started: () -> Unit, stopped: () -> Unit, valid: () -> Boolean) {
         if (closing) { stopped(); return }
         if (!autostart) cancelAutostart()
         playbackServiceActive = true
         worker.execute {
             val completed = if (autostart) pendingAutostart else null
-            if (closing || (autostart && (cancellation.isCancelled(launchGeneration) || !launch.startingPlayback))) {
+            if (closing || !valid() || (autostart && (cancellation.isCancelled(launchGeneration) || !launch.startingPlayback))) {
                 completed?.let { completeAutostart(it, false) }
                 if (!audioActive()) stopped() // A cancelled old start cannot stop an already playing service.
                 return@execute
@@ -315,17 +359,12 @@ class AndroidUsbAdapter(
             playbackStopped = stopped
             val playing = receiver?.playAudio() == true
             completed?.let { completeAutostart(it, playing) }
-            if (playing || audioActive()) main.post { started() }
+            if (playing || audioActive()) main.post { if (valid() && playbackServiceActive) started() }
             if (!playing && audio.snapshot.state in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
         }
     }
-    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
-        if (!closing) select(Band.FM, entry.frequencyKhz)
-    }
-    fun stepStation(direction: Direction) { cancelAutostart(); if (!closing) worker.execute { receiver?.step(direction) } }
-    fun seekStation(direction: Direction) = seek(direction)
     fun reclaimAudioFocus(completed: () -> Unit) {
-        if (!closing) main.post { focus.reclaim(); completed() }
+        if (!closing && playbackServiceActive) { focus.reclaim(); completed() }
     }
     fun updatePlaybackService(active: Boolean) {
         playbackServiceActive = active
@@ -344,6 +383,7 @@ class AndroidUsbAdapter(
         activeDeviceId = null
         permissionEpoch++
         if (selection.selectedKind != fm.heterodyne.app.receiver.ReceiverKind.Module) {
+            connectionGeneration++
             launch.cancel()
             receiver?.stopAudio()
             receiver?.close()
@@ -355,9 +395,9 @@ class AndroidUsbAdapter(
         controller.detach(deviceId)
         audio.acknowledgeDetach()
     }
-    fun selectReceiver(kind: fm.heterodyne.app.receiver.ReceiverKind, parked: () -> Boolean) {
+    fun selectReceiver(kind: fm.heterodyne.app.receiver.ReceiverKind, current: () -> Boolean, parked: () -> Boolean) {
         worker.execute {
-            if (!parked() || kind !in profiles.kinds || kind == selection.selectedKind) return@execute
+            if (!current() || !parked() || kind !in profiles.kinds || kind == selection.selectedKind) return@execute
             pendingOpening = false
             launch.cancel()
             // stopAudio ждёт завершения звукового потока до закрытия USB (ADR 0004).
@@ -367,43 +407,30 @@ class AndroidUsbAdapter(
             permissionEpoch++
             // Закрытие USB синхронное: движение могло начаться за это время (R28). Тогда остаётся прежний выбор.
             if (!selection.select(kind, parked())) { publishSelection(); discover(); return@execute }
+            connectionGeneration++
             launchInstance = null
             publishSelection()
             discover()
         }
     }
 
-    private var published = false
-    private var publishedKind: fm.heterodyne.app.receiver.ReceiverKind? = null
-    private var publishedState: ConnectionState? = null
-    private var publishedSnapshot: TransitionSnapshot? = null
-    private var publishedAudio: AudioCounters? = null
+    private var published: ReceiverObservation? = null
     private fun publishSelection() {
         val selected = receiver
-        val kind = selection.selectedKind
-        val capabilities = selected?.capabilities
-        val state = selected?.state ?: ConnectionState.Disconnected
-        val snapshot = selected?.snapshot?.takeUnless { state == ConnectionState.Disconnected }
+        val connection = selected?.state ?: ConnectionState.Disconnected
+        val snapshot = selected?.snapshot?.takeIf { connection == ConnectionState.Observing }
             ?: TransitionSnapshot(TransitionState.Disconnected, null, null)
-        val counters = selected?.audioCounters ?: AudioCounters()
-        val selectionChangedNow = !published || publishedKind != kind
-        if (!selectionChangedNow && state == publishedState && snapshot == publishedSnapshot && counters == publishedAudio) return
-        val snapshotChangedNow = selectionChangedNow || snapshot != publishedSnapshot
-        published = true
-        publishedKind = kind
-        publishedState = state
-        publishedSnapshot = snapshot
-        publishedAudio = counters
-        if (kind != fm.heterodyne.app.receiver.ReceiverKind.Module && counters.state in listOf(AudioState.Stopped, AudioState.Failed))
-            finishPlayback()
-        main.post {
-            if (selectionChangedNow) selectionChanged(kind, capabilities)
-            changed(state)
-            if (snapshotChangedNow) transitionObserved(snapshot)
-            if (kind != fm.heterodyne.app.receiver.ReceiverKind.Module) {
-                stationChanged(snapshot.confirmed?.band ?: Band.FM, snapshot.confirmed?.frequencyKhz)
-                audioChanged(counters)
-            }
+        val next = ReceiverObservation(connectionGeneration, selection.selectedKind, selected?.capabilities,
+            connection, snapshot, selected?.audioCounters?.state ?: AudioState.Stopped)
+        if (published == next) return
+        val previous = published
+        published = next
+        if (next.kind != fm.heterodyne.app.receiver.ReceiverKind.Module &&
+            next.audio in listOf(AudioState.Stopped, AudioState.Failed)) finishPlayback()
+        postCurrent {
+            observed(next)
+            if (next.kind != fm.heterodyne.app.receiver.ReceiverKind.Module && next.tuning.confirmed != previous?.tuning?.confirmed)
+                next.tuning.confirmed?.let { stationChanged(it.band, it.frequencyKhz, next.generation) }
         }
     }
 
@@ -425,7 +452,7 @@ class AndroidUsbAdapter(
         }
         val before = selection.selectedKind
         selection.discover(devices)
-        if (before != selection.selectedKind) { launchInstance?.cancel(); launchInstance = null }
+        if (before != selection.selectedKind) { connectionGeneration++; launchInstance?.cancel(); launchInstance = null }
         publishSelection()
         startPendingOpening()
         val selected = receiver ?: return
@@ -450,7 +477,7 @@ class AndroidUsbAdapter(
         started = false
         polling?.cancel(false)
         closing = true
-        main.post { transitionSignal.stop() }
+        postCurrent { transitionSignal.stop() }
         worker.execute { try { launch.cancel(); receiver?.close() } finally { log.close(); worker.shutdown() } }
     }
 }
@@ -556,8 +583,8 @@ private class AndroidUsbTransport(
     }
 }
 
-/** Closed list; no raw command entry point. Direction names follow the command catalog. */
-enum class DiagnosticCommand(val label: String) {
-    RequestAllInfo("requestAllInfo"), TuneUp("TUNEUP"), TuneDown("TUNEDOWN"), Band("BAND"),
-    PlaySelect("playSelect — текущая частота"), SeekUp("SEEKUP"), SeekDown("SEEKDOWN")
-}
+internal fun moduleWorker() = Executors.newSingleThreadScheduledExecutor { task -> Thread(task, "Module") }
+
+data class ReceiverObservation(val generation: Long, val kind: fm.heterodyne.app.receiver.ReceiverKind?,
+    val capabilities: fm.heterodyne.app.receiver.ReceiverCapabilities?, val connection: ConnectionState,
+    val tuning: TransitionSnapshot, val audio: AudioState)

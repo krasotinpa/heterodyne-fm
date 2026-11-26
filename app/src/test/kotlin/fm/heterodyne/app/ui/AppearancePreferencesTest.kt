@@ -1,5 +1,8 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.AppearancePreferences
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ThemeChoice
 import android.app.Application
 import android.content.Context
 import org.junit.Assert.*

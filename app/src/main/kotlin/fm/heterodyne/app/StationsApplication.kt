@@ -17,6 +17,9 @@ open class StationsApplication : Application() {
     lateinit var diagnostics: StationsDiagnostics
         private set
 
+    lateinit var radio: ApplicationAdapter
+        private set
+
     override fun onCreate() {
         super.onCreate()
         val main = Handler(Looper.getMainLooper())
@@ -25,6 +28,7 @@ open class StationsApplication : Application() {
             startForegroundService(Intent(this, PlaybackService::class.java))
         }
         diagnostics = StationsDiagnostics(this, main, module.usb)
+        radio = ApplicationAdapter(this, module, session, diagnostics)
         session.load {
             main.post { module.usb.start() }
         }

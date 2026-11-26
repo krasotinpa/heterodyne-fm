@@ -1,5 +1,7 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ResolvedTheme
 import fm.heterodyne.app.module.Direction
 import fm.heterodyne.app.module.TransitionSnapshot
 import fm.heterodyne.app.module.TransitionState

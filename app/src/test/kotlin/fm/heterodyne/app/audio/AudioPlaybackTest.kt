@@ -148,6 +148,7 @@ class AudioPlaybackTest {
         val playback = AudioPlayback({ true }, source, sink, FakePort(calls),
             DiagnosticLog(temporary.newFolder()))
         playback.play()
+        assertNull(playback.snapshot.minBufferedFrames)
         repeat(40) { playback.receive() }
         assertEquals(24000L, playback.snapshot.minBufferedFrames)
         sink.buffered = 320
@@ -336,7 +337,8 @@ class AudioPlaybackTest {
             source.empty = true
             source.bad = 1
             repeat(40) { playback.receive() }
-            assertEquals(before.copy(maxReadGapMs = playback.snapshot.maxReadGapMs), playback.snapshot)
+            assertEquals(before.copy(maxReadGapMs = playback.snapshot.maxReadGapMs,
+                hasReadGapSample = readsBeforeIdle > 0), playback.snapshot)
             assertEquals(writes, sink.writeCalls)
             calls.clear()
             playback.stop()

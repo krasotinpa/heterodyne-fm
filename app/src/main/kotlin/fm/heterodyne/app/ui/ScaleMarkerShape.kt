@@ -1,5 +1,6 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ScaleMarker
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.BasicText

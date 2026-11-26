@@ -1,11 +1,8 @@
 package fm.heterodyne.app
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 class DeveloperMode(initial: Boolean, private val save: (Boolean) -> Unit) {
-    var enabled by mutableStateOf(initial)
+    var enabled = initial
         private set
 
     fun setEnabled(value: Boolean, parked: Boolean) {

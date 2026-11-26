@@ -1,5 +1,8 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.DrivingMonitor
+import fm.heterodyne.app.host.DrivingSpeedSource
+import fm.heterodyne.app.host.DrivingState
 import org.junit.Assert.*
 import org.junit.Test
 

@@ -1,4 +1,4 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 sealed interface ProbeReading<out T> {
     data class Value<T>(val value: T) : ProbeReading<T>

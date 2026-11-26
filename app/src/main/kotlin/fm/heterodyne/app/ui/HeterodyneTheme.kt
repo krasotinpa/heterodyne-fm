@@ -1,6 +1,10 @@
 package fm.heterodyne.app.ui
 
-import android.content.res.Configuration
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ResolvedTheme
+import fm.heterodyne.app.host.ThemeChoice
+import fm.heterodyne.app.host.headUnitNight
+import fm.heterodyne.app.host.resolveTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -22,13 +26,6 @@ class AppearanceColors(val palette: Palette, val theme: ResolvedTheme) {
 }
 
 val LocalAppearanceColors = staticCompositionLocalOf { AppearanceColors(Palette.Coral, ResolvedTheme.Dark) }
-
-/** The Android night configuration is the available head-unit day/night input. */
-fun headUnitNight(uiMode: Int): Boolean? = when (uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-    Configuration.UI_MODE_NIGHT_YES -> true
-    Configuration.UI_MODE_NIGHT_NO -> false
-    else -> null
-}
 
 @Composable
 fun HeterodyneTheme(choice: ThemeChoice, palette: Palette, content: @Composable () -> Unit) {

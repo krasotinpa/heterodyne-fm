@@ -1,5 +1,8 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ScaleMarker
+import fm.heterodyne.app.host.ThemeChoice
 import android.app.Application
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize

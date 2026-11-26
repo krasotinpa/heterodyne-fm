@@ -1,9 +1,8 @@
 package fm.heterodyne.app
 
 import android.os.Handler
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import fm.heterodyne.ui.contract.*
+import fm.heterodyne.app.stations.ChangeError
 import fm.heterodyne.app.module.Band
 import fm.heterodyne.app.module.TuneTarget
 import fm.heterodyne.app.stations.AssetsCatalogReader
@@ -27,6 +26,9 @@ data class StationsScreenState(
     val error: String? = null,
     val nameError: String? = null,
     val frequencyError: String? = null,
+    val editIssue: EditIssue? = null,
+    val dataIssue: DataIssue? = null,
+    val update: CatalogUpdate = CatalogUpdate.Idle,
     val catalogUpdateBusy: Boolean = false,
     val catalogUpdateResult: String? = null,
 ) {
@@ -54,17 +56,44 @@ class StationsSession(
         AssetsCatalogReader { context.assets.open("catalogs/$it") }),
 ) {
     private val repository = StationsRepository(file)
-    // Only the storage queue reads or changes these values.
-    private var current = StationsScreenState()
+    // Storage writes immutable snapshots. The receiver worker can validate a station reference.
+    @Volatile private var current = StationsScreenState()
     private var pendingLastPlayed: Boolean? = null
-    var screen by mutableStateOf(StationsScreenState())
+    internal var changed: () -> Unit = {}
+    internal var captureAccess: (Boolean) -> (() -> Boolean) = { { true } }
+    private var editIssueAccess: () -> Boolean = { true }
+    private fun edit(parkedOnly: Boolean = true, task: (() -> Boolean) -> Unit) {
+        val valid = captureAccess(parkedOnly)
+        storage.execute { if (valid()) task(valid) }
+    }
+    var screen = StationsScreenState()
         private set
     val activeEntries get() = screen.state?.let { it.regionSelections(it.selectedRegion).active.entries }.orEmpty()
+
+    internal fun stationAccess(action: RadioAction, frequency: Int): () -> Boolean {
+        val region = screen.state?.selectedRegion
+        val selection = screen.state?.regionSelections(region.orEmpty())?.active
+        return {
+            val latest = current
+            when (action) {
+                is RadioAction.SelectStation -> action.regionId == latest.state?.selectedRegion && when (val ref = action.ref) {
+                    is StationRef.Selection -> latest.state.regionSelections(action.regionId).selections
+                        .any { it.name == ref.selectionName && it.entries.any { station -> station.frequencyKhz == ref.frequencyKhz } }
+                    is StationRef.Catalog -> latest.catalogs.firstOrNull { it.region.id == action.regionId }?.stations
+                        ?.any { it.id == ref.stationId && it.frequencyKhz == frequency } == true
+                }
+                is RadioAction.MoveInSelection -> region != null && latest.state?.selectedRegion == region &&
+                    latest.state.regionSelections(region).active == selection
+                else -> true
+            }
+        }
+    }
 
     private val updateLock = Any()
     private var updateAllowed = false
     private var updateGeneration = 0L
-    private var updating = false
+    @Volatile private var updating = false
+    internal val catalogBusy get() = updating
     private var download: fm.heterodyne.app.stations.CatalogReader? = null
 
     /** Вызывается при выходе из стоянки, начале движения и уходе Activity в фон. */
@@ -77,7 +106,7 @@ class StationsSession(
             download = null
             updating = false
             storage.execute {
-                current = current.copy(catalogUpdateBusy = false)
+                current = current.copy(catalogUpdateBusy = false, update = CatalogUpdate.Idle)
                 publish()
             }
         }
@@ -86,21 +115,22 @@ class StationsSession(
     fun updateCatalog() = synchronized(updateLock) {
         if (!updateAllowed || updating) return@synchronized
         updating = true
+        val valid = captureAccess(true)
         val generation = ++updateGeneration
         storage.execute {
-            current = current.copy(catalogUpdateBusy = true, catalogUpdateResult = null)
+            current = current.copy(update = CatalogUpdate.InProgress, catalogUpdateBusy = true, catalogUpdateResult = null)
             publish()
         }
         network.execute {
             val result = runCatching {
                 val reader = synchronized(updateLock) {
-                    check(updateAllowed && generation == updateGeneration)
+                    check(valid() && updateAllowed && generation == updateGeneration)
                     onlineCatalog().also { download = it }
                 }
                 reader.use {
                     val files = linkedMapOf<String, ByteArray>()
                     val candidate = fm.heterodyne.app.stations.loadCatalogSet(fm.heterodyne.app.stations.CatalogReader { name ->
-                        synchronized(updateLock) { check(updateAllowed && generation == updateGeneration) }
+                        synchronized(updateLock) { check(valid() && updateAllowed && generation == updateGeneration) }
                         reader.read(name).copyOf().also { files[name] = it }
                     })
                     candidate to files
@@ -108,49 +138,64 @@ class StationsSession(
             }
             storage.execute {
                 val outcome = runCatching {
-                    synchronized(updateLock) { check(updateAllowed && generation == updateGeneration) }
+                    synchronized(updateLock) { check(valid() && updateAllowed && generation == updateGeneration) }
                     val (candidate, files) = result.getOrThrow()
                     if (candidate.revision <= catalogStore.active().revision) null
                     else catalogStore.install(fm.heterodyne.app.stations.CatalogReader { files.getValue(it) },
                         publish = { commit ->
                             synchronized(updateLock) {
-                                check(updateAllowed && generation == updateGeneration)
+                                check(valid() && updateAllowed && generation == updateGeneration)
                                 commit()
                             }
                         }).getOrThrow()
                 }
+                // A successful pointer swap commits the catalog even if its UI context just closed.
+                val installed = outcome.getOrNull()
+                if (installed != null) current = current.copy(catalogs = installed.catalogs)
                 synchronized(updateLock) {
-                    if (!updateAllowed || generation != updateGeneration) return@execute
+                    if (!updateAllowed || generation != updateGeneration) {
+                        if (installed != null) publish()
+                        return@execute
+                    }
                     download = null
-                    val installed = outcome.getOrNull()
-                    if (installed != null) current = current.copy(catalogs = installed.catalogs)
+                    if (!valid()) {
+                        updating = false
+                        current = current.copy(catalogUpdateBusy = false, update = CatalogUpdate.Idle)
+                        publish()
+                        return@execute
+                    }
                     val message = when {
                         outcome.isFailure -> "Не удалось обновить Справочник"
                         installed == null -> "Нет обновлений"
                         else -> "Справочник обновлён: Ревизия ${installed.revision}"
                     }
                     updating = false
-                    current = current.copy(catalogUpdateBusy = false, catalogUpdateResult = message)
+                    current = current.copy(catalogUpdateBusy = false, catalogUpdateResult = message, update = when {
+                        outcome.isFailure -> CatalogUpdate.Failed
+                        installed == null -> CatalogUpdate.NoUpdate
+                        else -> CatalogUpdate.Updated(installed.revision)
+                    })
                     publish()
                 }
             }
         }
     }
 
-    fun activateSelection(name: String) {
-        storage.execute {
-            val state = current.state ?: return@execute
+    fun activateSelection(name: String, regionId: String? = null) {
+        edit(parkedOnly = false) {
+            val state = current.state ?: return@edit
+            if (regionId != null && regionId != state.selectedRegion) return@edit
             // Молчаливый выход при NOT_FOUND: в Режиме движения Подборки не правят, значит случай недостижим.
             // В Режиме стоянки это гонка быстрых нажатий («Удалить», сразу «Сделать активной»); экран уже обновился.
-            val region = state.regionSelections(state.selectedRegion).activate(name).value ?: return@execute
+            val region = state.regionSelections(state.selectedRegion).activate(name).value ?: return@edit
             save(state.copy(regions = state.regions + (state.selectedRegion to region)))
         }
     }
 
     fun clearNameError() {
-        storage.execute {
-            if (current.nameError == null && current.frequencyError == null) return@execute
-            current = current.copy(nameError = null, frequencyError = null)
+        edit {
+            if (current.editIssue == null && current.nameError == null && current.frequencyError == null) return@edit
+            current = current.copy(nameError = null, frequencyError = null, editIssue = null, error = current.error.takeIf { current.dataIssue != null })
             publish()
         }
     }
@@ -161,6 +206,9 @@ class StationsSession(
     fun addStation(regionId: String, name: String, entry: fm.heterodyne.app.stations.StationEntry) = changeSelection(regionId, name) {
         val trimmed = entry.name?.trim().orEmpty()
         when {
+            entry.catalogId != null && current.catalogs.firstOrNull { it.region.id == regionId }?.stations?.none {
+                it.id == entry.catalogId && it.frequencyKhz == entry.frequencyKhz
+            } != false -> fm.heterodyne.app.stations.Change(error = ChangeError.NOT_FOUND)
             trimmed.isEmpty() || trimmed.length > 32 -> fm.heterodyne.app.stations.Change(error = fm.heterodyne.app.stations.ChangeError.INVALID_NAME)
             !fm.heterodyne.app.module.isSelectableFrequency(Band.FM, entry.frequencyKhz) ->
                 fm.heterodyne.app.stations.Change(error = fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY)
@@ -187,31 +235,32 @@ class StationsSession(
         }
 
     private fun changeRegion(regionId: String, station: Boolean = false, change: (fm.heterodyne.app.stations.RegionSelections) -> fm.heterodyne.app.stations.Change<fm.heterodyne.app.stations.RegionSelections>) {
-        storage.execute {
+        edit { valid ->
             // Молчаливые выходы, сообщения пользователю нет:
             // 1. state == null бывает только при загрузке; экран показывает «Загрузка…», кнопок правки нет.
             // 2. Устаревший Регион — гонка двух быстрых нажатий в Режиме стоянки; экран уже показывает новый Регион,
             //    и сообщение лишь запутало бы пользователя.
-            val state = current.state ?: return@execute
-            if (regionId != state.selectedRegion) return@execute
+            val state = current.state ?: return@edit
+            if (regionId != state.selectedRegion) return@edit
             val result = change(state.regionSelections(regionId))
             val region = result.value
             if (region != null) save(state.copy(regions = state.regions + (regionId to region)))
             else {
-                val message = when (result.error) {
-                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME -> if (station) "Введите имя Станции: от 1 до 32 символов" else "Введите имя Подборки"
-                    fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY -> "Введите FM-частоту 87,5–108,0 МГц с шагом 0,1"
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> "Подборка с таким именем уже есть"
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY -> "Частота уже есть в Подборке"
-                    fm.heterodyne.app.stations.ChangeError.LAST_SELECTION -> "Нельзя удалить последнюю Подборку"
-                    else -> "Подборка или Станция не найдены"
-                }
+                editIssueAccess = valid
+                val form = current.copy(nameError = null, frequencyError = null,
+                    error = current.error.takeIf { current.dataIssue != null })
                 current = when (result.error) {
-                    fm.heterodyne.app.stations.ChangeError.INVALID_NAME,
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_NAME -> current.copy(nameError = message, frequencyError = null)
-                    fm.heterodyne.app.stations.ChangeError.DUPLICATE_FREQUENCY,
-                    fm.heterodyne.app.stations.ChangeError.INVALID_FREQUENCY -> current.copy(frequencyError = message, nameError = null)
-                    else -> current.copy(error = message)
+                    ChangeError.INVALID_NAME -> form.copy(editIssue = EditIssue.InvalidName,
+                        nameError = if (station) "Введите имя Станции: от 1 до 32 символов" else "Введите имя Подборки")
+                    ChangeError.INVALID_FREQUENCY -> form.copy(editIssue = EditIssue.InvalidFrequency,
+                        frequencyError = "Введите FM-частоту 87,5–108,0 МГц с шагом 0,1")
+                    ChangeError.DUPLICATE_NAME -> form.copy(editIssue = EditIssue.DuplicateName,
+                        nameError = "Подборка с таким именем уже есть")
+                    ChangeError.DUPLICATE_FREQUENCY -> form.copy(editIssue = EditIssue.DuplicateFrequency,
+                        frequencyError = "Частота уже есть в Подборке")
+                    ChangeError.LAST_SELECTION -> form.copy(editIssue = EditIssue.LastSelection,
+                        error = "Нельзя удалить последнюю Подборку")
+                    else -> form.copy(editIssue = EditIssue.NotFound, error = "Подборка или Станция не найдены")
                 }
                 publish()
             }
@@ -230,7 +279,7 @@ class StationsSession(
                 if (loaded.status == LoadStatus.MISSING) save(initialSelections(loaded.copy(state = state), catalogs))
                 else if (loaded.status == LoadStatus.LOADED) save(state)
             } catch (_: Exception) {
-                current = current.copy(error = "Не удалось прочитать Справочники")
+                current = current.copy(dataIssue = DataIssue.LoadFailed, error = "Не удалось прочитать Справочники")
             }
             publish()
             val station = current.state?.lastStation
@@ -250,10 +299,10 @@ class StationsSession(
         }
     }
 
-    fun rememberStation(band: Band, frequency: Int, saved: () -> Unit) {
+    fun rememberStation(band: Band, frequency: Int, valid: () -> Boolean = { true }, saved: () -> Unit) {
         storage.execute {
             val state = current.state ?: return@execute
-            if (!fm.heterodyne.app.module.isSelectableFrequency(band, frequency)) return@execute
+            if (!valid() || !fm.heterodyne.app.module.isSelectableFrequency(band, frequency)) return@execute
             val station = SessionStation(frequency)
             if (save(state.copy(lastStation = station))) saved()
         }
@@ -268,18 +317,18 @@ class StationsSession(
     }
 
     fun selectRegion(id: String) {
-        storage.execute {
-            val state = current.state ?: return@execute
-            if (current.catalogs.none { it.region.id == id } && id !in state.regions) return@execute // устаревшее действие UI отбрасывается молча, как в changeRegion
+        edit {
+            val state = current.state ?: return@edit
+            if (current.catalogs.none { it.region.id == id } && id !in state.regions) return@edit // устаревшее действие UI отбрасывается молча, как в changeRegion
             val next = state.copy(selectedRegion = id, regions = state.regions + (id to state.regionSelections(id)))
             save(next)
         }
     }
 
     fun deleteObsoleteRegion(id: String) {
-        storage.execute {
-            val state = current.state ?: return@execute
-            if (id !in state.regions || current.catalogs.any { it.region.id == id }) return@execute
+        edit {
+            val state = current.state ?: return@edit
+            if (id !in state.regions || current.catalogs.any { it.region.id == id }) return@edit
             val selected = if (state.selectedRegion == id)
                 current.catalogs.firstOrNull { it.region.id == "moskva" }?.region?.id
                     ?: current.catalogs.first().region.id
@@ -295,14 +344,23 @@ class StationsSession(
         if (pendingLastPlayed == null && next == current.state && !current.recovered && current.error == null && current.nameError == null && current.frequencyError == null) return true
         val saved = repository.save(next)
         if (saved) pendingLastPlayed = null
-        current = if (saved) current.copy(state = next, error = null, nameError = null, frequencyError = null)
-        else current.copy(error = "Не удалось сохранить состояние")
+        current = if (saved) current.copy(state = next, dataIssue = null, editIssue = null, error = null, nameError = null, frequencyError = null)
+        else current.copy(dataIssue = DataIssue.SaveFailed, error = "Не удалось сохранить состояние")
         publish()
         return saved
     }
 
+    private fun StationsScreenState.withoutEditIssue() = if (editIssue == null) this else
+        copy(nameError = null, frequencyError = null, editIssue = null, error = error.takeIf { dataIssue != null })
+
+    internal fun clearPublishedEditIssue() { screen = screen.withoutEditIssue() }
+
     private fun publish() {
         val snapshot = current
-        main.post { screen = snapshot }
+        val valid = editIssueAccess
+        main.post {
+            screen = if (valid()) snapshot else snapshot.withoutEditIssue()
+            changed()
+        }
     }
 }

@@ -16,6 +16,6 @@ class DiagnosticFrames(private val capacity: Int = 100) {
         records.addLast("$time $direction " + bytes.take(4096).joinToString("") { "%02x".format(it.toInt() and 255) })
         if (direction == "RX") decoder.accept(bytes)
     }
-    @Synchronized fun resetConnection() { decoder.clear(); byte7 = null }
+    @Synchronized fun resetConnection() { records.clear(); decoder.clear(); byte7 = null }
     @Synchronized fun snapshot(): List<String> = records.toList()
 }

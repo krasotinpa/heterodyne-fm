@@ -1,5 +1,7 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ScaleMarker
+import fm.heterodyne.app.host.ScaleMarkerPreferences
 import android.content.SharedPreferences
 import java.lang.reflect.Proxy
 import org.junit.Assert.*

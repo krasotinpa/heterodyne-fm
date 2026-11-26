@@ -1,5 +1,8 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ResolvedTheme
+import fm.heterodyne.app.host.ThemeChoice
+import fm.heterodyne.app.host.resolveTheme
 import org.junit.Assert.*
 import org.junit.Test
 
