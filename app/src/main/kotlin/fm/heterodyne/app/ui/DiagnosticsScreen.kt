@@ -19,14 +19,6 @@ import fm.heterodyne.app.BuildConfig
 import fm.heterodyne.app.StationsDiagnostics
 
 @Composable
-fun DiagnosticsScreen(app: StationsDiagnostics, parked: Boolean, connected: Boolean, export: () -> Unit,
-                      receiverKind: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module,
-                      receiverName: (fm.heterodyne.app.receiver.ReceiverKind) -> String = fm.heterodyne.app.receiver.ReceiverProfiles.Module::displayName) {
-    DiagnosticsContent(parked, connected, app.developerMode.enabled, app.exportBusy, app.diagnosticMessage,
-        { app.developerMode.setEnabled(it, parked) }, export, receiverKind, receiverName)
-}
-
-@Composable
 internal fun DiagnosticsContent(parked: Boolean, connected: Boolean, developerEnabled: Boolean,
                                 exportBusy: Boolean, message: String?, setDeveloper: (Boolean) -> Unit,
                                 export: () -> Unit, receiverKind: fm.heterodyne.app.receiver.ReceiverKind? = fm.heterodyne.app.receiver.ReceiverKind.Module,

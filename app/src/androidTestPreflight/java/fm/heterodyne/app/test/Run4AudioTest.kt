@@ -26,6 +26,9 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
+import fm.heterodyne.ui.contract.RadioAction
+import fm.heterodyne.ui.contract.Admission
+import kotlinx.coroutines.runBlocking
 import fm.heterodyne.app.module.ConnectionState
 import fm.heterodyne.app.module.TransitionState
 import java.util.concurrent.atomic.AtomicReference
@@ -54,7 +57,7 @@ class Run4AudioTest {
             app.session.screen.state != null && module.moduleState == ConnectionState.Observing &&
                 module.transition.confirmed != null
         }
-        compose.runOnIdle { module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         compose.waitUntil(15000) {
             module.audioCounters.state == AudioState.Playing &&
                 module.audioCounters.bytes >= 96000 && module.transition.confirmed?.frequencyKhz == 97700
@@ -122,11 +125,13 @@ class Run4AudioTest {
         val region = checkNotNull(app.session.screen.state).selectedRegion
         val stations = listOf(StationEntry(97700, "E FM 1"), StationEntry(99100, "E FM 2"))
         compose.runOnIdle {
+            app.radio.submit(RadioAction.EnterParking)
             app.session.createSelection(region, name)
             stations.forEach { app.session.addStation(region, name, it) }
             app.session.activateSelection(name)
         }
         compose.waitUntil(15000) { app.session.activeEntries == stations }
+        compose.runOnIdle { app.radio.submit(RadioAction.ExitParking) }
     }
 
     private fun noSignal(before: String) {

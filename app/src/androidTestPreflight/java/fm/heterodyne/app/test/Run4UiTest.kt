@@ -11,7 +11,10 @@ import fm.heterodyne.app.BuildConfig
 import fm.heterodyne.app.MainActivity
 import fm.heterodyne.app.audio.AudioState
 import fm.heterodyne.app.preflight.PreflightApplication
-import fm.heterodyne.app.stations.StationEntry
+import fm.heterodyne.ui.contract.Admission
+import fm.heterodyne.ui.contract.RadioAction
+import fm.heterodyne.ui.contract.ExportState
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -242,7 +245,7 @@ class Run4UiTest {
 
     @Test fun exportWhilePlaying() {
         waitFor { app.session.screen.state != null && app.module.transition.confirmed != null }
-        compose.runOnIdle { app.module.pickStation(StationEntry(97700)) }
+        compose.runOnIdle { assertEquals(Admission.Accepted, runBlocking { app.radio.dispatch(RadioAction.TuneFrequency(97700)) }) }
         waitFor { app.module.audioCounters.state == AudioState.Playing && app.module.transition.confirmed?.frequencyKhz == 97700 }
         val starts = app.syntheticPcm.starts.get()
         parked()
@@ -269,9 +272,11 @@ class Run4UiTest {
             val before = names()
             beforeExport()
             click("Экспорт Журнала")
-            waitFor { !app.diagnostics.exportBusy && app.diagnostics.diagnosticMessage != null }
-            val message = app.diagnostics.diagnosticMessage!!
-            assertTrue(message, message.startsWith("Журнал сохранён: Download/"))
+            waitFor { app.radio.state.value.diagnostics.export is ExportState.Exported }
+            val export = app.radio.state.value.diagnostics.export as ExportState.Exported
+            val message = "Журнал сохранён: ${export.path}, ${export.sizeBytes} байт"
+            compose.onNodeWithText(message).assertIsDisplayed()
+            assertTrue(export.path.startsWith("Download/"))
             val added = names() - before
             assertEquals(1, added.size)
             val name = added.single()
@@ -284,7 +289,7 @@ class Run4UiTest {
                 assertEquals("Download/", cursor.getString(3))
                 val bytes = app.contentResolver.openInputStream(ContentUris.withAppendedId(downloads, cursor.getLong(0)))!!.use { it.readBytes() }
                 assertEquals(cursor.getLong(1), bytes.size.toLong())
-                assertTrue(message.contains("${bytes.size} байт"))
+                assertEquals(bytes.size.toLong(), export.sizeBytes)
                 assertTrue(bytes.toString(Charsets.UTF_8).contains("PREFLIGHT"))
                 val sha = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
                 note("MEDIASTORE name=$name bytes=${bytes.size} sha256=$sha pending=0 path=Download/")

@@ -128,10 +128,15 @@ class TransitionTest {
         assertEquals(2, fake.sendCount)
     }
     @Test fun diagnosticBandUsesControllerPauseAndWaitsForReply() {
+        assertEquals(TuneResult.BandNotFM, controller.switchBand())
         receive("fm28")
+        assertEquals(TuneResult.BandNotFM, controller.switchBand())
+        assertEquals(0, fake.sendCount)
+        receive("am31")
         assertEquals(TuneResult.Sent, controller.switchBand())
         assertEquals(TuneResult.RateLimited, controller.switchBand())
         assertEquals(0x84, fake.sentFrames.last()[6].toInt() and 255)
+        receive("fm28")
         receive("am31")
         now = 1999
         assertEquals(TuneResult.RateLimited, controller.switchBand())

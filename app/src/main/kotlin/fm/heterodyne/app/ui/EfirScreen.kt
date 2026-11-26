@@ -1,5 +1,6 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ScaleMarker
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -67,6 +68,7 @@ data class EfirActions(
     val check: () -> Unit = {},
     val play: () -> Unit = {},
     val permission: () -> Unit = {},
+    val selectCatalog: (StationEntry) -> Unit = select,
 )
 
 private val Background: Color @Composable get() = LocalAppearanceColors.current["bg"]
@@ -182,7 +184,7 @@ fun EfirScreen(
                         loupeEnabled = connected && transition.state in listOf(TransitionState.Idle, TransitionState.SeekIncomplete) && transition.target == null &&
                             screen.error == null,
                         windowWidth = windowWidth, select = { entry ->
-                            actions.select(entry)
+                            actions.selectCatalog(entry)
                         },
                         playing = playing, play = actions.play, marker = scaleMarker,
                         saved = displayed.takeIf { confirmed == null })
@@ -217,7 +219,7 @@ fun EfirScreen(
                         horizontalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap")),
                         verticalArrangement = Arrangement.spacedBy(tokenDp("space.plateGap"))) {
                         items(visible, key = { "${it.frequencyKhz}" }) { entry ->
-                            StationPlate(entry, null, transition, connected, actions.select, Modifier.height(plateHeight))
+                            StationPlate(entry, null, transition, connected, actions.selectCatalog, Modifier.height(plateHeight))
                         }
                     }
                 }

@@ -1,205 +1,165 @@
 package fm.heterodyne.app
 
+import android.content.Context
+import android.content.Intent
 import android.os.Handler
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
 import fm.heterodyne.app.audio.AudioState
-import fm.heterodyne.app.module.isSelectableFrequency
-import fm.heterodyne.app.module.Band
-import fm.heterodyne.app.module.ConnectionState
-import fm.heterodyne.app.module.Direction
-import fm.heterodyne.app.module.TransitionSnapshot
-import fm.heterodyne.app.module.TransitionState
-import fm.heterodyne.app.receiver.ReceiverProfiles
+import fm.heterodyne.app.audio.PlaybackService
+import fm.heterodyne.app.host.ReceiverPreferences
+import fm.heterodyne.app.module.*
+import fm.heterodyne.app.receiver.*
 import fm.heterodyne.app.stations.StationEntry
 import fm.heterodyne.app.usb.AndroidUsbAdapter
+import fm.heterodyne.app.usb.ReceiverObservation
+import fm.heterodyne.app.usb.moduleWorker
+import fm.heterodyne.ui.contract.FocusEffect
+import java.util.concurrent.ScheduledExecutorService
 
-/** One USB owner survives Activity recreation. */
+/** Main-thread view of the worker-owned receiver. The service has its own wheel cursor. */
 class StationsModule(
-    context: android.content.Context,
+    context: Context,
     private val main: Handler,
     private val session: StationsSession,
     private val profiles: ReceiverProfiles = ReceiverProfiles.Module,
-    private val additionalReceivers: List<fm.heterodyne.app.receiver.Receiver> = emptyList(),
-    private val fixture: fm.heterodyne.app.receiver.ReceiverFixture? = null,
+    additionalReceivers: List<Receiver> = emptyList(),
+    fixture: ReceiverFixture? = null,
+    worker: ScheduledExecutorService = moduleWorker(),
     private val startPlayback: () -> Unit,
 ) {
-    fun receiverName(kind: fm.heterodyne.app.receiver.ReceiverKind): String = profiles.displayName(kind)
+    internal var changed: () -> Unit = {}
+    fun receiverName(kind: ReceiverKind) = profiles.displayName(kind)
     val receiverKinds get() = profiles.kinds
-    var selectedReceiver by mutableStateOf<fm.heterodyne.app.receiver.ReceiverKind?>(
-        fm.heterodyne.app.ui.ReceiverPreferences(context.getSharedPreferences("receiver", android.content.Context.MODE_PRIVATE)).kind
-            ?.takeIf { it in profiles.kinds } ?: profiles.kinds.singleOrNull())
+    private val initialKind = ReceiverPreferences(context.getSharedPreferences("receiver", Context.MODE_PRIVATE))
+        .kind?.takeIf { it in profiles.kinds } ?: profiles.kinds.singleOrNull()
+    private val noFeatures = ReceiverCapabilities(false, false, false, false, false)
+    private var observation = ReceiverObservation(0, initialKind, moduleCapabilities.takeIf { initialKind == ReceiverKind.Module },
+        ConnectionState.Disconnected, TransitionSnapshot(TransitionState.Disconnected, null, null), AudioState.Stopped)
+    val selectedReceiver get() = observation.kind
+    val capabilities get() = observation.capabilities ?: noFeatures
+    val moduleState get() = observation.connection
+    val transition get() = observation.tuning
+    val currentStation get() = transition.confirmed?.takeIf { it.band == Band.FM }?.let { StationEntry(it.frequencyKhz) }
+    val activeEntries get() = session.activeEntries
+    val generation get() = observation.generation
+    var audioState = AudioState.Stopped
         private set
-    var capabilities by mutableStateOf(if (selectedReceiver == fm.heterodyne.app.receiver.ReceiverKind.Module)
-        fm.heterodyne.app.receiver.moduleCapabilities else fm.heterodyne.app.receiver.ReceiverCapabilities(false, false, false, false, false))
+    var focusEffect = FocusEffect.None
         private set
-    @Volatile private var parked = false
-    @Volatile private var moving = false
-    fun updateParked(value: Boolean) {
-        parked = value && !driving
-        session.allowCatalogUpdate(parked)
-    }
-    fun selectReceiver(kind: fm.heterodyne.app.receiver.ReceiverKind) {
-        if (!parked || driving) return
-        cancelAutostart()
-        usb.selectReceiver(kind) { parked && !moving }
-    }
+    var noFocus = false
+        private set
+    var driving = false
+        private set
+    var seekHintSeconds: Int? = null
+        private set
+    val seekHint get() = seekHintSeconds?.let { "Поиск доступен через $it с" }
+    private val clearSeekHint = Runnable { seekHintSeconds = null; changed() }
 
-    var driving by mutableStateOf(false)
-        private set
-
-    // GNSS с гистерезисом. Главный поток устанавливает сигнал в одной точке.
     fun updateDriving(value: Boolean) {
-        moving = value
         driving = value
-        if (value) updateParked(false)
         if (!value) {
             main.removeCallbacks(clearSeekHint)
-            seekHint = null
+            seekHintSeconds = null
         }
+        changed()
     }
-
-    var seekHint by mutableStateOf<String?>(null)
-        private set
-    private val clearSeekHint = Runnable { seekHint = null }
 
     internal fun onSeekPaused(remainingMillis: Long) {
         main.removeCallbacks(clearSeekHint)
-        seekHint = seekPauseHint(driving, remainingMillis)
-        if (seekHint != null) main.postDelayed(clearSeekHint, 2000L)
+        seekHintSeconds = seekPauseSeconds(driving, remainingMillis)
+        if (seekHintSeconds != null) main.postDelayed(clearSeekHint, 2000)
+        changed()
     }
 
-    var moduleState by mutableStateOf(ConnectionState.Disconnected)
-        private set
-    var audioState by mutableStateOf(AudioState.Stopped)
-        private set
-    var currentStation by mutableStateOf<fm.heterodyne.app.stations.StationEntry?>(null)
-        private set
-    val activeEntries get() = session.activeEntries
-    var transition by mutableStateOf(TransitionSnapshot(
-        TransitionState.Disconnected, null, null))
-        private set
-    private var cursor: StationEntry? = null
-
-    fun pickStation(entry: StationEntry) {
-        cancelAutostart()
-        if (moduleState != ConnectionState.Observing) return
-        cursor = entry
-        selectStation(entry)
-        startAudio()
-    }
-
-    fun nextStation(direction: Direction) {
-        cancelAutostart()
-        val state = session.screen.state ?: return
-        val entries = state.regionSelections(state.selectedRegion).active.entries
-        if (entries.isEmpty()) return
-        val confirmed = transition.confirmed
-        val index = entries.indexOfFirst {
-            if (cursor != null) it.frequencyKhz == cursor?.frequencyKhz
-            else confirmed?.band == Band.FM && it.frequencyKhz == confirmed?.frequencyKhz
-        }
-        val next = if (index < 0) {
-            if (direction == Direction.Up) 0 else entries.lastIndex
-        } else Math.floorMod(index + if (direction == Direction.Up) 1 else -1, entries.size)
-        pickStation(entries[next])
-    }
-
-    fun step(direction: Direction) { cursor = null; stepStation(direction) }
-    fun seek(direction: Direction) { if (!capabilities.seek) return; cancelAutostart(); cursor = null; usb.seek(direction) }
-    fun checkConnection() { usb.checkConnection() }
-    var noFocus by mutableStateOf(false)
-        private set
     private var opening = 0L
     private var applicationOpened = false
     fun openApplication(restoredActivity: Boolean = false) {
-        // A restored Activity in a new process still represents an application opening.
         if (restoredActivity && applicationOpened) return
         applicationOpened = true
         val token = ++opening
-        val generation = usb.openingGeneration()
+        val cancellation = usb.openingGeneration()
         session.readLaunchStation { station -> main.post {
-            if (opening == token) usb.openApplication(station, generation)
+            if (opening == token)
+                usb.openApplication(station, cancellation)
         } }
     }
-    private fun cancelAutostart() { opening++; noFocus = false; usb.cancelAutostart() }
-
+    internal fun cancelAutostart() { opening++; noFocus = false; usb.cancelAutostart() }
     val audioCounters get() = usb.audioCounters
 
-    internal lateinit var usb: AndroidUsbAdapter
-        private set
+    internal val usb: AndroidUsbAdapter = AndroidUsbAdapter(context, profiles = profiles,
+        additionalReceivers = additionalReceivers, fixture = fixture, worker = worker,
+        readLaunchStation = session::readLaunchStation, seekPaused = ::onSeekPaused,
+        autostartPlayback = { completed ->
+            completed(runCatching {
+                context.startForegroundService(Intent(context, PlaybackService::class.java)
+                    .putExtra(PlaybackService.EXTRA_AUTOSTART, true))
+            }.isSuccess)
+        }, noFocusChanged = { noFocus = it; changed() },
+        focusChanged = { focusEffect = it; changed() },
+        stationChanged = ::remember,
+        observed = { next ->
+            if (generation != next.generation) {
+                noFocus = false
+                seekHintSeconds = null
+                manualStartPending = false
+            }
+            observation = next
+            audioState = next.audio
+            changed()
+        }, audioChanged = {
+            audioState = it
+            manualStartPending = false
+            changed()
+        })
 
-    init {
-        usb = AndroidUsbAdapter(context, profiles = profiles, additionalReceivers = additionalReceivers, fixture = fixture,
-            selectionChanged = { kind, features ->
-                selectedReceiver = kind
-                capabilities = features ?: fm.heterodyne.app.receiver.ReceiverCapabilities(false, false, false, false, false)
-                cursor = null
-                currentStation = null
-            },
-            readLaunchStation = session::readLaunchStation,
-            autostartPlayback = { completed ->
-                try {
-                    context.startForegroundService(android.content.Intent(context, fm.heterodyne.app.audio.PlaybackService::class.java)
-                        .putExtra(fm.heterodyne.app.audio.PlaybackService.EXTRA_AUTOSTART, true))
-                    completed(true)
-                } catch (_: Exception) {
-                    // Includes ForegroundServiceStartNotAllowedException; the worker logs and releases its lease.
-                    completed(false)
-                }
-            }, noFocusChanged = { noFocus = it }, stationChanged = { band, frequency ->
-            main.post {
-                currentStation = if (frequency == null || band != Band.FM) null
-                else fm.heterodyne.app.stations.StationEntry(frequency)
-            }
-            if (frequency != null && isSelectableFrequency(band, frequency)) {
-                session.rememberStation(band, frequency) {}
-            }
-        }, changed = { state ->
-            main.post {
-                moduleState = state
-                if (state == fm.heterodyne.app.module.ConnectionState.Disconnected) {
-                    currentStation = null
-                    noFocus = false
-                }
-            }
-        }, audioChanged = { counters -> main.post { audioState = counters.state } },
-            seekPaused = ::onSeekPaused, transitionObserved = { snapshot -> main.post {
-                if (snapshot.target == null && cursor?.let {
-                    snapshot.confirmed?.band == Band.FM && it.frequencyKhz == snapshot.confirmed?.frequencyKhz
-                } == true) cursor = null
-                if (snapshot.state == TransitionState.Disconnected) cursor = null
-                transition = snapshot
-            } })
+    private fun remember(band: Band, frequency: Int, generation: Long) {
+        if (isSelectableFrequency(band, frequency))
+            session.rememberStation(band, frequency, valid = { generation == usb.connectionGeneration }) {}
     }
 
-    fun retryModulePermission() { usb.retry() }
-    fun startAudio() {
+    @Volatile private var playbackIntent = 0L
+    private var manualReceiver: () -> Boolean = { true }
+    private var manualStartPending = false
+    private var stoppedByUser = false
+    internal fun startAudio(reclaim: Boolean = false) {
         cancelAutostart()
+        if (manualStartPending) return
+        if (!reclaim && !stoppedByUser && audioState in listOf(AudioState.Playing, AudioState.Starting)) return
+        manualStartPending = stoppedByUser || audioState !in listOf(AudioState.Playing, AudioState.Starting)
+        val intent = ++playbackIntent
+        val receiver = currentReceiver()
+        manualReceiver = { playbackIntent == intent && receiver() }
+        stoppedByUser = false
         session.setLastPlayed(true)
         startPlayback()
     }
     fun userStop() {
         cancelAutostart()
+        if (stoppedByUser) return
+        stoppedByUser = true
+        playbackIntent++
+        manualStartPending = false
         session.setLastPlayed(false)
         usb.stopAudio()
     }
-    fun updatePlaybackService(active: Boolean) { usb.updatePlaybackService(active) }
-    fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) { usb.playAudio(autostart, started, stopped) }
-    fun selectStation(entry: fm.heterodyne.app.stations.StationEntry) {
-        cancelAutostart(); usb.selectStation(entry)
+    fun updatePlaybackService(active: Boolean) {
+        if (!active) manualStartPending = false
+        usb.updatePlaybackService(active)
     }
-    fun stepStation(direction: fm.heterodyne.app.module.Direction) { cancelAutostart(); usb.stepStation(direction) }
-    fun seekStation(direction: Direction) = seek(direction)
-    fun reclaimAudioFocus(completed: () -> Unit) { usb.reclaimAudioFocus(completed) }
-    fun stopAudio() { usb.stopAudio() }
-
-    fun activateSelection(name: String) { cursor = null; session.activateSelection(name) }
-    fun selectRegion(id: String) { cursor = null; session.selectRegion(id) }
-    fun deleteObsoleteRegion(id: String) { cursor = null; session.deleteObsoleteRegion(id) }
+    fun playAudio(autostart: Boolean = false, started: () -> Unit = {}, stopped: () -> Unit) {
+        if (!autostart && (stoppedByUser || !manualReceiver())) { stopped(); return }
+        usb.playAudio(autostart, started, stopped, if (autostart) currentReceiver() else manualReceiver)
+    }
+    internal fun currentReceiver(): () -> Boolean {
+        val token = generation
+        return { usb.connectionGeneration == token }
+    }
+    fun selectStation(entry: StationEntry) { cancelAutostart(); usb.wheelSelect(entry.frequencyKhz, currentReceiver()) }
+    fun seekStation(direction: Direction) {
+        if (capabilities.seek) { cancelAutostart(); usb.wheelSeek(direction, currentReceiver()) }
+    }
+    fun reclaimAudioFocus(completed: () -> Unit) = usb.reclaimAudioFocus(completed)
+    fun stopAudio() = usb.stopAudio()
 }
 
-internal fun seekPauseHint(driving: Boolean, remainingMillis: Long): String? =
-    if (driving) "Поиск доступен через ${maxOf(1L, remainingMillis / 1000 + if (remainingMillis % 1000 > 0) 1 else 0)} с"
-    else null
+internal fun seekPauseSeconds(driving: Boolean, remainingMillis: Long): Int? =
+    if (driving) ((remainingMillis + 999) / 1000).coerceAtLeast(1).toInt() else null

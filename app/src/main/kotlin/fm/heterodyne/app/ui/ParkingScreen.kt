@@ -1,5 +1,9 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ScaleMarker
+import fm.heterodyne.app.host.SeekPreferences
+import fm.heterodyne.app.host.ThemeChoice
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background

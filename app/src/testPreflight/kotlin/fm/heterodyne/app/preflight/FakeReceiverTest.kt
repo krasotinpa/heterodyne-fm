@@ -64,7 +64,7 @@ class FakeReceiverTest {
         orphan = tail
         receiver.receive()
         assertEquals(revision, receiver.stationRevision)
-        assertEquals(TuneTarget(Band.FM, 90300), receiver.snapshot.confirmed)
+        assertNull(receiver.snapshot.confirmed)
         assertNull(receiver.snapshot.target)
         receiver.receive()
         assertTrue(receiver.stationRevision > revision)

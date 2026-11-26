@@ -1,13 +1,10 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 /** Search duration only; command rate limits remain owned by ModuleController. */
 class SeekPreferences(private val preferences: SharedPreferences) {
-    var seconds by mutableStateOf(readSeconds(preferences))
+    var seconds = readSeconds(preferences)
         private set
 
     fun selectSeconds(value: Int) {

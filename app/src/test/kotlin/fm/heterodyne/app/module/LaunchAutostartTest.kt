@@ -347,8 +347,9 @@ class LaunchAutostartTest {
     }
 
     @Test fun timeoutClearsSelectionDelayedByBandLimitBeforeReleasingFocus() {
-        connect(); receive("fm28")
+        connect(); receive("am31")
         assertEquals(TuneResult.Sent, module.switchBand())
+        receive("fm28")
         receive("am31")
         now = 1000
         launch.open(true, TuneTarget(Band.FM, 108000)); receive("am31")

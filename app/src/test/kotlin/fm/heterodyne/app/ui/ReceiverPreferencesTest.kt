@@ -1,5 +1,6 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ReceiverPreferences
 import android.app.Application
 import android.content.Context
 import fm.heterodyne.app.receiver.ReceiverKind

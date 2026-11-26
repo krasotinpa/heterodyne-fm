@@ -130,10 +130,10 @@ class EfirScreenTest {
     }
 
     @Test fun seekHintRoundsUpOnlyWhileDriving() {
-        assertEquals("Поиск доступен через 4 с", fm.heterodyne.app.seekPauseHint(true, 4000))
-        assertEquals("Поиск доступен через 5 с", fm.heterodyne.app.seekPauseHint(true, 4001))
-        assertEquals("Поиск доступен через 1 с", fm.heterodyne.app.seekPauseHint(true, 1))
-        assertEquals(null, fm.heterodyne.app.seekPauseHint(false, 4000))
+        assertEquals(4, fm.heterodyne.app.seekPauseSeconds(true, 4000))
+        assertEquals(5, fm.heterodyne.app.seekPauseSeconds(true, 4001))
+        assertEquals(1, fm.heterodyne.app.seekPauseSeconds(true, 1))
+        assertEquals(null, fm.heterodyne.app.seekPauseSeconds(false, 4000))
     }
 
     @Test fun seekGroupKeepsFixedWidthInParkingPauseAndDriving() {

@@ -1,4 +1,4 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 /** Monotonic milliseconds and GNSS speed in metres per second. No data means parked. */
 data class DrivingState(

@@ -1,5 +1,7 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.Palette
+import fm.heterodyne.app.host.ResolvedTheme
 /** Approved design v1 values. Parity with tokens.json is checked by DesignTokensTest. */
 object DesignTokens {
     val values: Map<String, String> = mapOf(

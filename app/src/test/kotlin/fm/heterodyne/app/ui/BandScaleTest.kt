@@ -1,5 +1,6 @@
 package fm.heterodyne.app.ui
 
+import fm.heterodyne.app.host.ScaleMarker
 import android.app.Application
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.test.*

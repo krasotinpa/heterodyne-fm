@@ -56,6 +56,29 @@ class CatalogSessionTest {
         } finally { dir.deleteRecursively(); file.delete() }
     }
 
+    @Test fun installedCatalogSurvivesContextLossImmediatelyAfterCommit() {
+        val context = RuntimeEnvironment.getApplication()
+        val dir = context.filesDir.resolve("committed-catalog")
+        var allowed = true
+        val store = CatalogStore(dir, AssetsCatalogReader { context.assets.open("catalogs/$it") },
+            move = { from, to ->
+                java.nio.file.Files.move(from.toPath(), to.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+                allowed = false
+            })
+        try {
+            val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
+                network = Executor { it.run() }, onlineCatalog = { testSetReader() }, catalogStore = store)
+            session.captureAccess = { { allowed } }
+            session.load {}
+            session.allowCatalogUpdate(true)
+            session.updateCatalog()
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(listOf("test"), session.screen.catalogs.map { it.region.id })
+            assertEquals(store.active().catalogs, session.screen.catalogs)
+            assertNull(session.screen.catalogUpdateResult)
+        } finally { dir.deleteRecursively() }
+    }
+
     @Test fun drivingAndBackgroundRejectNetworkAndCancelQueuedAndActiveUpdates() {
         val context = RuntimeEnvironment.getApplication()
         val queued = java.util.ArrayDeque<Runnable>()

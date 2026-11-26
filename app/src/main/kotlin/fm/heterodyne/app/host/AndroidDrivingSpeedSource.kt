@@ -1,4 +1,4 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 import android.Manifest
 import android.content.Context

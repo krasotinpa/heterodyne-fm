@@ -12,7 +12,7 @@ enum class Band { AM, FM, DAB }
 fun isSelectableFrequency(band: Band, frequencyKhz: Int): Boolean =
     band == Band.FM && frequencyKhz in 87500..108000 && (frequencyKhz - 87500) % 100 == 0
 
-enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, RateLimited, TransportError }
+enum class TuneResult { Sent, InvalidFrequency, NotConnected, BandNotFM, IncompatibleState, RateLimited, TransportError }
 
 enum class TransitionState { Idle, Waiting, Unconfirmed, Unresponsive, Disconnected, CommandPause, Seeking, SeekIncomplete }
 data class TuneTarget(val band: Band, val frequencyKhz: Int)
@@ -49,6 +49,7 @@ class ModuleController(
     private val transitionStarted: (Boolean) -> Unit = {},
     private val transitionConfirmed: () -> Unit = {},
     private val transitionCommandSent: (Long) -> Unit = {},
+    private val deferredFailure: (TuneResult) -> Unit = {},
     private val beforeTick: () -> Unit = {},
     private val moduleReturning: () -> Unit = {},
     private val onReadAudioCounters: () -> AudioCounters = { AudioCounters() },
@@ -151,7 +152,10 @@ class ModuleController(
             return
         }
         if (start != null && now - start > 300) radio(TransitionState.Waiting)
-        if (dispatchPending && target != null) dispatch()
+        if (dispatchPending && target != null) {
+            val outcome = dispatch()
+            if (outcome == TuneResult.IncompatibleState || outcome == TuneResult.TransportError) deferredFailure(outcome)
+        }
         if (transitionState == TransitionState.CommandPause && now >= pauseUntil)
             radio(TransitionState.Idle)
     }
@@ -170,7 +174,8 @@ class ModuleController(
             }
             if (seeking != null) seekReply = clock()
             val station = actualStation(band, cid)
-            if (station != null) { confirmed = station; stationRevision++ }
+            confirmed = station
+            if (station != null) stationRevision++
             val goal = target
             val actual = station?.frequencyKhz
             if (selected && goal != null && goal.band == band && goal.frequencyKhz == actual) {
@@ -232,11 +237,20 @@ class ModuleController(
         publish()
     }
 
+    /** Retain the reply/deadline for a command already on the wire. */
+    fun discardUnsentTarget() {
+        if (target != null && !selected) cancelSelection()
+    }
+
     private fun dispatch(): TuneResult {
         val goal = target ?: return TuneResult.RateLimited
         if (selected || bandReply != null) return TuneResult.RateLimited
         val now = clock()
         if (band != goal.band) {
+            if (band != Band.AM) {
+                cancelSelection()
+                return TuneResult.IncompatibleState
+            }
             if (lastBand?.let { now - it < 2000 } == true) return TuneResult.RateLimited
             if (started == null) started = now
             lastBand = now
@@ -261,15 +275,20 @@ class ModuleController(
         signalDispatched = true
         transitionCommandSent(now)
     }
+    fun reselectCurrent(): TuneResult {
+        val station = confirmed?.takeIf { band == Band.FM && it.band == Band.FM } ?: return TuneResult.BandNotFM
+        if (target != null || lastSend?.let { clock() - it < 1000 } == true) return TuneResult.RateLimited
+        return select(Band.FM, station.frequencyKhz)
+    }
+
     override fun switchBand(): TuneResult {
-        tick()
         if (state != ConnectionState.Observing) return TuneResult.NotConnected
-        if (band != Band.FM && band != Band.AM) return TuneResult.BandNotFM
+        if (band != Band.AM) return TuneResult.BandNotFM
         if (started != null || stepStarted != null || seeking != null || target != null ||
             lastBand?.let { clock() - it < 2000 } == true) return TuneResult.RateLimited
         lastBand = clock()
         started = clock()
-        bandReply = if (band == Band.FM) Band.AM else Band.FM
+        bandReply = Band.FM
         return send(0x84)
     }
 
@@ -438,6 +457,7 @@ class ModuleController(
     }
     override fun close() { try { disconnect() } finally { profile = null } }
     private fun disconnect() {
+        confirmed = null
         actionPause = null
         seekCommandPause = null
         probeNeeded = false

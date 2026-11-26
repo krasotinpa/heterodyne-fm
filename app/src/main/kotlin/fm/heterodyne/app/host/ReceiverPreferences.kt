@@ -1,16 +1,13 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import fm.heterodyne.app.receiver.ReceiverKind
 
 /** Хранит вид Приёмника. Не открывает USB и не запускает звук. */
 class ReceiverPreferences(private val preferences: SharedPreferences) {
-    var kind by mutableStateOf(preferences.getString("kind", null)?.let {
+    var kind = preferences.getString("kind", null)?.let {
         runCatching { ReceiverKind(it) }.getOrNull()
-    })
+    }
         private set
 
     fun selectKind(value: ReceiverKind) {

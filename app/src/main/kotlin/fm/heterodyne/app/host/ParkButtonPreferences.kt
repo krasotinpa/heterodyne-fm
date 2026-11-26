@@ -1,15 +1,12 @@
-package fm.heterodyne.app.ui
+package fm.heterodyne.app.host
 
 import android.content.SharedPreferences
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 
 /** Appearance only; selections apply immediately and survive a new launch. */
 class ParkButtonPreferences(private val preferences: SharedPreferences) {
-    var showLabel by mutableStateOf(preferences.getBoolean("showLabel", true))
+    var showLabel = preferences.getBoolean("showLabel", true)
         private set
-    var largeIcon by mutableStateOf(preferences.getBoolean("largeIcon", false))
+    var largeIcon = preferences.getBoolean("largeIcon", false)
         private set
 
     fun selectShowLabel(value: Boolean) {

@@ -12,7 +12,8 @@ data class AudioCounters(
     val underruns: Int = 0,
     val state: AudioState = AudioState.Stopped,
     val maxReadGapMs: Long = 0,
-    val minBufferedFrames: Long = 0,
+    val minBufferedFrames: Long? = null,
+    val hasReadGapSample: Boolean = false,
     val longPauses: Int = 0,
     val lostLogRecords: Long = 0,
     val logWriteFailures: Long = 0,
@@ -130,7 +131,8 @@ class AudioPlayback(
     private fun readAudio() {
         val loop = checkNotNull(receiver)
         val now = nanoTime()
-        val gap = if (lastReadStartedPlaying && loop.playing) (now - lastRead) / 1_000_000 else 0
+        val sampledGap = lastReadStartedPlaying && loop.playing
+        val gap = if (sampledGap) (now - lastRead) / 1_000_000 else 0
         lastRead = now
         lastReadStartedPlaying = loop.playing
         if (loop.playing && playingSince == null) playingSince = now
@@ -156,7 +158,8 @@ class AudioPlayback(
             underruns = if (count > 0 || loop.playing) sink.underruns() else snapshot.underruns,
             state = if (loop.playing) AudioState.Playing else AudioState.Starting,
             maxReadGapMs = maxGap,
-            minBufferedFrames = if (minimum == Long.MAX_VALUE) 0 else minimum)
+            hasReadGapSample = snapshot.hasReadGapSample || sampledGap,
+            minBufferedFrames = minimum.takeUnless { it == Long.MAX_VALUE })
     }
 
     /** Called only by the Module worker; no journal or UI callback runs on the audio thread. */

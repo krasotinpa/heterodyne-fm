@@ -1,9 +1,7 @@
 package fm.heterodyne.app
 
 import android.os.Handler
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
+import fm.heterodyne.ui.contract.*
 import fm.heterodyne.app.usb.AndroidUsbAdapter
 
 class StationsDiagnostics(
@@ -11,6 +9,7 @@ class StationsDiagnostics(
     private val main: Handler,
     private val usb: AndroidUsbAdapter,
 ) {
+    internal var changed: () -> Unit = {}
     fun drivingEvent(text: String) { usb.probeEvent(text) }
 
     val audioCounters get() = usb.audioCounters
@@ -18,15 +17,15 @@ class StationsDiagnostics(
 
     @Volatile private var probeEnabled = false
     @Volatile private var probeUiMode = context.resources.configuration.uiMode
-    var environmentProbeLines by mutableStateOf(emptyList<String>())
+    var environmentProbeLines = emptyList<String>()
         private set
     private val probeThread = lazy {
         android.os.HandlerThread("EnvironmentProbe").apply { start() }
     }
     private val probeHandler by lazy { Handler(probeThread.value.looper) }
     private val environmentProbe by lazy {
-        fm.heterodyne.app.ui.EnvironmentProbe(
-            fm.heterodyne.app.ui.AndroidEnvironmentProbe(context, probeHandler) { probeUiMode },
+        fm.heterodyne.app.host.EnvironmentProbe(
+            fm.heterodyne.app.host.AndroidEnvironmentProbe(context, probeHandler) { probeUiMode },
             android.os.SystemClock::elapsedRealtime,
         ) { if (probeEnabled) usb.probeEvent(it) }
     }
@@ -69,27 +68,31 @@ class StationsDiagnostics(
         }
         enableProbe(developerMode.enabled)
     }
-    var exportBusy by mutableStateOf(false)
+    var export: ExportState = ExportState.Idle
         private set
-    var diagnosticMessage by mutableStateOf<String?>(null)
-        private set
-    val diagnosticFrames get() = usb.frames
-    fun readJournal(done: (String) -> Unit) { usb.readJournal { text -> main.post { done(text) } } }
-    fun exportJournal() {
+    val exportBusy get() = export == ExportState.InProgress
+
+    fun exportJournal(valid: () -> Boolean) {
         if (exportBusy) return
-        exportBusy = true
-        diagnosticMessage = null
-        usb.exportJournal(MediaStoreDownloads(context.contentResolver)) { result -> main.post {
-            exportBusy = false
-            diagnosticMessage = result.fold(
-                { "Журнал сохранён: ${it.path}, ${it.sizeBytes} байт" },
-                { "Не удалось записать Журнал" },
-            )
+        export = ExportState.InProgress
+        changed()
+        usb.exportJournal(MediaStoreDownloads(context.contentResolver), valid) { result -> main.post {
+            export = result?.fold({ ExportState.Exported(it.path, it.sizeBytes) }, { ExportState.Failed }) ?: ExportState.Idle
+            changed()
         } }
     }
-    fun diagnosticCommand(command: fm.heterodyne.app.usb.DiagnosticCommand) {
-        if (!developerMode.enabled || exportBusy) return
-        usb.diagnosticCommand(command) { result -> main.post { diagnosticMessage = "${command.label}: $result" } }
-    }
 
+    fun readJournal(done: (String) -> Unit) = usb.readJournal { text -> main.post { done(text) } }
+
+    fun readDetail(valid: () -> Boolean, done: (DeveloperDetail) -> Unit) {
+        val counters = audioCounters
+        val metrics = AudioMetrics(counters.bytes, counters.badPackets, counters.realignments, counters.underruns,
+            counters.maxReadGapMs.takeIf { counters.hasReadGapSample }, counters.longPauses, counters.minBufferedFrames, counters.lostLogRecords, counters.logWriteFailures)
+        val frames = usb.frames.snapshot().readOnly()
+        val byte7 = usb.frames.byte7
+        val lines = environmentProbeLines.readOnly()
+        usb.readJournal(valid) { journal -> main.post {
+            done(DeveloperDetail(emptySet(), frames, journal, metrics, lines, byte7, null))
+        } }
+    }
 }
