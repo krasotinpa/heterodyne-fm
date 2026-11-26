@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ui-compose-standalone"
-include(":ui-contract", ":ui-compose")
+include(":ui-contract", ":ui-compose", ":ui-sandbox")
 project(":ui-contract").projectDir = file("../../ui-contract")
 project(":ui-compose").projectDir = file("../../ui-compose")
+project(":ui-sandbox").projectDir = file("../../ui-sandbox")
