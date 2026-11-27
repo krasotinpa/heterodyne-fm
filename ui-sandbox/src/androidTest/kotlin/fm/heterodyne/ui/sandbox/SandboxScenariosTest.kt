@@ -58,7 +58,7 @@ class SandboxScenariosTest {
         scenario("Переход")
         next()
         ui.activityRule.scenario.recreate()
-        text("300 мс").assertExists()
+        text("301 мс").assertExists()
         ui.onNodeWithTag("efir-status").assertTextEquals("ожидание")
         ui.onNodeWithTag("next-cue").assertTextEquals("Далее · Ответ")
         text("+1 с").performClick()

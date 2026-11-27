@@ -21,14 +21,15 @@ class ScriptedRadioUiTest {
         val radio = ScriptedRadioUi(Scenario.TuneTimeout)
         val state = { radio.state.value }
         assertEquals(101200, state().tuning.targetKhz)
-        radio.advanceBy(299)
+        radio.advanceBy(300)
         assertEquals(TuningPhase.Idle, state().tuning.phase)
         radio.advanceBy(1)
         assertEquals(TuningPhase.Waiting, state().tuning.phase)
-        radio.advanceBy(2699)
+        radio.advanceBy(2698)
         assertEquals(TuningPhase.Waiting, state().tuning.phase)
         radio.advanceBy(1)
         assertEquals(TuningPhase.Unconfirmed, state().tuning.phase)
+        assertNull(state().tuning.targetKhz)
         assertEquals(90300, state().tuning.confirmed?.frequencyKhz)
         assertTrue(Control.CheckConnection in state().enabled)
         assertEquals(Admission.Accepted, radio.dispatch(RadioAction.CheckConnection))
@@ -36,6 +37,32 @@ class ScriptedRadioUiTest {
         radio.advanceBy(3000)
         assertEquals(TuningPhase.Unresponsive, state().tuning.phase)
         assertEquals(90300, state().tuning.confirmed?.frequencyKhz)
+    }
+
+    @Test fun stopRemainsAvailableAfterDetach() = runBlocking {
+        val radio = ScriptedRadioUi(Scenario.Working)
+        assertEquals(Admission.Accepted, radio.dispatch(RadioAction.Start))
+        radio.detach()
+
+        assertEquals(Connection.Disconnected, radio.state.value.receiver.connection)
+        assertTrue(Control.Stop in radio.state.value.enabled)
+        assertEquals(Admission.Accepted, radio.dispatch(RadioAction.Stop))
+        assertEquals(PlaybackStatus.Stopped, radio.state.value.playback.status)
+    }
+
+    @Test fun manualTuneBecomesAvailableWhenTheLinkCheckExpires() = runBlocking {
+        val radio = ScriptedRadioUi(Scenario.TuneTimeout)
+        val tune = RadioAction.TuneFrequency(97700)
+        radio.advanceBy(3000)
+        assertEquals(Admission.Accepted, radio.dispatch(RadioAction.CheckConnection))
+        assertFalse(Control.TuneFrequency in radio.state.value.enabled)
+        assertEquals(Admission.Rejected(RejectReason.Busy), radio.dispatch(tune))
+
+        radio.advanceBy(3000)
+        assertTrue(Control.TuneFrequency in radio.state.value.enabled)
+        assertEquals(Admission.Accepted, radio.dispatch(tune))
+        assertEquals(97700, radio.state.value.tuning.targetKhz)
+        assertEquals(90300, radio.state.value.tuning.confirmed?.frequencyKhz)
     }
 
     @Test fun repeatSeekCannotExtendTheDeadlineOrChangeItsDirection() = runBlocking {
