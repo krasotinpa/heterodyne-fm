@@ -447,7 +447,7 @@ class AndroidUsbAdapter(
     }
 
     private fun discover() {
-        val devices = fixture?.let { if (fixtureConnected) listOf(it.profile) else emptyList() } ?: manager.deviceList.values.mapNotNull { device ->
+        val devices = fixture?.let { if (fixtureConnected) listOf(it.profile) + it.otherDevices else it.otherDevices } ?: manager.deviceList.values.mapNotNull { device ->
             UsbDiscovery.find(device.description(), profiles)
         }
         val before = selection.selectedKind
