@@ -21,11 +21,11 @@ class ScriptedRadioUiTest {
         val radio = ScriptedRadioUi(Scenario.TuneTimeout)
         val state = { radio.state.value }
         assertEquals(101200, state().tuning.targetKhz)
-        radio.advanceBy(299)
+        radio.advanceBy(300)
         assertEquals(TuningPhase.Idle, state().tuning.phase)
         radio.advanceBy(1)
         assertEquals(TuningPhase.Waiting, state().tuning.phase)
-        radio.advanceBy(2699)
+        radio.advanceBy(2698)
         assertEquals(TuningPhase.Waiting, state().tuning.phase)
         radio.advanceBy(1)
         assertEquals(TuningPhase.Unconfirmed, state().tuning.phase)

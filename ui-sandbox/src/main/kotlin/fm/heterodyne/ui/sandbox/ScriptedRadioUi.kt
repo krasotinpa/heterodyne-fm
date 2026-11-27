@@ -44,10 +44,10 @@ internal class ScriptedRadioUi(val scenario: Scenario) : RadioUi {
                 if (snapshot.diagnostics.developerEnabled) add(Control.RefreshDiagnostics)
             } else {
                 if (!snapshot.moving) add(Control.EnterParking)
+                add(Control.Stop)
                 if (connected) {
                     add(Control.Start)
-                    add(Control.Stop)
-                    if (!seeking && !checkingLink && tuning.phase != TuningPhase.Unresponsive) {
+                    if (!seeking && !checkingLink) {
                         add(Control.SelectStation)
                         add(Control.TuneFrequency)
                         if (!snapshot.moving && Feature.Seek in snapshot.receiver.features &&
@@ -92,7 +92,7 @@ internal class ScriptedRadioUi(val scenario: Scenario) : RadioUi {
                 val station = StationView(target, current.stations.catalog.find { it.frequencyKhz == target }?.name)
                 tuning.copy(confirmed = station, saved = station, targetKhz = null, phase = TuningPhase.Idle)
             }
-            elapsed >= TIMEOUT_MILLIS -> tuning.copy(phase = TuningPhase.Unconfirmed)
+            elapsed >= TIMEOUT_MILLIS -> tuning.copy(phase = TuningPhase.Unconfirmed, targetKhz = null)
             elapsed >= WAIT_MILLIS -> tuning.copy(phase = TuningPhase.Waiting)
             else -> return
         }
@@ -139,6 +139,8 @@ internal class ScriptedRadioUi(val scenario: Scenario) : RadioUi {
         }
         if (control !in current.enabled) {
             val reason = when {
+                checkingLink && current.mode == ScreenMode.Efir &&
+                    (control == Control.TuneFrequency || control == Control.SelectStation) -> RejectReason.Busy
                 current.tuning.phase == TuningPhase.Seeking -> RejectReason.Busy
                 current.receiver.connection == Connection.Disconnected && current.mode == ScreenMode.Efir -> RejectReason.NotConnected
                 control == Control.Seek && Feature.Seek !in current.receiver.features -> RejectReason.Unsupported
