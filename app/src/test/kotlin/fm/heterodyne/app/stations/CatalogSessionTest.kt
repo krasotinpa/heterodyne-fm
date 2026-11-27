@@ -40,7 +40,7 @@ class CatalogSessionTest {
         val file = File(context.filesDir, "stations.json")
         try {
             val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
-                network = Executor { it.run() }, onlineCatalog = { testSetReader() })
+                network = Executor { it.run() }, onlineCatalog = { catalogFixtureReader() })
             session.load {}; shadowOf(Looper.getMainLooper()).idle()
             val before = session.screen.state
             session.allowCatalogUpdate(true)
@@ -67,7 +67,7 @@ class CatalogSessionTest {
             })
         try {
             val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
-                network = Executor { it.run() }, onlineCatalog = { testSetReader() }, catalogStore = store)
+                network = Executor { it.run() }, onlineCatalog = { catalogFixtureReader() }, catalogStore = store)
             session.captureAccess = { { allowed } }
             session.load {}
             session.allowCatalogUpdate(true)
@@ -88,7 +88,7 @@ class CatalogSessionTest {
         session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { it.run() },
             network = Executor { queued.add(it) }, onlineCatalog = {
                 opened++
-                val reader = testSetReader()
+                val reader = catalogFixtureReader()
                 object : CatalogReader {
                     override fun read(name: String): ByteArray {
                         val bytes = reader.read(name)
@@ -137,7 +137,7 @@ class CatalogSessionTest {
                 file.writeBytes(bytes)
             })
         val session = StationsSession(context, Handler(Looper.getMainLooper()), Executor { tasks.add(it) },
-            network = Executor { it.run() }, onlineCatalog = { testSetReader() }, catalogStore = store)
+            network = Executor { it.run() }, onlineCatalog = { catalogFixtureReader() }, catalogStore = store)
         var worker: Thread? = null
         try {
             session.load {}; tasks.remove().run(); shadowOf(Looper.getMainLooper()).idle()
@@ -175,7 +175,7 @@ class CatalogSessionTest {
             load(original)
             val selections = original.screen.state!!.regions
             val store = CatalogStore(dir, AssetsCatalogReader { context.assets.open("catalogs/$it") })
-            assertTrue(store.install(testSetReader()).isSuccess)
+            assertTrue(store.install(catalogFixtureReader()).isSuccess)
             val updated = session()
             load(updated)
             assertEquals(listOf("Москва", "Тест", "Ярославль"), updated.screen.regions.map { it.name })
@@ -251,7 +251,7 @@ class CatalogSessionTest {
 
     @Test fun installedSetWithoutMoscowSupportsMissingAndSavedState() {
         val context = RuntimeEnvironment.getApplication()
-        val reader = testSetReader()
+        val reader = catalogFixtureReader()
         val dir = File(context.filesDir, "catalog")
         val file = File(context.filesDir, "stations.json")
         try {
@@ -273,13 +273,13 @@ class CatalogSessionTest {
             file.delete()
         }
     }
+}
 
-    private fun testSetReader(): CatalogReader {
-        val raw = javaClass.getResourceAsStream("/catalog-fixtures/valid/test.json")!!.use { it.readBytes() }
-        val hash = MessageDigest.getInstance("SHA-256").digest(raw).joinToString("") { "%02x".format(it) }
-        val index = JSONObject().put("schema", 1).put("revision", "2026-10-30")
-            .put("regions", JSONArray().put(JSONObject().put("id", "test").put("name", "Тест")
-                .put("file", "test.json").put("sha256", hash).put("revision", "2026-01-01")))
-        return CatalogReader { if (it == "index.json") index.toString().toByteArray() else raw }
-    }
+internal fun catalogFixtureReader(): CatalogReader {
+    val raw = CatalogReader::class.java.getResourceAsStream("/catalog-fixtures/valid/test.json")!!.use { it.readBytes() }
+    val hash = MessageDigest.getInstance("SHA-256").digest(raw).joinToString("") { "%02x".format(it) }
+    val index = JSONObject().put("schema", 1).put("revision", "2026-10-30")
+        .put("regions", JSONArray().put(JSONObject().put("id", "test").put("name", "Тест")
+            .put("file", "test.json").put("sha256", hash).put("revision", "2026-01-01")))
+    return CatalogReader { if (it == "index.json") index.toString().toByteArray() else raw }
 }

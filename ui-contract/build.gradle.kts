@@ -2,6 +2,7 @@ import org.gradle.api.artifacts.component.ModuleComponentIdentifier
 
 plugins {
     `java-library`
+    `java-test-fixtures`
     id("org.jetbrains.kotlin.jvm")
 }
 
@@ -14,6 +15,7 @@ kotlin {
 
 dependencies {
     api(libs.kotlinx.coroutines.core)
+    testFixturesImplementation(libs.junit)
 }
 
 tasks.check {
