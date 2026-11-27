@@ -11,4 +11,5 @@ class ReceiverFixture(
     val transport: UsbTransport,
     val source: AudioSource,
     val audioPort: UsbAudioPort,
+    val otherDevices: List<DeviceProfile> = emptyList(),
 )

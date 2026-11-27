@@ -29,6 +29,45 @@
 Test-first: ожидаемый отказ проверки → минимальная реализация → успешная проверка.
 Real fixtures имеют hash/provenance. Synthetic bytes доказывают negative handling, не hardware protocol.
 
+## Приёмка UI Contract v1 на этапе T
+
+[Общие сценарии](../ui-contract/src/testFixtures/kotlin/fm/heterodyne/ui/contract/RadioUiContractTest.kt) входят в тестовые сборки `:app` и `:ui-sandbox`.
+Оба запуска проверяют один набор ожидаемых снимков и результатов `dispatch`.
+Сценарии охватывают подтверждение, тайм-аут, ручной Переход при проверке связи и после неё, предел Поиска, движение и отключение выбранного Приёмника.
+После явного выбора второго Приёмника общий тест проверяет изменение статуса Stopped → Playing → Stopped.
+Sandbox получает события сценария. Application Adapter получает их через очереди Модуля, главного потока и Хранилища.
+
+| Интеграционный тест этапа T | Наблюдаемая гарантия |
+| --- | --- |
+| `stepPauseKeepsItsDeadlineAcrossSubscriptionsAndRejectsAnEarlyRepeat` | Новая подписка видит остаток исходной паузы. Ранний Шаг получает RateLimited. В транспорт уходит один Шаг. |
+| `oldTuneCompletionCannotStartPlaybackAfterDetach` | Успешная отправка перед detach не запускает звук и не записывает lastPlayed после смены сеанса. |
+| `deniedLaunchFocusPublishesR25WithoutProbePlaybackOrRetry` | Android отклоняет запрос фокуса. Adapter публикует AutostartDenied. Число TX и запусков сервиса равно нулю. Ручной Старт доступен. |
+| `motionCancelsQueuedWriteAndDownloadedCatalogAfterParkingReopens` | Движение отзывает допуск записи Подборки и установки загруженного Справочника. Повторный вход сохраняет прежние данные и скрывает старый результат. |
+| `r26LimitsManualLinkChecksAndNeverRetriesOnTimeout` | Очередь Модуля соблюдает лимит проверки связи 10 с. После тайм-аута в транспорте остаются только запрошенные команды. |
+
+[Тесты Adapter этапа T](../app/src/test/kotlin/fm/heterodyne/app/AdapterContractTest.kt) используют fake transport и управляемые часы.
+При отключении Модуля второй синтетический Приёмник остаётся доступен для обнаружения.
+[Тесты этапа A](../app/src/test/kotlin/fm/heterodyne/app/ApplicationAdapterTest.kt) продолжают проверять следующие гарантии.
+
+| Интеграционный тест этапа A | Наблюдаемая гарантия |
+| --- | --- |
+| `contractScreenShowsOnlyObservedTuningAndParkingSendsNoRadioCommand` | Экран показывает наблюдаемую частоту. Навигация по Стоянке оставляет число TX равным нулю. |
+| `leavingDeveloperToolsRevokesQueuedDiagnosticWhileParkingStaysOpen` | Выход из Инструментов отменяет диагностическую команду в очереди. |
+| `publishedFocusFollowsPlaybackAndIgnoresOldFocusCallbacks` | Политика фокуса публикует текущий эффект и игнорирует старый callback после остановки. |
+| `queuedAutostartReadCannotRestartAfterUserStop` | Стоп отменяет автозапуск до завершения чтения Хранилища. |
+| `parkingEditAndDiagnosticCannotRunAfterExitAndReentry` | Повторный вход на Стоянку не восстанавливает допуск старых записи и TX. |
+| `stopBetweenTuneAndItsCompletionKeepsPlaybackStopped` | Позднее завершение Перехода сохраняет остановку и сброшенный lastPlayed. |
+| `workerReportsBusyWhenStepPrecedesTuneInTheQueue` | Шаг опережает Переход. Adapter публикует Busy без лишнего TX и Старта. |
+| `diagnosticBandRechecksAmAtTheActualSend` | При FM и неизвестном диапазоне ReturnToFm даёт ноль TX. Очередь повторно проверяет диапазон. |
+| `acceptedTargetSurvivesMatchingRxBeforeItsSend` | Совпавший RX до отправки оставляет цель в очереди. Совпадение после разрешённой отправки снимает цель. |
+| `screenSeekExpiresButWheelStillOperatesWithoutAnActivity` | Предел завершает экранный Поиск. Руль сохраняет допуск в фоне. |
+| `changedBandRejectsDeferredSelectionWithoutSendingBand` | Смена диапазона отменяет отложенную цель и исключает лишний BAND. |
+| `parkingAfterSendPreservesPendingConfirmation` | Вход на Стоянку сохраняет ожидаемое подтверждение уже отправленного Перехода. |
+| `userCheckSkipsProbeWhenRxRestoresConnectionInQueue` | RX до обработки ручной проверки связи отменяет её TX. |
+| `transportErrorIsPublishedWithItsDisconnect` | Ошибка записи появляется вместе с отключением вызвавшего её сеанса. |
+| `oldEditResultCannotShowInReopenedParking` | Поздняя ошибка формы не появляется после повторного входа на Стоянку. |
+| `lateRxCannotConfirmOrPersistInTheNextSession` | RX от прежнего поколения не меняет подтверждение и сохранённую частоту нового сеанса. |
+
 ## Hardware
 
 1. Проверь descriptors и CDC open по trace.

@@ -4,80 +4,18 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.*
 import fm.heterodyne.ui.compose.RadioContent
 import android.app.Application
-import android.os.Handler
-import android.os.Looper
-import fm.heterodyne.app.audio.AudioSource
-import fm.heterodyne.app.audio.UsbAudioPort
-import fm.heterodyne.app.module.DeviceProfile
-import fm.heterodyne.app.module.FakeTransport
-import fm.heterodyne.app.receiver.ReceiverFixture
 import fm.heterodyne.ui.contract.*
-import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
-import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
-import java.util.concurrent.ScheduledThreadPoolExecutor
-import java.util.concurrent.TimeUnit
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
-class ApplicationAdapterTest {
-    private val context = RuntimeEnvironment.getApplication()
-    private val main = Handler(Looper.getMainLooper())
-    private val transport = FakeTransport()
-    private val storage = ArrayDeque<Runnable>()
-    private val session = StationsSession(context, main, storage = { storage.add(it) })
-    private val worker = object : ScheduledThreadPoolExecutor(1) {
-        val tasks = ArrayDeque<Runnable>()
-        lateinit var poll: Runnable
-        override fun execute(task: Runnable) { tasks.add(task) }
-        override fun scheduleWithFixedDelay(task: Runnable, initial: Long, delay: Long, unit: TimeUnit) =
-            super.scheduleWithFixedDelay(task, 1, 1, TimeUnit.DAYS).also { poll = task }
-    }
-    private val audio = object : AudioSource, UsbAudioPort {
-        override fun open() = Unit
-        override fun read(out: ByteArray) = 0
-        override fun badPackets() = 0L
-        override fun close() = Unit
-        override fun claim() = Unit
-        override fun alt1() = Unit
-        override fun alt0() = Unit
-        override fun release() = Unit
-    }
-    private var starts = 0
-    private val module = StationsModule(context, main, session,
-        fixture = ReceiverFixture(DeviceProfile("synthetic"), transport, audio, audio), worker = worker) { starts++ }
-    private val adapter = ApplicationAdapter(context, module, session, StationsDiagnostics(context, main, module.usb))
-    private val radio: RadioUi = adapter
-    private fun send(action: RadioAction) = runBlocking { radio.dispatch(action) }
-    private fun drainStorage() {
-        while (storage.isNotEmpty()) storage.removeFirst().run()
-        shadowOf(main.looper).idle()
-    }
-    private fun drainWorker() {
-        while (worker.tasks.isNotEmpty()) worker.tasks.removeFirst().run()
-    }
-    private fun connect() {
-        adapter.foreground(true)
-        session.load {}
-        drainStorage()
-        module.usb.start()
-        drainWorker()
-        shadowOf(main.looper).idle()
-    }
-    private fun receive(cid: Int, fm: Boolean = true, mode: Int = if (fm) 0x20 else 0) {
-        val sum = -(0x22 + mode + cid)
-        val frame = ByteArray(71)
-        byteArrayOf(0xfa.toByte(), 0x55, 0, 0, 66, 0x22, mode.toByte(), cid.toByte()).copyInto(frame)
-        frame[70] = sum.toByte()
-        transport.enqueueReceived(frame)
-        worker.poll.run()
-    }
-    @org.junit.After fun close() { worker.shutdownNow() }
+class ApplicationAdapterTest : AdapterFixture() {
+    @org.junit.After fun tearDown() = close()
 
     @Config(qualifiers = "w1600dp-h800dp-land")
     @OptIn(ExperimentalTestApi::class)
@@ -318,7 +256,7 @@ class ApplicationAdapterTest {
         drainWorker()
         org.robolectric.shadows.ShadowSystemClock.advanceBy(java.time.Duration.ofSeconds(3))
         transport.enqueueReceived(byteArrayOf())
-        worker.poll.run()
+        poll()
         shadowOf(main.looper).idle()
         assertEquals(TuningPhase.Unconfirmed, radio.state.value.tuning.phase)
         assertEquals(Admission.Accepted, send(RadioAction.CheckConnection))

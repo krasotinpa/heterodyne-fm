@@ -81,10 +81,10 @@ internal fun disabledReason(connection: ConnectionState, phase: TransitionState,
     else -> null
 }
 
-internal fun TransitionSnapshot.pauseView(): CommandPauseView? = pause?.let {
+internal fun TransitionSnapshot.pauseView(timeSource: TimeSource): CommandPauseView? = pause?.let {
     val remaining = it.publishedAtMillis + it.remainingMillis - android.os.SystemClock.elapsedRealtime()
     CommandPauseView(PauseKind.valueOf(it.kind.name), Direction.valueOf(it.direction.name), it.durationMillis,
-        TimeSource.Monotonic.markNow() + remaining.milliseconds)
+        timeSource.markNow() + remaining.milliseconds)
 }
 
 internal val RadioAction.control: Control get() = when (this) {

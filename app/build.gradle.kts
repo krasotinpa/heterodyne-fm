@@ -93,6 +93,7 @@ dependencies {
     debugImplementation(libs.compose.ui.test.manifest)
     "preflightImplementation"(libs.compose.ui.test.manifest)
     testImplementation(libs.junit)
+    testImplementation(testFixtures(project(":ui-contract")))
     testImplementation(libs.json)
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test)

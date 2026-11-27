@@ -15,6 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlin.time.TimeSource
 
 /** The main looper admits UI intents and publishes snapshots. IO stays with its existing owner. */
 class ApplicationAdapter internal constructor(
@@ -22,6 +23,7 @@ class ApplicationAdapter internal constructor(
     private val module: StationsModule,
     private val session: StationsSession,
     private val diagnostics: StationsDiagnostics,
+    private val timeSource: TimeSource = TimeSource.Monotonic,
 ) : RadioUi {
     private val settings = RadioSettings(context)
     private var foreground = false
@@ -41,7 +43,7 @@ class ApplicationAdapter internal constructor(
     private var screen = session.screen
     private var stations = screen.view()
     private var pause = module.transition.pause
-    private var deadline = module.transition.pauseView()
+    private var deadline = module.transition.pauseView(timeSource)
     private val profiles = module.receiverKinds.map { ReceiverOption(ReceiverId(it.value), module.receiverName(it)) }.readOnly()
     private val snapshots = MutableStateFlow(snapshot())
     override val state = snapshots.asStateFlow()
@@ -112,7 +114,7 @@ class ApplicationAdapter internal constructor(
         }
         if (pause != module.transition.pause) {
             pause = module.transition.pause
-            deadline = module.transition.pauseView()
+            deadline = module.transition.pauseView(timeSource)
         }
         if (module.transition.target == null && cursor == module.currentStation?.frequencyKhz) cursor = null
         snapshots.value = snapshot()

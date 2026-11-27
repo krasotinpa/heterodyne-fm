@@ -2,7 +2,7 @@ package fm.heterodyne.ui.sandbox
 
 import fm.heterodyne.ui.contract.*
 
-internal const val WAIT_MILLIS = 300L
+internal const val WAIT_MILLIS = 301L // R26 starts Waiting after more than 300 ms.
 internal const val REPLY_MILLIS = 1000L
 internal const val TIMEOUT_MILLIS = 3000L
 internal const val SEEK_SECONDS = 20
