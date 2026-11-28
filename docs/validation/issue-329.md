@@ -55,6 +55,14 @@ MainActivity ──→ штатный RadioContent ──┐
 Он подтвердил 90,3 МГц на входе и 97,7 МГц после Перехода. Уведомление PlaybackService сохранилось в фоне.
 После пересоздания экран показал 97,7 МГц и Playing. «Stop» показал Stopped, уведомление исчезло.
 
+Повтор после review использовал `77616c7ef373780b6a031c8507a2454c6e0726d9` и AVD `issue-329-alternate-media`, ADB 5054 / `emulator-5588`.
+До запуска теста `adb -P 5054 -s emulator-5588 shell cmd notification allow_listener fm.heterodyne.app.preflight/fm.heterodyne.app.preflight.PreflightMediaListener 0` временно дал доступ к сессии.
+Из фона тест передал синтетический длинный `KEYCODE_MEDIA_NEXT` активной MediaSession через `MediaController`.
+После возврата и пересоздания экран показал 97,8 МГц и Playing. Журнал записал один `R26 Seeking` и `state=Playing freq=97800 streaming=true`.
+ADB вернул 0 и `OK (1 test)`. Команда `disallow_listener` вернула 0. Проверка списка разрешений подтвердила отзыв доступа.
+Прямой ввод `input keyevent --longpress` в первой попытке завершился тайм-аутом ожидания 97,8 МГц. Итоговый тест покрывает доставку события через активную MediaSession, как в E.
+SHA-256 preflight APK `40338f0d7c244bcf9660bae1f7e0518b32bfc0090b6847f3dddbc84de763a8e5`, test APK `6865af82ed4cb1348d1b210a4a3d4a71a7df0f588ebcfc3c1bd7cacb9b919232`.
+
 ## Контроль PNG из #328
 
 Запуск Sandbox на 5052 / `emulator-5584` вернул `Status: ok`.
@@ -128,7 +136,9 @@ E подтвердил DUCK (0,3), TRANSIENT (mute), GAIN (1,0) и LOSS с пр�
 Один AVD `issue-329-serial-d`, ADB 5057 / `emulator-5582`. Соседние AVD и сборки во время замера не запускались.
 `continuousPcm` держал 97,7 МГц и воспроизводил синтетический PCM 48 кГц, stereo, s16le через Android AudioTrack.
 Instrumentation вернула код 0, `OK (1 test)` и `D_CONTINUOUS state=Playing starts=1 frequency=97700`.
-Звуковой поток, Android AudioTrack и Журнал предоставили счётчики на четырёх отметках.
+Тест отсчитывает время от начала замера по `SystemClock.elapsedRealtime()` внутри Android. Байты, ошибки пакетов и выравнивания он читает из счётчиков `AudioTest`. [Run4AudioTest](../../app/src/androidTestPreflight/java/fm/heterodyne/app/test/Run4AudioTest.kt)
+`AudioPlayback.readAudio()` измеряет интервал между началами двух чтений в Playing по монотонным часам. Из этого интервала получены максимальная пауза и число пауз больше 100 мс. [AudioPlayback](../../app/src/main/kotlin/fm/heterodyne/app/audio/AudioPlayback.kt)
+Значение underrun даёт Android `AudioTrack.underrunCount`. Минимальный запас кадров берётся из оценок `AudioTest` и `AudioTrackSink`. Sink вычитает позицию воспроизведения из записанных кадров. Потери и ошибки записи берутся из счётчиков Журнала. [AndroidAudio](../../app/src/main/kotlin/fm/heterodyne/app/audio/AndroidAudio.kt)
 
 | Минута | Прошло, мс | Накоплено, байт | Underrun всего | Макс. пауза, мс | Мин. кадров | Пауз >100 мс |
 | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -149,13 +159,22 @@ Runner записал `completed-with-findings`, код 0. QEMU завершил
 `am start -W` и `ActivityTaskManager: Displayed` дали 1 977, 1 672 и 1 615 мс. Все три значения выше 200 мс. В то же время выполнялась другая фаза preflight на отдельном AVD.
 Первое открытие preflight на AVD 5052 / `emulator-5584` дало 2 167 мс в `am start -W`. Это отдельная синтетическая сборка.
 
-На штатном debug AVD `issue-329-frame`, ADB 5054 / `emulator-5588`, `HostTimingProbe` измерил нажатие «Стоянка».
-Проба отсчитала время от начала синтетического касания Compose до `registerFrameCommitCallback` окна. Android в этот момент отправляет кадр на композицию.
-Проба также подтвердила появление кнопки «← Эфир». Замер относится к Android-окну эмулятора.
-Пять замеров дали 27,05 / 19,17 / 27,61 / 25,45 / 27,31 мс при цели 100 мс. В это время также работал AVD фазы F.
-Команда `am instrument -w -r -e disableAnalytics true -e class fm.heterodyne.app.test.HostTimingProbe` через `EmulatorOnlyRunner` вернула 0 и `OK (1 test)`.
-Временная проба хранится в `.scratch/timing-src/HostTimingProbe.kt`, вывод — в `.scratch/preflight-fixtures/issue-329-frame/pixel-timing.log`.
-SHA-256 тестового APK пробы `ec64ed178a89c7959b60566c3059e030d041230f3118c315a5c9e9d188925907`.
+Первичная проба на AVD `issue-329-frame` дала 19,17–27,61 мс до передачи кадра окна. Review установил, что такой callback может предшествовать видимой реакции.
+Повтор использовал обычный `MainActivity` и системные часы кадров на AVD `issue-329-raster-native`, ADB 5054 / `emulator-5588`.
+`HostRasterProbe` передал касание через Android UiAutomation по границам кнопки «Стоянка». Он сравнил 55 устойчивых пикселей с изображением уже открытого меню. Все 55 совпали в первом принятом кадре каждой пробы.
+Нижний предел отсчитан от начала касания до запроса последнего кадра с прежним экраном. Верхний предел отсчитан до получения первого кадра с меню. Время включает задержку захвата.
+Команда `am instrument -w -r -e disableAnalytics true -e class fm.heterodyne.app.test.HostRasterProbe` через `EmulatorOnlyRunner` вернула 0 и `OK (1 test)`.
+
+| Проба | Последний кадр без меню, мс | Первый принятый кадр с меню, мс | Цель 100 мс |
+| ---: | ---: | ---: | --- |
+| 1 | 81,28 | 150,52 | Интервал пересекает порог |
+| 2 | 112,31 | 166,94 | Порог превышен |
+| 3 | 80,02 | 126,10 | Интервал пересекает порог |
+| 4 | 46,32 | 99,95 | Цель подтверждена |
+| 5 | 75,68 | 138,21 | Интервал пересекает порог |
+
+Проба хранится в `.scratch/timing-pixel-v2/HostRasterProbe.kt`, вывод — в `.scratch/preflight-fixtures/issue-329-raster-native/pixel-timing.log`.
+SHA-256 тестового APK пробы `8ca762474c8706efe7fd90803748f7bde7aeca62c9d03f343b3a379c162c81a2`.
 
 ## Офлайн gate
 
@@ -169,6 +188,13 @@ Gate выдал SHA-256 debug `a47bcd1e798d8d484cf3a16153a98087eb1069b7721bbd15c
 Gradle вывел `BUILD SUCCESSFUL in 51s` для основного Android gate.
 SHA-256 debug `ab6814ee6e4f3b3f6df40dbfae42b679e9a2f0489d8f14c67a5e5c8017a87352`. SHA-256 preflight совпал с артефактом G.
 Локальный журнал `.scratch/gate-with-g-fix.log`.
+
+## Независимое review
+
+Standards (GPT-6.2 Sol/high) и Spec (GPT-6.2 Astra/high) прочитали полный diff и семь файлов одной волной. Base `32819b3aee8f6f151e7e905e7d373b2578b644d7`. Head `c7b45b69059c86816d33d05e3787d3e1d8afb284`.
+SHA-256 снимка diff `d30452fb27a3f721adb6920feb379cb03236a8da923ab73d9a816faba8a9f630`.
+Обе проверки обнаружили, что первый замер мог считать кадр до видимой реакции. Spec также указал на недостающий media event при сменном UI и общее описание источников звуковых метрик.
+Пакет исправлений добавил синтетический Поиск через MediaSession в фоне, одно значение частоты для кнопки и команды, привязку замера к видимому меню и источники звуковых метрик.
 
 ## Приёмка на штатном ГУ
 
@@ -199,10 +225,10 @@ SHA-256 debug `ab6814ee6e4f3b3f6df40dbfae42b679e9a2f0489d8f14c67a5e5c8017a87352`
 | R17 | `not applicable`, RDS выключен в v1. |
 | R18 | `passed` в offline gate и Sandbox для скрытия недоступных действий и данных. |
 | R19, R20 | `passed` в A/B/C/X, G и offline gate для Регионов и Справочника. |
-| R21 | Эфир и пересоздание `passed`. Холодный старт AVD превысил цель 200 мс. Нажатие уложилось в 100 мс по кадру окна. Вид и отклик на ГУ `not tested`. |
+| R21 | Эфир и пересоздание `passed`. Холодный старт AVD превысил цель 200 мс. Одна проба видимого отклика подтвердила 100 мс, одна превысила порог, в трёх порог остался внутри интервала. Вид и отклик на ГУ `not tested`. |
 | R22 | `passed` в offline gate и Sandbox для шкалы, подтверждения и сохранённой частоты. |
 | R23 | `passed` в A/B/C/X и offline gate для меню Стоянки, настроек и форм. |
-| R24 | `passed` для синтетических событий в E. Физический руль `not tested`. |
+| R24 | `passed` для синтетических событий в E и длинного нажатия при сменном UI. Физический руль `not tested`. |
 | R25 | `passed` в F, G и offline gate для хранения и одного автозапуска. Зажигание ГУ `not tested`. |
 | R26 | `passed` в offline gate, E и F для подтверждения, пауз, задержек и тайм-аутов. |
 | R27 | `passed` в offline gate и Sandbox для режима разработчика и правил допуска. |
