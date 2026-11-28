@@ -275,7 +275,7 @@ class Run4UiTest {
             waitFor { app.radio.state.value.diagnostics.export is ExportState.Exported }
             val export = app.radio.state.value.diagnostics.export as ExportState.Exported
             val message = "Журнал сохранён: ${export.path}, ${export.sizeBytes} байт"
-            compose.onNodeWithText(message).assertIsDisplayed()
+            waitFor { compose.onNodeWithText(message).isDisplayed() }
             assertTrue(export.path.startsWith("Download/"))
             val added = names() - before
             assertEquals(1, added.size)

@@ -3,9 +3,11 @@ package fm.heterodyne.app
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.Composable
 import fm.heterodyne.ui.compose.RadioContent
+import fm.heterodyne.ui.contract.RadioUi
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
     private val stations get() = application as StationsApplication
     private val drivingHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val drivingMonitor: fm.heterodyne.app.host.DrivingMonitor by lazy {
@@ -66,6 +68,11 @@ class MainActivity : ComponentActivity() {
         probePermission.update(true,
             checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) ==
                 android.content.pm.PackageManager.PERMISSION_GRANTED)
-        setContent { RadioContent(stations.radio, onToolsClosed = stations.radio::closeTools) }
+        setContent { RenderRadio(stations.radio, onToolsClosed = stations.radio::closeTools) }
+    }
+
+    @Composable
+    protected open fun RenderRadio(radio: RadioUi, onToolsClosed: () -> Unit) {
+        RadioContent(radio, onToolsClosed = onToolsClosed)
     }
 }

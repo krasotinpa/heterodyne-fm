@@ -188,9 +188,18 @@ class Run4AudioTest {
                     compose.onNodeWithContentDescription("Поиск ▶").performClick()
                     confirm(target + 200)
                     val blocked = checkpoint()
-                    for (arrow in listOf("▶", "◀")) {
-                        compose.onNode(hasContentDescription("Поиск $arrow", substring = true))
-                            .assertIsNotEnabled().performTouchInput { click() }
+                    val cooldown = checkNotNull(app.radio.state.value.tuning.pause)
+                    // The ring can keep Compose busy until the real receiver deadline passes.
+                    // Stop test frame advancement while inspecting and tapping during the cooldown.
+                    compose.mainClock.autoAdvance = false
+                    try {
+                        for (arrow in listOf("▶", "◀")) {
+                            compose.onNode(hasContentDescription("Поиск $arrow", substring = true))
+                                .assertIsNotEnabled().performTouchInput { click() }
+                        }
+                        assertTrue("touches missed the seek cooldown", cooldown.deadline.hasNotPassedNow())
+                    } finally {
+                        compose.mainClock.autoAdvance = true
                     }
                     assertTrue("touch during seek cooldown sent TX", " TX " !in since(blocked))
                     noSignal(beforeSeek)
