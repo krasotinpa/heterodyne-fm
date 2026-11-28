@@ -22,7 +22,7 @@
 | Run 4 G | adb reboot и штатный cold boot собственного AVD | Новые загрузки, сохранённые Регион, Подборка, Станция, lastPlayed и Журналы. Один автозапуск после ручного открытия |
 | Run 4 F | Обычные процессы и синтетические detach/attach, задержка и потеря PCM | Переоткрытие и возвраты соблюдают lastPlayed и лимит. Stale-часть и потеря потока не запускают звук |
 | Run 4 Visual | Свой AVD, 3 разрешения × 2 масштаба × 2 темы | PNG каждого экрана и ошибки сверены по размерам и просмотрены. Отчёт указывает дефекты и условия |
-| Visual regression | Два фиксированных Efir состояния, API 35 native graphics | Bitmap совпадает с техническим PNG-эталоном; различия сохраняют actual PNG; это не приёмка ГУ |
+| Visual regression | [Матрица экранов, Тем и масштаба](agents/visual-tests.md#матрица-эталонов), API 35 native graphics | Bitmap совпадает с эталоном. Расхождение сохраняет actual и diff. Семантический тест проверяет скрытые действия. |
 | Run 4 Android UI | CLI, собственный AVD, обычный restart, Compose UI и MediaStore | Паспорт до ADB; A/B/C/X, сохранение после reinstall/restart; fixtures и HTTPS отдельно |
 | Preflight APK | Fake transport, синтетические ответы, PCM, manifest guard | Receiver подтверждает только RX; PCM имеет формат s16le stereo; физическая среда отвергается до Application wiring |
 
